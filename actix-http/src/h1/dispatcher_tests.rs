@@ -82,6 +82,7 @@ async fn late_request() {
         KeepAlive::Disabled,
         Duration::from_millis(100),
         Duration::ZERO,
+        None,
         false,
         None,
     );
@@ -149,6 +150,7 @@ async fn oneshot_connection() {
         KeepAlive::Disabled,
         Duration::from_millis(100),
         Duration::ZERO,
+        None,
         false,
         None,
     );
@@ -210,6 +212,7 @@ async fn keep_alive_timeout() {
         KeepAlive::Timeout(Duration::from_millis(200)),
         Duration::from_millis(100),
         Duration::ZERO,
+        None,
         false,
         None,
     );
@@ -289,6 +292,7 @@ async fn keep_alive_follow_up_req() {
         KeepAlive::Timeout(Duration::from_millis(500)),
         Duration::from_millis(100),
         Duration::ZERO,
+        None,
         false,
         None,
     );
@@ -453,6 +457,7 @@ async fn pipelining_ok_then_ok() {
             KeepAlive::Disabled,
             Duration::from_millis(1),
             Duration::from_millis(1),
+            None,
             false,
             None,
         );
@@ -523,6 +528,7 @@ async fn pipelining_ok_then_bad() {
             KeepAlive::Disabled,
             Duration::from_millis(1),
             Duration::from_millis(1),
+            None,
             false,
             None,
         );
@@ -586,6 +592,7 @@ async fn expect_handling() {
             KeepAlive::Disabled,
             Duration::ZERO,
             Duration::ZERO,
+            None,
             false,
             None,
         );
@@ -663,6 +670,7 @@ async fn expect_eager() {
             KeepAlive::Disabled,
             Duration::ZERO,
             Duration::ZERO,
+            None,
             false,
             None,
         );
@@ -746,6 +754,7 @@ async fn upgrade_handling() {
             KeepAlive::Disabled,
             Duration::ZERO,
             Duration::ZERO,
+            None,
             false,
             None,
         );
