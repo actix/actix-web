@@ -9,6 +9,7 @@ use bytes::BytesMut;
 use crate::{date::DateService, KeepAlive};
 
 /// A builder for creating a [`ServiceConfig`]
+#[derive(Default, Debug)]
 pub struct ServiceConfigBuilder {
     inner: Inner,
 }
@@ -75,16 +76,8 @@ impl ServiceConfigBuilder {
     }
 }
 
-impl Default for ServiceConfigBuilder {
-    fn default() -> Self {
-        Self {
-            inner: Inner::default(),
-        }
-    }
-}
-
 /// HTTP service configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ServiceConfig(Rc<Inner>);
 
 #[derive(Debug)]
@@ -109,12 +102,6 @@ impl Default for Inner {
             date_service: DateService::new(),
             h1_allow_half_closed: true,
         }
-    }
-}
-
-impl Default for ServiceConfig {
-    fn default() -> Self {
-        Self(Rc::default())
     }
 }
 
