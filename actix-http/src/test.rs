@@ -337,8 +337,8 @@ impl io::Read for TestSeqBuffer {
         let mut inner = self.0.borrow_mut();
 
         if inner.read_buf.is_empty() {
-            if let Some(e) = inner.err.take() {
-                Err(e)
+            if let Some(err) = inner.err.take() {
+                Err(err)
             } else if inner.read_closed {
                 Ok(0)
             } else {
