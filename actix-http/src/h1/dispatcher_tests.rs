@@ -1000,8 +1000,7 @@ async fn allow_half_closed() {
 
 #[actix_rt::test]
 async fn disallow_half_closed() {
-    use crate::config::ServiceConfigBuilder;
-    use crate::h1::dispatcher::State;
+    use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
 
     let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
     buf.close_read();
