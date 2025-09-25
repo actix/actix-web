@@ -2,12 +2,14 @@ version: "0.2"
 words:
   - actix
   - addrs
+  - ALPN
   - bytestring
   - httparse
-  - msrv
+  - MSRV
   - realip
   - rustls
   - rustup
   - serde
   - uring
+  - webpki
   - zstd

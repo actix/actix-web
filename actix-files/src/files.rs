@@ -41,6 +41,7 @@ pub struct Files {
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
+    with_permanent_redirect: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -65,6 +66,7 @@ impl Clone for Files {
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
+            with_permanent_redirect: self.with_permanent_redirect,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -113,6 +115,7 @@ impl Files {
             index: None,
             show_index: false,
             redirect_to_slash: false,
+            with_permanent_redirect: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -141,6 +144,14 @@ impl Files {
     /// By default never redirect.
     pub fn redirect_to_slash_directory(mut self) -> Self {
         self.redirect_to_slash = true;
+        self
+    }
+
+    /// Redirect with permanent redirect status code (308).
+    ///
+    /// By default redirect with temporary redirect status code (307).
+    pub fn with_permanent_redirect(mut self) -> Self {
+        self.with_permanent_redirect = true;
         self
     }
 
@@ -388,6 +399,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
             size_threshold: self.read_mode_threshold,
+            with_permanent_redirect: self.with_permanent_redirect,
         };
 
         if let Some(ref default) = *self.default.borrow() {

@@ -16,7 +16,6 @@ Middleware is registered for each App, Scope, or Resource and executed in the re
 Actix Web's middleware system is built on two main traits:
 
 1. `Transform<S, Req>`: The builder trait that creates the actual Service. It's responsible for:
-
    - Creating new middleware instances
    - Assembling the middleware chain
    - Handling initialization errors
