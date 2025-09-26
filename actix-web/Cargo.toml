@@ -5,10 +5,10 @@ description = "Actix Web is a powerful, pragmatic, and extremely fast web framew
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
 categories = [
-  "network-programming",
-  "asynchronous",
-  "web-programming::http-server",
-  "web-programming::websocket",
+	"network-programming",
+	"asynchronous",
+	"web-programming::http-server",
+	"web-programming::websocket",
 ]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
@@ -18,56 +18,56 @@ rust-version.workspace = true
 
 [package.metadata.docs.rs]
 features = [
-  "macros",
-  "openssl",
-  "rustls-0_20",
-  "rustls-0_21",
-  "rustls-0_22",
-  "rustls-0_23",
-  "compress-brotli",
-  "compress-gzip",
-  "compress-zstd",
-  "cookies",
-  "secure-cookies",
+	"macros",
+	"openssl",
+	"rustls-0_20",
+	"rustls-0_21",
+	"rustls-0_22",
+	"rustls-0_23",
+	"compress-brotli",
+	"compress-gzip",
+	"compress-zstd",
+	"cookies",
+	"secure-cookies",
 ]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-  "actix_http::*",
-  "actix_router::*",
-  "actix_rt::*",
-  "actix_server::*",
-  "actix_service::*",
-  "actix_utils::*",
-  "actix_web_codegen::*",
-  "bytes::*",
-  "cookie::*",
-  "cookie",
-  "futures_core::*",
-  "http::*",
-  "language_tags::*",
-  "mime::*",
-  "openssl::*",
-  "rustls::*",
-  "serde_json::*",
-  "serde_urlencoded::*",
-  "serde::*",
-  "serde::*",
-  "tokio::*",
-  "url::*",
+	"actix_http::*",
+	"actix_router::*",
+	"actix_rt::*",
+	"actix_server::*",
+	"actix_service::*",
+	"actix_utils::*",
+	"actix_web_codegen::*",
+	"bytes::*",
+	"cookie::*",
+	"cookie",
+	"futures_core::*",
+	"http::*",
+	"language_tags::*",
+	"mime::*",
+	"openssl::*",
+	"rustls::*",
+	"serde_json::*",
+	"serde_urlencoded::*",
+	"serde::*",
+	"serde::*",
+	"tokio::*",
+	"url::*",
 ]
 
 [features]
 default = [
-  "macros",
-  "compress-brotli",
-  "compress-gzip",
-  "compress-zstd",
-  "cookies",
-  "http2",
-  "unicode",
-  "compat",
-  "ws",
+	"macros",
+	"compress-brotli",
+	"compress-gzip",
+	"compress-zstd",
+	"cookies",
+	"http2",
+	"unicode",
+	"compat",
+	"ws",
 ]
 
 # Brotli algorithm content-encoding support
@@ -203,6 +203,10 @@ required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
 [[example]]
 name = "basic"
 required-features = ["compress-gzip"]
+
+[[example]]
+name = "issue"
+path = "examples/2866.rs"
 
 [[example]]
 name = "uds"

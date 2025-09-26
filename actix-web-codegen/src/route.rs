@@ -328,6 +328,9 @@ pub struct Route {
     /// Name of the handler function being annotated.
     name: syn::Ident,
 
+    /// function generic
+    type_generic: Option<syn::TypeParam>,
+
     /// Args passed to routing macro.
     ///
     /// When using `#[routes]`, this will contain args for each specific routing macro.
@@ -343,6 +346,13 @@ pub struct Route {
 impl Route {
     pub fn new(args: RouteArgs, ast: syn::ItemFn, method: Option<MethodType>) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
+
+        let generics = ast.sig.generics.params.clone();
+        let type_generic = if let Some(syn::GenericParam::Type(ty)) = generics.into_iter().next() {
+            Some(ty)
+        } else {
+            None
+        };
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
         // Note that multi line doc comments are converted to multiple doc attributes.
@@ -370,6 +380,7 @@ impl Route {
         }
 
         Ok(Self {
+            type_generic,
             name,
             args: vec![args],
             ast,
@@ -379,6 +390,13 @@ impl Route {
 
     fn multiple(args: Vec<Args>, ast: syn::ItemFn) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
+
+        let generics = ast.sig.generics.params.clone();
+        let type_generic = if let Some(syn::GenericParam::Type(ty)) = generics.into_iter().next() {
+            Some(ty)
+        } else {
+            None
+        };
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
         // Note that multi line doc comments are converted to multiple doc attributes.
@@ -398,6 +416,7 @@ impl Route {
 
         Ok(Self {
             name,
+            type_generic,
             args,
             ast,
             doc_attributes,
@@ -409,6 +428,7 @@ impl ToTokens for Route {
     fn to_tokens(&self, output: &mut TokenStream2) {
         let Self {
             name,
+            type_generic,
             ast,
             args,
             doc_attributes,
@@ -420,6 +440,17 @@ impl ToTokens for Route {
         // TODO(breaking): remove this force-pub forwards-compatibility feature
         #[cfg(feature = "compat-routing-macros-force-pub")]
         let vis = syn::Visibility::Public(<Token![pub]>::default());
+
+        let (struct_generic, trait_generic, impl_type_generic) =
+            if let Some(syn::TypeParam { ident, bounds, .. }) = type_generic {
+                (
+                    Some(quote! { <#ident> (core::marker::PhantomData<T>) }),
+                    Some(quote! { <#ident: #bounds + 'static> }),
+                    Some(quote! { <#ident> }),
+                )
+            } else {
+                (None, None, None)
+            };
 
         let registrations: TokenStream2 = args
             .iter()
@@ -453,13 +484,19 @@ impl ToTokens for Route {
                     }
                 };
 
+                let type_generic = if let Some(syn::TypeParam { ident, .. }) = type_generic {
+                    Some(quote! { ::<#ident> })
+                } else {
+                    None
+                };
+
                 quote! {
                     let __resource = ::actix_web::Resource::new(#path)
                         .name(#resource_name)
                         #method_guards
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
-                        .to(#name);
+                        .to(#name #type_generic);
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                 }
             })
@@ -468,9 +505,10 @@ impl ToTokens for Route {
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types)]
-            #vis struct #name;
+            #[derive(Default)]
+            #vis struct #name #struct_generic;
 
-            impl ::actix_web::dev::HttpServiceFactory for #name {
+            impl #trait_generic ::actix_web::dev::HttpServiceFactory for #name #impl_type_generic {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
                     #registrations
