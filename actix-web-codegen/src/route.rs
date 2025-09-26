@@ -508,7 +508,8 @@ impl ToTokens for Route {
             #[derive(Default)]
             #vis struct #name #struct_generic;
 
-            impl #trait_generic ::actix_web::dev::HttpServiceFactory for #name #impl_type_generic {
+            impl #trait_generic ::actix_web::dev::HttpServiceFactory for #name #impl_type_generic
+            {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
                     #registrations
