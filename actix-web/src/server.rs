@@ -31,6 +31,7 @@ struct Config {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    h1_allow_half_closed: bool,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -116,6 +117,7 @@ where
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                h1_allow_half_closed: true,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -255,6 +257,18 @@ where
     #[deprecated(since = "4.0.0", note = "Renamed to `client_disconnect_timeout`.")]
     pub fn client_shutdown(self, dur: u64) -> Self {
         self.client_disconnect_timeout(Duration::from_millis(dur))
+    }
+
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(self, allow: bool) -> Self {
+        self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
     }
 
     /// Sets function that will be called once before each connection is handled.
@@ -558,6 +572,7 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -602,6 +617,7 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -677,6 +693,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -728,6 +745,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -794,6 +812,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -860,6 +879,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -927,6 +947,7 @@ where
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -995,6 +1016,7 @@ where
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },
@@ -1036,6 +1058,7 @@ where
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_request_timeout(c.client_request_timeout)
+                    .h1_allow_half_closed(c.h1_allow_half_closed)
                     .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
