@@ -17,6 +17,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    max_buffer_size: Option<usize>,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     expect: X,
@@ -38,6 +39,7 @@ where
             keep_alive: KeepAlive::default(),
             client_request_timeout: Duration::from_secs(5),
             client_disconnect_timeout: Duration::ZERO,
+            max_buffer_size: None,
             secure: false,
             local_addr: None,
 
@@ -124,6 +126,15 @@ where
         self.client_disconnect_timeout(dur)
     }
 
+    /// Set maximum buffer size.
+    ///
+    /// Defines the maximum size of the buffer. When the size is reached, the dispatcher
+    /// will flush the data to the IO streams
+    pub fn max_buffer_size(mut self, size: usize) -> Self {
+        self.max_buffer_size = Some(size);
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT` header.
@@ -140,6 +151,7 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            max_buffer_size: self.max_buffer_size,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: expect.into_factory(),
@@ -164,6 +176,7 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            max_buffer_size: self.max_buffer_size,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: self.expect,
@@ -199,6 +212,7 @@ where
             self.keep_alive,
             self.client_request_timeout,
             self.client_disconnect_timeout,
+            self.max_buffer_size,
             self.secure,
             self.local_addr,
         );
@@ -224,6 +238,7 @@ where
             self.keep_alive,
             self.client_request_timeout,
             self.client_disconnect_timeout,
+            self.max_buffer_size,
             self.secure,
             self.local_addr,
         );
@@ -246,6 +261,7 @@ where
             self.keep_alive,
             self.client_request_timeout,
             self.client_disconnect_timeout,
+            self.max_buffer_size,
             self.secure,
             self.local_addr,
         );
