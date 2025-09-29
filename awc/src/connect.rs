@@ -13,7 +13,10 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::{
     any_body::AnyBody,
-    client::{Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError},
+    client::{
+        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
+        ServerName,
+    },
     ClientResponse,
 };
 
@@ -32,13 +35,18 @@ pub type BoxedSocket = Box<dyn ConnectionIo>;
 pub enum ConnectRequest {
     /// Standard HTTP request.
     ///
-    /// Contains the request head, body type, and optional pre-resolved socket address.
-    Client(RequestHeadType, AnyBody, Option<net::SocketAddr>),
+    /// Contains the request head, body type, optional pre-resolved socket address and optional sni host.
+    Client(
+        RequestHeadType,
+        AnyBody,
+        Option<net::SocketAddr>,
+        Option<ServerName>,
+    ),
 
     /// Tunnel used by WebSocket connection requests.
     ///
-    /// Contains the request head and optional pre-resolved socket address.
-    Tunnel(RequestHead, Option<net::SocketAddr>),
+    /// Contains the request head, optional pre-resolved socket address and optional sni host.
+    Tunnel(RequestHead, Option<net::SocketAddr>, Option<ServerName>),
 }
 
 /// Combined HTTP response & WebSocket tunnel type returned from connection service.
@@ -103,16 +111,40 @@ where
 
     fn call(&self, req: ConnectRequest) -> Self::Future {
         // connect to the host
-        let fut = match req {
-            ConnectRequest::Client(ref head, .., addr) => self.connector.call(ClientConnect {
-                uri: head.as_ref().uri.clone(),
-                addr,
-            }),
-            ConnectRequest::Tunnel(ref head, addr) => self.connector.call(ClientConnect {
-                uri: head.uri.clone(),
-                addr,
-            }),
+        let (head, addr, sni_host) = match req {
+            ConnectRequest::Client(ref head, .., addr, ref sni_host) => {
+                (head.as_ref(), addr, sni_host.clone())
+            }
+            ConnectRequest::Tunnel(ref head, addr, ref sni_host) => (head, addr, sni_host.clone()),
         };
+
+        let authority = if let Some(authority) = head.uri.authority() {
+            authority
+        } else {
+            return ConnectRequestFuture::Error {
+                err: ConnectError::Unresolved,
+            };
+        };
+
+        let tls = match head.uri.scheme_str() {
+            Some("https") | Some("wss") => true,
+            _ => false,
+        };
+
+        let fut =
+            self.connector.call(ClientConnect {
+                hostname: authority.host().to_string(),
+                port: authority.port().map(|p| p.as_u16()).unwrap_or_else(|| {
+                    if tls {
+                        443
+                    } else {
+                        80
+                    }
+                }),
+                tls,
+                sni_host,
+                addr,
+            });
 
         ConnectRequestFuture::Connection {
             fut,
@@ -127,6 +159,9 @@ pin_project_lite::pin_project! {
     where
         Io: ConnectionIo
     {
+        Error {
+            err: ConnectError
+        },
         Connection {
             #[pin]
             fut: Fut,
@@ -191,6 +226,10 @@ where
                 let (head, framed) = ready!(fut.as_mut().poll(cx))?;
                 let framed = framed.into_map_io(|io| Box::new(io) as _);
                 Poll::Ready(Ok(ConnectResponse::Tunnel(head, framed)))
+            }
+
+            ConnectRequestProj::Error { .. } => {
+                Poll::Ready(Err(SendRequestError::Connect(ConnectError::Unresolved)))
             }
         }
     }
