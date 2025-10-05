@@ -107,7 +107,7 @@ where
 
     let res = poll_fn(|cx| io.poll_ready(cx)).await;
     if let Err(err) = res {
-        io.on_release(err.is_io());
+        io.on_release(err.is_io() || err.is_go_away());
         return Err(SendRequestError::from(err));
     }
 
@@ -121,7 +121,7 @@ where
             fut.await.map_err(SendRequestError::from)?
         }
         Err(err) => {
-            io.on_release(err.is_io());
+            io.on_release(err.is_io() || err.is_go_away());
             return Err(err.into());
         }
     };
