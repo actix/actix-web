@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.8.1
+
 - Fix a bug where `GO_AWAY` errors did not stop connections from returning to the pool.
 
 ## 3.8.0
