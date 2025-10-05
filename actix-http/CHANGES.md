@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- Properly wake Payload receivers when feeding errors or EOF
-- Shutdown connections when HTTP Responses are written without reading full Requests
+- Properly wake Payload receivers when feeding errors or EOF.
+- Add `ServiceConfigBuilder` type to facilitate future configuration extensions.
+- Add a configuration option to allow/disallow half closed connections in HTTP/1. This defaults to allow, reverting the change made in 3.11.1.
+- Shutdown connections when HTTP Responses are written without reading full Requests.
 
 ## 3.11.1
 
