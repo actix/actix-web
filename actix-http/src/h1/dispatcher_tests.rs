@@ -536,6 +536,73 @@ async fn pipelining_ok_then_ok() {
 }
 
 #[actix_rt::test]
+async fn early_response_with_payload_closes_connection() {
+    lazy(|cx| {
+        let buf = TestBuffer::new(
+            "\
+                GET /unfinished HTTP/1.1\r\n\
+                Content-Length: 2\r\n\
+                \r\n\
+                ",
+        );
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => panic!("Should have shut down"),
+            Poll::Ready(res) => assert!(res.is_ok()),
+        }
+
+        // polls: initial => shutdown
+        assert_eq!(h1.poll_count, 2);
+
+        {
+            let mut res = buf.write_buf_slice_mut();
+            stabilize_date_header(&mut res);
+            let res = &res[..];
+
+            let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 11\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /unfinished\
+                ";
+
+            assert_eq!(
+                res,
+                exp,
+                "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+                String::from_utf8_lossy(res),
+                String::from_utf8_lossy(exp)
+            );
+        }
+    })
+    .await;
+}
+
+#[actix_rt::test]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
