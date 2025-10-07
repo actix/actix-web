@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- Add conflict path detection and handling to enhance routing performance.
+
+### Changed
+
+- Refactor capture_match_info_fn by splitting it into three distinct functions: capture_match_info(), resolve_path_if_match(), and resolve().
+
 ## 0.5.3
 
 - Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
