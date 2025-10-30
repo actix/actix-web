@@ -414,6 +414,9 @@ impl HttpRequest {
     }
 
     /// Load request cookies.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::header::COOKIE;
@@ -422,9 +425,9 @@ impl HttpRequest {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                for cookie_str in s.split(';').map(|s| s.trim()) {
-                    if !cookie_str.is_empty() {
-                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse_encoded(cookie_str) {
+                        cookies.push(cookie.into_owned());
                     }
                 }
             }
@@ -675,6 +678,22 @@ mod tests {
 
         let cookie = req.cookie("cookie-unknown");
         assert!(cookie.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_empty_key() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=value1; value2; cookie3=value3"))
+            .to_http_request();
+        {
+            let cookies = req.cookies().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "value1");
+            assert_eq!(cookies[1].name(), "cookie3");
+            assert_eq!(cookies[1].value(), "value3");
+        }
     }
 
     #[test]

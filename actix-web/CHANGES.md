@@ -4,6 +4,7 @@
 
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#3895]
+- Ignore unparsable cookies in `Cookie` request header.
 
 [#3895]: https://github.com/actix/actix-web/pull/3895
 
