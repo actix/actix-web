@@ -85,6 +85,10 @@ jobs:
       - name: CI cache clean
         run: cargo-ci-cache-clean
 
+      - name: deny check
+        if: matrix.version.name == 'stable' && matrix.target.os == 'ubuntu-latest'
+        uses: EmbarkStudios/cargo-deny-action@f2ba7abc2abebaf185c833c3961145a3c275caad # v2.0.13
+
   io-uring:
     name: io-uring tests
     runs-on: ubuntu-latest
