@@ -84,4 +84,4 @@ curl -v --request POST \
 
 <!-- cargo-rdme end -->
 
-[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
+[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/main/forms/multipart)
