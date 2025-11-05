@@ -14,7 +14,7 @@
 
 ## Examples
 
-[Example project using TLS-enabled client →](https://github.com/actix/examples/tree/master/https-tls/awc-https)
+[Example project using TLS-enabled client →](https://github.com/actix/examples/tree/main/https-tls/awc-https)
 
 Basic usage:
 

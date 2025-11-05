@@ -6,7 +6,7 @@ on:
   merge_group:
     types: [checks_requested]
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
