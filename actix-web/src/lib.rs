@@ -121,7 +121,7 @@ pub use crate::{
     route::Route,
     scope::Scope,
     server::HttpServer,
-    types::Either,
+    types::{Either, EitherExtractError},
 };
 
 macro_rules! codegen_reexport {
