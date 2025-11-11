@@ -289,7 +289,7 @@ impl<T> UrlEncoded<T> {
     /// Create a new future to decode a URL encoded request payload.
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
         // check content type
-        if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
+        if req.content_type() != Some("application/x-www-form-urlencoded") {
             return Self::err(UrlencodedError::ContentType);
         }
         let encoding = match req.encoding() {
