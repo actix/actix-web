@@ -505,7 +505,10 @@ mod tests {
             .set_form(&payload)
             .to_request();
 
-        assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
+        assert_eq!(
+            req.content_type().unwrap(),
+            "application/x-www-form-urlencoded"
+        );
 
         let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
@@ -549,7 +552,7 @@ mod tests {
             .set_json(&payload)
             .to_request();
 
-        assert_eq!(req.content_type(), "application/json");
+        assert_eq!(req.content_type(), Some("application/json"));
 
         let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
