@@ -46,13 +46,11 @@ pub trait HttpMessage: Sized {
 
     /// Read the request content type. If request did not contain a *Content-Type* header, an empty
     /// string is returned.
-    fn content_type(&self) -> &str {
-        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
-            if let Ok(content_type) = content_type.to_str() {
-                return content_type.split(';').next().unwrap().trim();
-            }
-        }
-        ""
+    fn content_type(&self) -> Option<&str> {
+        self.headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.split(';').next().unwrap().trim())
     }
 
     /// Get content type encoding.
@@ -142,13 +140,13 @@ mod tests {
         let req = TestRequest::default()
             .insert_header(("content-type", "text/plain"))
             .finish();
-        assert_eq!(req.content_type(), "text/plain");
+        assert_eq!(req.content_type(), Some("text/plain"));
         let req = TestRequest::default()
             .insert_header(("content-type", "application/json; charset=utf-8"))
             .finish();
-        assert_eq!(req.content_type(), "application/json");
+        assert_eq!(req.content_type(), Some("application/json"));
         let req = TestRequest::default().finish();
-        assert_eq!(req.content_type(), "");
+        assert_eq!(req.content_type(), None);
     }
 
     #[test]
