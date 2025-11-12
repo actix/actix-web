@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.11.3
+
+- Update `HttpMessage`s `content_type` method to return `Option<&str>` instead of `&str`.
+
 ## 3.11.2
 
 - Properly wake Payload receivers when feeding errors or EOF.
