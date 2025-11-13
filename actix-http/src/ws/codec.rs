@@ -4,6 +4,8 @@ use bytestring::ByteString;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
 
+use crate::big_bytes::BigBytes;
+
 use super::{
     frame::Parser,
     proto::{CloseReason, OpCode},
@@ -116,51 +118,55 @@ impl Default for Codec {
     }
 }
 
-impl Encoder<Message> for Codec {
-    type Error = ProtocolError;
-
-    fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<(), Self::Error> {
+impl Codec {
+    pub fn encode_bigbytes(
+        &mut self,
+        item: Message,
+        dst: &mut BigBytes,
+    ) -> Result<(), ProtocolError> {
         match item {
-            Message::Text(txt) => Parser::write_message(
+            Message::Text(txt) => Parser::write_message_bigbytes(
                 dst,
-                txt,
+                txt.into_bytes(),
                 OpCode::Text,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Binary(bin) => Parser::write_message(
+            Message::Binary(bin) => Parser::write_message_bigbytes(
                 dst,
                 bin,
                 OpCode::Binary,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Ping(txt) => Parser::write_message(
+            Message::Ping(txt) => Parser::write_message_bigbytes(
                 dst,
                 txt,
                 OpCode::Ping,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Pong(txt) => Parser::write_message(
+            Message::Pong(txt) => Parser::write_message_bigbytes(
                 dst,
                 txt,
                 OpCode::Pong,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Close(reason) => {
-                Parser::write_close(dst, reason, !self.flags.contains(Flags::SERVER))
-            }
+            Message::Close(reason) => Parser::write_close(
+                dst.buffer_mut(),
+                reason,
+                !self.flags.contains(Flags::SERVER),
+            ),
             Message::Continuation(cont) => match cont {
                 Item::FirstText(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
                         self.flags.insert(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_message_bigbytes(
                             dst,
-                            &data[..],
+                            data,
                             OpCode::Text,
                             false,
                             !self.flags.contains(Flags::SERVER),
@@ -172,9 +178,9 @@ impl Encoder<Message> for Codec {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
                         self.flags.insert(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_message_bigbytes(
                             dst,
-                            &data[..],
+                            data,
                             OpCode::Binary,
                             false,
                             !self.flags.contains(Flags::SERVER),
@@ -183,9 +189,9 @@ impl Encoder<Message> for Codec {
                 }
                 Item::Continue(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
-                        Parser::write_message(
+                        Parser::write_message_bigbytes(
                             dst,
-                            &data[..],
+                            data,
                             OpCode::Continue,
                             false,
                             !self.flags.contains(Flags::SERVER),
@@ -197,9 +203,9 @@ impl Encoder<Message> for Codec {
                 Item::Last(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         self.flags.remove(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_message_bigbytes(
                             dst,
-                            &data[..],
+                            data,
                             OpCode::Continue,
                             true,
                             !self.flags.contains(Flags::SERVER),
@@ -211,6 +217,20 @@ impl Encoder<Message> for Codec {
             },
             Message::Nop => {}
         }
+        Ok(())
+    }
+}
+
+impl Encoder<Message> for Codec {
+    type Error = ProtocolError;
+
+    fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        let mut big_bytes = BigBytes::with_capacity(0);
+
+        self.encode_bigbytes(item, &mut big_bytes)?;
+
+        big_bytes.write_to(dst);
+
         Ok(())
     }
 }
