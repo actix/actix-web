@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "actix-web"
-version = "4.11.0"
+version = "4.12.0"
 dependencies = [
  "actix-codec",
  "actix-files",
