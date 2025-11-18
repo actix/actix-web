@@ -200,11 +200,13 @@ impl Inner {
     #[inline]
     fn set_error(&mut self, err: PayloadError) {
         self.err = Some(err);
+        self.wake();
     }
 
     #[inline]
     fn feed_eof(&mut self) {
         self.eof = true;
+        self.wake();
     }
 
     #[inline]
@@ -253,8 +255,13 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
+    use std::{task::Poll, time::Duration};
+
+    use actix_rt::time::timeout;
     use actix_utils::future::poll_fn;
+    use futures_util::{FutureExt, StreamExt};
     use static_assertions::{assert_impl_all, assert_not_impl_any};
+    use tokio::sync::oneshot;
 
     use super::*;
 
@@ -262,6 +269,67 @@ mod tests {
     assert_not_impl_any!(Payload: Send, Sync);
 
     assert_impl_all!(Inner: Unpin, Send, Sync);
+
+    const WAKE_TIMEOUT: Duration = Duration::from_secs(2);
+
+    fn prepare_waking_test(
+        mut payload: Payload,
+        expected: Option<Result<(), ()>>,
+    ) -> (oneshot::Receiver<()>, actix_rt::task::JoinHandle<()>) {
+        let (tx, rx) = oneshot::channel();
+
+        let handle = actix_rt::spawn(async move {
+            // Make sure to poll once to set the waker
+            poll_fn(|cx| {
+                assert!(payload.poll_next_unpin(cx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+            tx.send(()).unwrap();
+
+            // actix-rt is single-threaded, so this won't race with `rx.await`
+            let mut pend_once = false;
+            poll_fn(|_| {
+                if pend_once {
+                    Poll::Ready(())
+                } else {
+                    // Return pending without storing wakers, we already did on the previous
+                    // `poll_fn`, now this task will only continue if the `sender` wakes us
+                    pend_once = true;
+                    Poll::Pending
+                }
+            })
+            .await;
+
+            let got = payload.next().now_or_never().unwrap();
+            match expected {
+                Some(Ok(_)) => assert!(got.unwrap().is_ok()),
+                Some(Err(_)) => assert!(got.unwrap().is_err()),
+                None => assert!(got.is_none()),
+            }
+        });
+        (rx, handle)
+    }
+
+    #[actix_rt::test]
+    async fn wake_on_error() {
+        let (mut sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
+
+        rx.await.unwrap();
+        sender.set_error(PayloadError::Incomplete(None));
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn wake_on_eof() {
+        let (mut sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, None);
+
+        rx.await.unwrap();
+        sender.feed_eof();
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
 
     #[actix_rt::test]
     async fn test_unread_data() {

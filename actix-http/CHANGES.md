@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 3.11.2
+
+- Properly wake Payload receivers when feeding errors or EOF.
+- Add `ServiceConfigBuilder` type to facilitate future configuration extensions.
+- Add a configuration option to allow/disallow half closed connections in HTTP/1. This defaults to allow, reverting the change made in 3.11.1.
+- Shutdown connections when HTTP Responses are written without reading full Requests.
+
+## 3.11.1
+
+- Prevent more hangs after client disconnects.
+- More malformed WebSocket frames are now gracefully rejected.
+- Using `TestRequest::set_payload()` now sets a Content-Length header.
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.

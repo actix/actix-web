@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.11.0"
+version = "4.12.0"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -17,7 +17,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
   "macros",
   "openssl",
@@ -53,7 +52,6 @@ allowed_external_types = [
   "serde_json::*",
   "serde_urlencoded::*",
   "serde::*",
-  "serde::*",
   "tokio::*",
   "url::*",
 ]
@@ -68,6 +66,7 @@ default = [
   "http2",
   "unicode",
   "compat",
+  "ws",
 ]
 
 # Brotli algorithm content-encoding support
@@ -86,8 +85,11 @@ cookies = ["dep:cookie"]
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
 
-# HTTP/2 support (including h2c).
+# HTTP/2 support (including h2c)
 http2 = ["actix-http/http2"]
+
+# WebSocket support
+ws = ["actix-http/ws"]
 
 # TLS via OpenSSL
 openssl = ["__tls", "http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
@@ -135,7 +137,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = { version = "3.11", features = ["ws"] }
+actix-http = "3.11"
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 

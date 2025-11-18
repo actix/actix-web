@@ -2,7 +2,7 @@ name: Coverage
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -15,16 +15,16 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@v2.56.13
+        uses: taiki-e/install-action@0be4756f42223b67aa4b7df5effad59010cbf4b9 # v2.62.51
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 
@@ -32,7 +32,7 @@ jobs:
         run: just test-coverage-codecov
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.4.3
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           files: codecov.json
           fail_ci_if_error: true

@@ -1,0 +1,45 @@
+[licenses]
+confidence-threshold = 0.90
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",
+    "ISC",
+    "CDLA-Permissive-2.0",
+    "BSD-3-Clause",
+    "Zlib",
+    "OpenSSL",
+    "MPL-2.0"
+]
+private = { ignore = true }
+
+# FIXME: old rustls introduces old ring which is not set license field properly.
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 }
+]
+
+# FIXME: webpki is almost unmaintained and is not set license field properly.
+# rustls has its own fork now so removing old rustls should resolve the issue.
+[[licenses.clarify]]
+crate = "webpki"
+expression = "ISC"
+license-files = [
+    { path = "LICENSE", hash = 0x001c7e6c }
+]
+
+[bans]
+multiple-versions = "allow"
+
+[bans.build]
+executables = "deny"
+
+[advisories]
+# because of old rustls support:
+ignore = [
+    "RUSTSEC-2024-0336",
+    "RUSTSEC-2025-0009",
+    "RUSTSEC-2025-0010"
+]

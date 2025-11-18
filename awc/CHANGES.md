@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 3.8.1
+
+- Fix a bug where `GO_AWAY` errors did not stop connections from returning to the pool.
+
+## 3.8.0
+
+- Add `hickory-dns` crate feature (off-by-default).
+- The `trust-dns` crate feature now delegates DNS resolution to `hickory-dns`.
+
 ## 3.7.0
 
 - Update `brotli` dependency to `8`.

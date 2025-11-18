@@ -15,10 +15,10 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly
           components: rustfmt
@@ -33,15 +33,15 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           components: clippy
 
       - name: Check with Clippy
-        uses: giraffate/clippy-action@v1.0.1
+        uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         with:
           reporter: github-pr-check
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -52,10 +52,10 @@ jobs:
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly
           components: rust-docs
@@ -69,20 +69,20 @@ jobs:
     if: false # rustdoc mismatch currently
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.56.13
+        uses: taiki-e/install-action@0be4756f42223b67aa4b7df5effad59010cbf4b9 # v2.62.51
         with:
           tool: just
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v2.2.0
+        uses: taiki-e/cache-cargo-install-action@7447f04c51f2ba27ca35e7f1e28fab848c5b3ba7 # v2.3.1
         with:
           tool: cargo-check-external-types
 
