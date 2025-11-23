@@ -2,7 +2,7 @@ name: CI (post-merge)
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -28,11 +28,11 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install nasm
         if: matrix.target.os == 'windows-latest'
-        uses: ilammy/setup-nasm@v1.5.1
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
@@ -44,12 +44,12 @@ jobs:
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.48.13
+        uses: taiki-e/install-action@0be4756f42223b67aa4b7df5effad59010cbf4b9 # v2.62.51
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -71,19 +71,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Free Disk Space
         run: ./scripts/free-disk-space.sh
 
       - name: Setup mold linker
-        uses: rui314/setup-mold@v1
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
 
       - name: Install just, cargo-hack
-        uses: taiki-e/install-action@v2.48.13
+        uses: taiki-e/install-action@0be4756f42223b67aa4b7df5effad59010cbf4b9 # v2.62.51
         with:
           tool: just,cargo-hack
 

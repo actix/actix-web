@@ -179,9 +179,8 @@ where
                 .acquire_owned()
                 .await
                 .map_err(|_| {
-                    ConnectError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        "failed to acquire semaphore on client connection pool",
+                    ConnectError::Io(io::Error::other(
+                        "Failed to acquire semaphore on client connection pool",
                     ))
                 })?;
 

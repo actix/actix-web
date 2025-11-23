@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.9.0)](https://docs.rs/actix-web/4.9.0)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.12.0)](https://docs.rs/actix-web/4.12.0)
 ![MSRV](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.9.0/status.svg)](https://deps.rs/crate/actix-web/4.9.0)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.12.0/status.svg)](https://deps.rs/crate/actix-web/4.12.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/graph/badge.svg?token=dSwOnp9QCv)](https://codecov.io/gh/actix/actix-web)
@@ -44,7 +44,7 @@
 - [Website & User Guide](https://actix.rs)
 - [Examples Repository](https://github.com/actix/examples)
 - [API Documentation](https://docs.rs/actix-web)
-- [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
+- [API Documentation (mainranch)](https://actix.rs/actix-web/actix_web)
 
 ## Example
 
@@ -78,23 +78,23 @@ async fn main() -> std::io::Result<()> {
 
 ### More Examples
 
-- [Hello World](https://github.com/actix/examples/tree/master/basics/hello-world)
-- [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics)
-- [Application State](https://github.com/actix/examples/tree/master/basics/state)
-- [JSON Handling](https://github.com/actix/examples/tree/master/json/json)
-- [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart)
-- [MongoDB Integration](https://github.com/actix/examples/tree/master/databases/mongodb)
-- [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel)
-- [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite)
-- [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres)
-- [Tera Templates](https://github.com/actix/examples/tree/master/templating/tera)
-- [Askama Templates](https://github.com/actix/examples/tree/master/templating/askama)
-- [HTTPS using Rustls](https://github.com/actix/examples/tree/master/https-tls/rustls)
-- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/https-tls/openssl)
-- [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets)
-- [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat)
+- [Hello World](https://github.com/actix/examples/tree/mainasics/hello-world)
+- [Basic Setup](https://github.com/actix/examples/tree/mainasics/basics)
+- [Application State](https://github.com/actix/examples/tree/mainasics/state)
+- [JSON Handling](https://github.com/actix/examples/tree/mainson/json)
+- [Multipart Streams](https://github.com/actix/examples/tree/mainorms/multipart)
+- [MongoDB Integration](https://github.com/actix/examples/tree/mainatabases/mongodb)
+- [Diesel Integration](https://github.com/actix/examples/tree/mainatabases/diesel)
+- [SQLite Integration](https://github.com/actix/examples/tree/mainatabases/sqlite)
+- [Postgres Integration](https://github.com/actix/examples/tree/mainatabases/postgres)
+- [Tera Templates](https://github.com/actix/examples/tree/mainemplating/tera)
+- [Askama Templates](https://github.com/actix/examples/tree/mainemplating/askama)
+- [HTTPS using Rustls](https://github.com/actix/examples/tree/mainttps-tls/rustls)
+- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/mainttps-tls/openssl)
+- [Simple WebSocket](https://github.com/actix/examples/tree/mainebsockets)
+- [WebSocket Chat](https://github.com/actix/examples/tree/mainebsockets/chat)
 
-You may consider checking out [this directory](https://github.com/actix/examples/tree/master) for more examples.
+You may consider checking out [this directory](https://github.com/actix/examples/tree/mainfor more examples.
 
 ## Benchmarks
 

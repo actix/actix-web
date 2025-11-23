@@ -11,15 +11,14 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
+bytesize = "2"
 darling = "0.20"
-parse-size = "1"
 proc-macro2 = "1"
 quote = "1"
 syn = "2"
@@ -27,7 +26,7 @@ syn = "2"
 [dev-dependencies]
 actix-multipart = "0.7"
 actix-web = "4"
-rustversion = "1"
+rustversion-msrv = "0.100"
 trybuild = "1"
 
 [lints]

@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.5.1"
+version = "3.8.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -16,7 +16,6 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
     "cookies",
     "openssl",
@@ -83,8 +82,10 @@ compress-zstd = ["actix-http/compress-zstd", "__compress"]
 # Cookie parsing and cookie jar
 cookies = ["dep:cookie"]
 
-# Use `trust-dns-resolver` crate as DNS resolver
-trust-dns = ["trust-dns-resolver"]
+# Use `hickory-dns-resolver` crate as DNS resolver
+hickory-dns = ["dep:hickory-resolver"]
+# Use `trust-dns-resolver` crate as DNS resolver (deprecated, use `hickory-dns`)
+trust-dns = ["hickory-dns"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -97,9 +98,9 @@ dangerous-h2c = []
 
 [dependencies]
 actix-codec = "0.5"
-actix-service = "2"
-actix-http = { version = "3.7", features = ["http2", "ws"] }
+actix-http = { version = "3.10", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
+actix-service = "2"
 actix-tls = { version = "3.4", features = ["connect", "uri"] }
 actix-utils = "3"
 
@@ -109,10 +110,10 @@ cfg-if = "1"
 derive_more = { version = "2", features = ["display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.26"
+h2 = "0.3.27"
 http = "0.2.7"
 itoa = "1"
-log =" 0.4"
+log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
@@ -120,7 +121,7 @@ rand = "0.9"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync"] }
 
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
@@ -130,7 +131,7 @@ tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, featu
 tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, default-features = false }
 
-trust-dns-resolver = { version = "0.23", optional = true }
+hickory-resolver = { version = "0.25", optional = true, features = ["system-config", "tokio"] }
 
 [dev-dependencies]
 actix-http = { version = "3.7", features = ["openssl"] }
@@ -141,15 +142,15 @@ actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
-brotli = "7"
-const-str = "0.5"
+brotli = "8"
+const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
 rcgen = "0.13"
 rustls-pemfile = "2"
-tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 

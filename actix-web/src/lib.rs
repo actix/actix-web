@@ -72,13 +72,13 @@
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use actix_http::{body, HttpMessage};
 #[cfg(feature = "cookies")]
 #[doc(inline)]
 pub use cookie;
-
+pub use mime;
 mod app;
 mod app_service;
 mod config;

@@ -2,7 +2,40 @@
 
 ## Unreleased
 
+## 4.12.0
+
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now calls `actix_web::response::builder::HttpResponseBuilder::no_chunking()` and returns `SizedStream` if `Content-Length` is set by user.
+- Add `ws` crate feature (on-by-default) which forwards to `actix-http` and guards some of its `ResponseError` impls.
+- Add public export for `EitherExtractError` in `error` module.
+
+## 4.11.0
+
+- Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
+- Allow SVG images to be compressed by the `Compress` middleware.
+- Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
+- Re-export `mime` dependency.
+- Update `brotli` dependency to `8`.
+
+## 4.10.2
+
+- No significant changes since `4.10.1`.
+
+## 4.10.1
+
+- No significant changes since `4.10.0`.
+
+## 4.10.0
+
+### Added
+
 - Implement `Responder` for `Result<(), E: Into<Error>>`. Returning `Ok(())` responds with HTTP 204 No Content.
+
+### Changed
+
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
