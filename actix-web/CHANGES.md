@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 4.12.1
+
+- Correct `actix-http` dependency requirement.
+
 ## 4.12.0
 
 - `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
