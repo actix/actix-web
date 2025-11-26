@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
 ## 3.11.2
 
 - Properly wake Payload receivers when feeding errors or EOF.

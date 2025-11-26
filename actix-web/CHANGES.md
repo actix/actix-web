@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
 ## 4.12.1
 
 - Correct `actix-http` dependency requirement.
