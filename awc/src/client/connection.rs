@@ -243,7 +243,7 @@ where
         self,
         head: H,
         body: RB,
-    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
+    ) -> LocalBoxFuture<'static, Result<(RequestHeadType, ResponseHead, Payload), SendRequestError>>
     where
         H: Into<RequestHeadType> + 'static,
         RB: MessageBody + 'static,
@@ -273,17 +273,24 @@ where
         head: H,
     ) -> LocalBoxFuture<
         'static,
-        Result<(ResponseHead, Framed<Connection<A, B>, ClientCodec>), SendRequestError>,
+        Result<
+            (
+                RequestHeadType,
+                ResponseHead,
+                Framed<Connection<A, B>, ClientCodec>,
+            ),
+            SendRequestError,
+        >,
     > {
         Box::pin(async move {
             match self {
                 Connection::Tcp(ConnectionType::H1(ref _conn)) => {
-                    let (head, framed) = h1proto::open_tunnel(self, head.into()).await?;
-                    Ok((head, framed))
+                    let (head, res_head, framed) = h1proto::open_tunnel(self, head.into()).await?;
+                    Ok((head, res_head, framed))
                 }
                 Connection::Tls(ConnectionType::H1(ref _conn)) => {
-                    let (head, framed) = h1proto::open_tunnel(self, head.into()).await?;
-                    Ok((head, framed))
+                    let (head, res_head, framed) = h1proto::open_tunnel(self, head.into()).await?;
+                    Ok((head, res_head, framed))
                 }
                 Connection::Tls(ConnectionType::H2(mut conn)) => {
                     conn.release();
