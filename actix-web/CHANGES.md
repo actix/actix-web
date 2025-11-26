@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `experimental-introspection` feature for retrieving configured route paths and HTTP methods.
+
 ## 4.12.0
 
 - `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
