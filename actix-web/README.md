@@ -78,23 +78,23 @@ async fn main() -> std::io::Result<()> {
 
 ### More Examples
 
-- [Hello World](https://github.com/actix/examples/tree/mainasics/hello-world)
-- [Basic Setup](https://github.com/actix/examples/tree/mainasics/basics)
-- [Application State](https://github.com/actix/examples/tree/mainasics/state)
-- [JSON Handling](https://github.com/actix/examples/tree/mainson/json)
-- [Multipart Streams](https://github.com/actix/examples/tree/mainorms/multipart)
-- [MongoDB Integration](https://github.com/actix/examples/tree/mainatabases/mongodb)
-- [Diesel Integration](https://github.com/actix/examples/tree/mainatabases/diesel)
-- [SQLite Integration](https://github.com/actix/examples/tree/mainatabases/sqlite)
-- [Postgres Integration](https://github.com/actix/examples/tree/mainatabases/postgres)
-- [Tera Templates](https://github.com/actix/examples/tree/mainemplating/tera)
-- [Askama Templates](https://github.com/actix/examples/tree/mainemplating/askama)
-- [HTTPS using Rustls](https://github.com/actix/examples/tree/mainttps-tls/rustls)
-- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/mainttps-tls/openssl)
-- [Simple WebSocket](https://github.com/actix/examples/tree/mainebsockets)
-- [WebSocket Chat](https://github.com/actix/examples/tree/mainebsockets/chat)
+- [Hello World](https://github.com/actix/examples/tree/main/basics/hello-world)
+- [Basic Setup](https://github.com/actix/examples/tree/main/basics/basics)
+- [Application State](https://github.com/actix/examples/tree/main/basics/state)
+- [JSON Handling](https://github.com/actix/examples/tree/main/json/json)
+- [Multipart Streams](https://github.com/actix/examples/tree/main/forms/multipart)
+- [MongoDB Integration](https://github.com/actix/examples/tree/main/databases/mongodb)
+- [Diesel Integration](https://github.com/actix/examples/tree/main/databases/diesel)
+- [SQLite Integration](https://github.com/actix/examples/tree/main/databases/sqlite)
+- [Postgres Integration](https://github.com/actix/examples/tree/main/databases/postgres)
+- [Tera Templates](https://github.com/actix/examples/tree/main/templating/tera)
+- [Askama Templates](https://github.com/actix/examples/tree/main/templating/askama)
+- [HTTPS using Rustls](https://github.com/actix/examples/tree/main/https-tls/rustls)
+- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/main/https-tls/openssl)
+- [Simple WebSocket](https://github.com/actix/examples/tree/main/websockets)
+- [WebSocket Chat](https://github.com/actix/examples/tree/main/websockets/chat)
 
-You may consider checking out [this directory](https://github.com/actix/examples/tree/mainfor more examples.
+You may consider checking out [this directory](https://github.com/actix/examples/tree/main) for more examples.
 
 ## Benchmarks
 
