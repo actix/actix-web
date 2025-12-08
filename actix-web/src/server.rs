@@ -1,19 +1,15 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp, fmt,
+    future::Future,
+    io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
@@ -35,6 +31,7 @@ struct Config {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    h1_allow_half_closed: bool,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -70,6 +67,7 @@ struct Config {
 ///     .await
 /// }
 /// ```
+#[must_use]
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
@@ -119,6 +117,7 @@ where
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                h1_allow_half_closed: true,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -190,7 +189,7 @@ where
     /// By default max connections is set to a 256.
     #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
-        #[cfg(any(feature = "rustls-0_20", feature = "rustls-0_21", feature = "openssl"))]
+        #[cfg(feature = "__tls")]
         actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
@@ -199,7 +198,7 @@ where
     ///
     /// One thread pool is set up **per worker**; not shared across workers.
     ///
-    /// By default set to 512 divided by the number of workers.
+    /// By default, set to 512 divided by [available parallelism](std::thread::available_parallelism()).
     pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
         self.builder = self.builder.worker_max_blocking_threads(num);
         self
@@ -243,13 +242,7 @@ where
     /// time, the connection is closed.
     ///
     /// By default, the handshake timeout is 3 seconds.
-    #[cfg(any(
-        feature = "openssl",
-        feature = "rustls-0_20",
-        feature = "rustls-0_21",
-        feature = "rustls-0_22",
-        feature = "rustls-0_23",
-    ))]
+    #[cfg(feature = "__tls")]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
@@ -264,6 +257,18 @@ where
     #[deprecated(since = "4.0.0", note = "Renamed to `client_disconnect_timeout`.")]
     pub fn client_shutdown(self, dur: u64) -> Self {
         self.client_disconnect_timeout(Duration::from_millis(dur))
+    }
+
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(self, allow: bool) -> Self {
+        self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
     }
 
     /// Sets function that will be called once before each connection is handled.
@@ -284,19 +289,12 @@ where
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    pub fn on_connect<CB>(mut self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
-        HttpServer {
-            factory: self.factory,
-            config: self.config,
-            backlog: self.backlog,
-            sockets: self.sockets,
-            builder: self.builder,
-            on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
-        }
+        self.on_connect_fn = Some(Arc::new(f));
+        self
     }
 
     /// Sets server host name.
@@ -321,6 +319,37 @@ where
     /// Disables signal handling.
     pub fn disable_signals(mut self) -> Self {
         self.builder = self.builder.disable_signals();
+        self
+    }
+
+    /// Specify shutdown signal from a future.
+    ///
+    /// Using this method will prevent OS signal handlers being set up.
+    ///
+    /// Typically, a `CancellationToken` will be used, but any future _can_ be.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use actix_web::{App, HttpServer};
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// # #[actix_web::main]
+    /// # async fn main() -> std::io::Result<()> {
+    /// let stop_signal = CancellationToken::new();
+    ///
+    /// HttpServer::new(move || App::new())
+    ///     .shutdown_signal(stop_signal.cancelled_owned())
+    ///     .bind(("127.0.0.1", 8080))?
+    ///     .run()
+    ///     .await
+    /// # }
+    /// ```
+    pub fn shutdown_signal<Fut>(mut self, shutdown_signal: Fut) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.builder = self.builder.shutdown_signal(shutdown_signal);
         self
     }
 
@@ -522,7 +551,7 @@ where
     /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
     /// passing ownership to `listen()`.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -543,6 +572,7 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -566,7 +596,7 @@ where
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -587,6 +617,7 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -644,7 +675,7 @@ where
         config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -662,6 +693,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -695,7 +727,7 @@ where
         config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -713,6 +745,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -761,7 +794,7 @@ where
         config: actix_tls::accept::rustls_0_22::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -779,6 +812,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -827,7 +861,7 @@ where
         config: actix_tls::accept::rustls_0_23::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -845,6 +879,7 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -892,8 +927,9 @@ where
         acceptor: SslAcceptor,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
+
         self.sockets.push(Socket {
             addr,
             scheme: "https",
@@ -911,6 +947,7 @@ where
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -949,7 +986,7 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -979,6 +1016,7 @@ where
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },
@@ -994,10 +1032,11 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -1019,6 +1058,7 @@ where
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_request_timeout(c.client_request_timeout)
+                    .h1_allow_half_closed(c.h1_allow_half_closed)
                     .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
@@ -1085,10 +1125,7 @@ fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<ne
     } else if let Some(err) = err.take() {
         Err(err)
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Can not bind to address.",
-        ))
+        Err(io::Error::other("Could not bind to address"))
     }
 }
 
@@ -1097,7 +1134,10 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = Domain::for_address(addr);
     let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
-    socket.set_reuse_address(true)?;
+    #[cfg(not(windows))]
+    {
+        socket.set_reuse_address(true)?;
+    }
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;

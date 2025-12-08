@@ -1,11 +1,19 @@
-//! Multipart form support for Actix Web.
+//! Multipart request & form support for Actix Web.
+//!
+//! The [`Multipart`] extractor aims to support all kinds of `multipart/*` requests, including
+//! `multipart/form-data`, `multipart/related` and `multipart/mixed`. This is a lower-level
+//! extractor which supports reading [multipart fields](Field), in the order they are sent by the
+//! client.
+//!
+//! Due to additional requirements for `multipart/form-data` requests, the higher level
+//! [`MultipartForm`] extractor and derive macro only supports this media type.
 //!
 //! # Examples
 //!
 //! ```no_run
 //! use actix_web::{post, App, HttpServer, Responder};
 //!
-//! use actix_multipart::form::{json::Json as MPJson, tempfile::TempFile, MultipartForm};
+//! use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm, MultipartFormConfig};
 //! use serde::Deserialize;
 //!
 //! #[derive(Debug, Deserialize)]
@@ -15,9 +23,10 @@
 //!
 //! #[derive(Debug, MultipartForm)]
 //! struct UploadForm {
+//!     // Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 //!     #[multipart(limit = "100MB")]
 //!     file: TempFile,
-//!     json: MPJson<Metadata>,
+//!     json: MpJson<Metadata>,
 //! }
 //!
 //! #[post("/videos")]
@@ -30,19 +39,32 @@
 //!
 //! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
-//!     HttpServer::new(move || App::new().service(post_video))
-//!         .bind(("127.0.0.1", 8080))?
-//!         .run()
-//!         .await
+//!     HttpServer::new(move || {
+//!         App::new()
+//!             .service(post_video)
+//!             // Also increase the global total limit to 100MiB.
+//!             .app_data(MultipartFormConfig::default().total_limit(100 * 1024 * 1024))
+//!     })
+//!     .bind(("127.0.0.1", 8080))?
+//!     .run()
+//!     .await
 //! }
 //! ```
+//!
+//! cURL request:
+//!
+//! ```sh
+//! curl -v --request POST \
+//!   --url http://localhost:8080/videos \
+//!   -F 'json={"name": "Cargo.lock"};type=application/json' \
+//!   -F file=@./Cargo.lock
+//! ```
+//!
+//! [`MultipartForm`]: struct@form::MultipartForm
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
-#![allow(clippy::borrow_interior_mutable_const)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 // This allows us to use the actix_multipart_derive within this crate's tests
 #[cfg(test)]
@@ -50,14 +72,15 @@ extern crate self as actix_multipart;
 
 mod error;
 mod extractor;
+pub(crate) mod field;
 pub mod form;
-mod server;
+mod multipart;
+pub(crate) mod payload;
+pub(crate) mod safety;
 pub mod test;
 
 pub use self::{
-    error::MultipartError,
-    server::{Field, Multipart},
-    test::{
-        create_form_data_payload_and_headers, create_form_data_payload_and_headers_with_boundary,
-    },
+    error::Error as MultipartError,
+    field::{Field, LimitExceeded},
+    multipart::Multipart,
 };

@@ -163,6 +163,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(dead_code)]
     struct PinType(PhantomPinned);
 
     impl MessageBody for PinType {

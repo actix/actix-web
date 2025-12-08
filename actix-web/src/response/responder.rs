@@ -131,6 +131,23 @@ where
     }
 }
 
+// Note: see https://github.com/actix/actix-web/issues/1108 for reasoning why Responder is not
+// implemented for `()`, and https://github.com/actix/actix-web/pull/3560 for discussion about this
+// impl and the decision not to include a similar one for `Option<()>`.
+impl<E> Responder for Result<(), E>
+where
+    E: Into<Error>,
+{
+    type Body = BoxBody;
+
+    fn respond_to(self, _req: &HttpRequest) -> HttpResponse {
+        match self {
+            Ok(()) => HttpResponse::new(StatusCode::NO_CONTENT),
+            Err(err) => HttpResponse::from_error(err.into()),
+        }
+    }
+}
+
 impl<R: Responder> Responder for (R, StatusCode) {
     type Body = R::Body;
 

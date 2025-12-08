@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
+## 0.7.2
+
+- Fix re-exported version of `actix-multipart-derive`.
+
+## 0.7.1
+
+- Expose `LimitExceeded` error type.
+
+## 0.7.0
+
+- Add `MultipartError::ContentTypeIncompatible` variant.
+- Add `MultipartError::ContentDispositionNameMissing` variant.
+- Add `Field::bytes()` method.
+- Rename `MultipartError::{NoContentDisposition => ContentDispositionMissing}` variant.
+- Rename `MultipartError::{NoContentType => ContentTypeMissing}` variant.
+- Rename `MultipartError::{ParseContentType => ContentTypeParse}` variant.
+- Rename `MultipartError::{Boundary => BoundaryMissing}` variant.
+- Rename `MultipartError::{UnsupportedField => UnknownField}` variant.
+- Remove top-level re-exports of `test` utilities.
+
 ## 0.6.2
 
 - Add testing utilities under new module `test`.

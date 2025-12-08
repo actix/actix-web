@@ -1,17 +1,14 @@
 [package]
 name = "actix-web"
-version = "4.7.0"
+version = "4.12.1"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
-authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Rob Ede <robjtede@icloud.com>",
-]
+authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
 categories = [
-    "network-programming",
-    "asynchronous",
-    "web-programming::http-server",
-    "web-programming::websocket"
+  "network-programming",
+  "asynchronous",
+  "web-programming::http-server",
+  "web-programming::websocket",
 ]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
@@ -20,57 +17,56 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
-    "macros",
-    "openssl",
-    "rustls-0_20",
-    "rustls-0_21",
-    "rustls-0_22",
-    "rustls-0_23",
-    "compress-brotli",
-    "compress-gzip",
-    "compress-zstd",
-    "cookies",
-    "secure-cookies",
+  "macros",
+  "openssl",
+  "rustls-0_20",
+  "rustls-0_21",
+  "rustls-0_22",
+  "rustls-0_23",
+  "compress-brotli",
+  "compress-gzip",
+  "compress-zstd",
+  "cookies",
+  "secure-cookies",
 ]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix_http::*",
-    "actix_router::*",
-    "actix_rt::*",
-    "actix_server::*",
-    "actix_service::*",
-    "actix_utils::*",
-    "actix_web_codegen::*",
-    "bytes::*",
-    "cookie::*",
-    "cookie",
-    "futures_core::*",
-    "http::*",
-    "language_tags::*",
-    "mime::*",
-    "openssl::*",
-    "rustls::*",
-    "serde_json::*",
-    "serde_urlencoded::*",
-    "serde::*",
-    "serde::*",
-    "tokio::*",
-    "url::*",
+  "actix_http::*",
+  "actix_router::*",
+  "actix_rt::*",
+  "actix_server::*",
+  "actix_service::*",
+  "actix_utils::*",
+  "actix_web_codegen::*",
+  "bytes::*",
+  "cookie::*",
+  "cookie",
+  "futures_core::*",
+  "http::*",
+  "language_tags::*",
+  "mime::*",
+  "openssl::*",
+  "rustls::*",
+  "serde_json::*",
+  "serde_urlencoded::*",
+  "serde::*",
+  "tokio::*",
+  "url::*",
 ]
 
 [features]
 default = [
-    "macros",
-    "compress-brotli",
-    "compress-gzip",
-    "compress-zstd",
-    "cookies",
-    "http2",
-    "unicode",
-    "compat",
+  "macros",
+  "compress-brotli",
+  "compress-gzip",
+  "compress-zstd",
+  "cookies",
+  "http2",
+  "unicode",
+  "compat",
+  "ws",
 ]
 
 # Brotli algorithm content-encoding support
@@ -89,22 +85,25 @@ cookies = ["dep:cookie"]
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
 
-# HTTP/2 support (including h2c).
+# HTTP/2 support (including h2c)
 http2 = ["actix-http/http2"]
 
+# WebSocket support
+ws = ["actix-http/ws"]
+
 # TLS via OpenSSL
-openssl = ["http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
+openssl = ["__tls", "http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # TLS via Rustls v0.20
 rustls = ["rustls-0_20"]
 # TLS via Rustls v0.20
-rustls-0_20 = ["http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
+rustls-0_20 = ["__tls", "http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
 # TLS via Rustls v0.21
-rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
+rustls-0_21 = ["__tls", "http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
 # TLS via Rustls v0.22
-rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
+rustls-0_22 = ["__tls", "http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
 # TLS via Rustls v0.23
-rustls-0_23 = ["http2", "actix-http/rustls-0_23", "actix-tls/accept", "actix-tls/rustls-0_23"]
+rustls-0_23 = ["__tls", "http2", "actix-http/rustls-0_23", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Full unicode support
 unicode = ["dep:regex", "actix-router/unicode"]
@@ -113,13 +112,15 @@ unicode = ["dep:regex", "actix-router/unicode"]
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
 
+# Internal (PRIVATE!) features used to aid checking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__tls = []
+
 # io-uring feature only available for Linux OSes.
 experimental-io-uring = ["actix-server/io-uring"]
 
 # Feature group which, when disabled, helps migrate code to v5.0.
-compat = [
-    "compat-routing-macros-force-pub",
-]
+compat = ["compat-routing-macros-force-pub"]
 
 # Opt-out forwards-compatibility for handler visibility inheritance fix.
 compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-force-pub"]
@@ -128,29 +129,30 @@ compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-for
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
-actix-server = "2"
+actix-server = "2.6"
 actix-service = "2"
-actix-utils = "3"
 actix-tls = { version = "3.4", default-features = false, optional = true }
+actix-utils = "3"
 
-actix-http = { version = "3.7", features = ["ws"] }
+actix-http = "3.11.2"
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
-ahash = "0.8"
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
-derive_more = "0.99.8"
+derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
+foldhash = "0.1"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
+impl-more = "0.1.4"
 itoa = "1"
 language-tags = "0.3"
 log = "0.4"
 mime = "0.3"
-once_cell = "1.5"
+once_cell = "1.21"
 pin-project-lite = "0.2.7"
 regex = { version = "1.5.5", optional = true }
 regex-lite = "0.1"
@@ -158,31 +160,36 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
-socket2 = "0.5"
+socket2 = "0.6"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
-url = "2.1"
+tracing = "0.1.30"
+url = "2.5.4"
 
 [dev-dependencies]
 actix-files = "0.6"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
-brotli = "6"
-const-str = "0.5"
+brotli = "8"
+const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
-rand = "0.8"
+rand = "0.9"
 rcgen = "0.13"
 rustls-pemfile = "2"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
-tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros"] }
+tokio-util = "0.7"
 zstd = "0.13"
+
+[lints]
+workspace = true
 
 [[test]]
 name = "test_server"

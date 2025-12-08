@@ -39,7 +39,7 @@ impl App<AppEntry> {
         let factory_ref = Rc::new(RefCell::new(None));
 
         App {
-            endpoint: AppEntry::new(factory_ref.clone()),
+            endpoint: AppEntry::new(Rc::clone(&factory_ref)),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
@@ -234,7 +234,6 @@ where
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
-    /// * "StaticFiles" is a service for static files support
     pub fn service<F>(mut self, factory: F) -> Self
     where
         F: HttpServiceFactory + 'static,
@@ -270,9 +269,9 @@ where
             + 'static,
         U::InitError: fmt::Debug,
     {
-        let svc = svc
-            .into_factory()
-            .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
+        let svc = svc.into_factory().map_init_err(|err| {
+            log::error!("Can not construct default service: {err:?}");
+        });
 
         self.default = Some(Rc::new(boxed::factory(svc)));
 

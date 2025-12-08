@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
+## 0.6.9
+
+- Correct `derive_more` dependency feature requirements.
+
+## 0.6.8
+
+- Add `Files::with_permanent_redirect()` method.
+- Change default redirect status code to 307 Temporary Redirect.
+
+## 0.6.7
+
+- Add `{Files, NamedFile}::read_mode_threshold()` methods to allow faster synchronous reads of small files.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
 ## 0.6.6
 
 - Update `tokio-uring` dependency to `0.4`.

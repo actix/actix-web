@@ -1,17 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-    "actix-files",
-    "actix-http-test",
-    "actix-http",
-    "actix-multipart",
-    "actix-multipart-derive",
-    "actix-router",
-    "actix-test",
-    "actix-web-actors",
-    "actix-web-codegen",
-    "actix-web",
-    "awc",
+  "actix-files",
+  "actix-http-test",
+  "actix-http",
+  "actix-multipart",
+  "actix-multipart-derive",
+  "actix-router",
+  "actix-test",
+  "actix-web-actors",
+  "actix-web-codegen",
+  "actix-web",
+  "awc",
 ]
 
 [workspace.package]
@@ -19,7 +19,7 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.72"
+rust-version = "1.82"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.
@@ -51,3 +51,11 @@ awc = { path = "awc" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
+
+[workspace.lints.rust]
+rust_2018_idioms = { level = "deny" }
+future_incompatible = { level = "deny" }
+nonstandard_style = { level = "deny" }
+
+[workspace.lints.clippy]
+# clone_on_ref_ptr = { level = "deny" }

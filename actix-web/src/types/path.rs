@@ -89,8 +89,8 @@ where
                     );
 
                     if let Some(error_handler) = error_handler {
-                        let e = PathError::Deserialize(err);
-                        (error_handler)(e, req)
+                        let err = PathError::Deserialize(err);
+                        (error_handler)(err, req)
                     } else {
                         ErrorNotFound(err)
                     }
@@ -159,7 +159,7 @@ mod tests {
     use crate::{error, http, test::TestRequest, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
-    #[display(fmt = "MyStruct({}, {})", key, value)]
+    #[display("MyStruct({}, {})", key, value)]
     struct MyStruct {
         key: String,
         value: String,

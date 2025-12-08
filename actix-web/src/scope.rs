@@ -213,7 +213,6 @@ where
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
-    /// * "StaticFiles" is a service for static files support
     ///
     /// ```
     /// use actix_web::{web, App, HttpRequest};
@@ -279,7 +278,9 @@ where
     {
         // create and configure default resource
         self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
-            |e| log::error!("Can not construct default service: {:?}", e),
+            |err| {
+                log::error!("Can not construct default service: {err:?}");
+            },
         ))));
 
         self

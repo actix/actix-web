@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
+## 3.11.2
+
+- Properly wake Payload receivers when feeding errors or EOF.
+- Add `ServiceConfigBuilder` type to facilitate future configuration extensions.
+- Add a configuration option to allow/disallow half closed connections in HTTP/1. This defaults to allow, reverting the change made in 3.11.1.
+- Shutdown connections when HTTP Responses are written without reading full Requests.
+
+## 3.11.1
+
+- Prevent more hangs after client disconnects.
+- More malformed WebSocket frames are now gracefully rejected.
+- Using `TestRequest::set_payload()` now sets a Content-Length header.
+
+## 3.11.0
+
+- Update `brotli` dependency to `8`.
+
+## 3.10.0
+
+### Added
+
+- Add `header::CLEAR_SITE_DATA` constant.
+- Add `Extensions::get_or_insert[_with]()` methods.
+- Implement `From<Bytes>` for `Payload`.
+- Implement `From<Vec<u8>>` for `Payload`.
+
+### Changed
+
+- Update `brotli` dependency to `7`.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
+## 3.9.0
+
+### Added
+
+- Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
+
+## 3.8.0
+
 ### Added
 
 - Add `error::InvalidStatusCode` re-export.

@@ -20,7 +20,7 @@ use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures_util::stream;
-use rand::Rng;
+use rand::distr::{Alphanumeric, SampleString as _};
 
 mod utils;
 
@@ -516,11 +516,7 @@ async fn client_gzip_encoding_large() {
 #[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
 async fn client_gzip_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(100_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 100_000);
 
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
@@ -562,11 +558,7 @@ async fn client_brotli_encoding() {
 #[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
 async fn client_brotli_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(70_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
 
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
@@ -607,11 +599,7 @@ async fn client_deflate_encoding() {
 
 #[actix_rt::test]
 async fn client_deflate_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(rand::distributions::Alphanumeric)
-        .map(char::from)
-        .take(70_000)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
 
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| async {

@@ -8,13 +8,13 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.7.0)](https://docs.rs/actix-web/4.7.0)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.12.1)](https://docs.rs/actix-web/4.12.1)
 ![MSRV](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.7.0/status.svg)](https://deps.rs/crate/actix-web/4.7.0)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.12.1/status.svg)](https://deps.rs/crate/actix-web/4.12.1)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
+[![codecov](https://codecov.io/gh/actix/actix-web/graph/badge.svg?token=dSwOnp9QCv)](https://codecov.io/gh/actix/actix-web)
 ![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
@@ -44,7 +44,7 @@
 - [Website & User Guide](https://actix.rs)
 - [Examples Repository](https://github.com/actix/examples)
 - [API Documentation](https://docs.rs/actix-web)
-- [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
+- [API Documentation (mainranch)](https://actix.rs/actix-web/actix_web)
 
 ## Example
 
@@ -78,23 +78,23 @@ async fn main() -> std::io::Result<()> {
 
 ### More Examples
 
-- [Hello World](https://github.com/actix/examples/tree/master/basics/hello-world)
-- [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics)
-- [Application State](https://github.com/actix/examples/tree/master/basics/state)
-- [JSON Handling](https://github.com/actix/examples/tree/master/json/json)
-- [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart)
-- [MongoDB Integration](https://github.com/actix/examples/tree/master/databases/mongodb)
-- [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel)
-- [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite)
-- [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres)
-- [Tera Templates](https://github.com/actix/examples/tree/master/templating/tera)
-- [Askama Templates](https://github.com/actix/examples/tree/master/templating/askama)
-- [HTTPS using Rustls](https://github.com/actix/examples/tree/master/https-tls/rustls)
-- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/https-tls/openssl)
-- [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets)
-- [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat)
+- [Hello World](https://github.com/actix/examples/tree/main/basics/hello-world)
+- [Basic Setup](https://github.com/actix/examples/tree/main/basics/basics)
+- [Application State](https://github.com/actix/examples/tree/main/basics/state)
+- [JSON Handling](https://github.com/actix/examples/tree/main/json/json)
+- [Multipart Streams](https://github.com/actix/examples/tree/main/forms/multipart)
+- [MongoDB Integration](https://github.com/actix/examples/tree/main/databases/mongodb)
+- [Diesel Integration](https://github.com/actix/examples/tree/main/databases/diesel)
+- [SQLite Integration](https://github.com/actix/examples/tree/main/databases/sqlite)
+- [Postgres Integration](https://github.com/actix/examples/tree/main/databases/postgres)
+- [Tera Templates](https://github.com/actix/examples/tree/main/templating/tera)
+- [Askama Templates](https://github.com/actix/examples/tree/main/templating/askama)
+- [HTTPS using Rustls](https://github.com/actix/examples/tree/main/https-tls/rustls)
+- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/main/https-tls/openssl)
+- [Simple WebSocket](https://github.com/actix/examples/tree/main/websockets)
+- [WebSocket Chat](https://github.com/actix/examples/tree/main/websockets/chat)
 
-You may consider checking out [this directory](https://github.com/actix/examples/tree/master) for more examples.
+You may consider checking out [this directory](https://github.com/actix/examples/tree/main) for more examples.
 
 ## Benchmarks
 

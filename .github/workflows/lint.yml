@@ -15,10 +15,10 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly
           components: rustfmt
@@ -33,15 +33,15 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           components: clippy
 
       - name: Check with Clippy
-        uses: giraffate/clippy-action@v1.0.1
+        uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         with:
           reporter: github-pr-check
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -52,10 +52,10 @@ jobs:
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
           toolchain: nightly
           components: rust-docs
@@ -66,51 +66,25 @@ jobs:
         run: cargo +nightly doc --no-deps --workspace --all-features
 
   check-external-types:
+    if: false # rustdoc mismatch currently
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-      - name: Install Rust (nightly-2024-05-01)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+      - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
-          toolchain: nightly-2024-05-01
+          toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.38.0
+        uses: taiki-e/install-action@3575e532701a5fc614b0c842e4119af4cc5fd16d # v2.62.60
         with:
           tool: just
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v1.2.2
+        uses: taiki-e/cache-cargo-install-action@7447f04c51f2ba27ca35e7f1e28fab848c5b3ba7 # v2.3.1
         with:
           tool: cargo-check-external-types
 
       - name: check external types
-        run: just check-external-types-all +nightly-2024-05-01
-
-  public-api-diff:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.base_ref }}
-
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-
-      - name: Install Rust (nightly-2024-06-07)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
-        with:
-          toolchain: nightly-2024-06-07
-
-      - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.38.0
-        with:
-          tool: cargo-public-api
-
-      - name: Generate API diff
-        run: |
-          for f in $(find -mindepth 2 -maxdepth 2 -name Cargo.toml); do
-            cargo public-api --manifest-path "$f" --simplified diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
-          done
+        run: just check-external-types-all +${{ vars.RUST_VERSION_EXTERNAL_TYPES }}

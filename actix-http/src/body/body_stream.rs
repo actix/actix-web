@@ -131,7 +131,7 @@ mod tests {
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));
     }
     #[derive(Debug, Display, Error)]
-    #[display(fmt = "stream error")]
+    #[display("stream error")]
     struct StreamErr;
 
     #[actix_rt::test]

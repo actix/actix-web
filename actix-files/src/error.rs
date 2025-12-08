@@ -6,11 +6,11 @@ use derive_more::Display;
 pub enum FilesError {
     /// Path is not a directory.
     #[allow(dead_code)]
-    #[display(fmt = "path is not a directory. Unable to serve static files")]
+    #[display("path is not a directory. Unable to serve static files")]
     IsNotDirectory,
 
     /// Cannot render directory.
-    #[display(fmt = "unable to render directory without index file")]
+    #[display("unable to render directory without index file")]
     IsDirectory,
 }
 
@@ -25,19 +25,19 @@ impl ResponseError for FilesError {
 #[non_exhaustive]
 pub enum UriSegmentError {
     /// Segment started with the wrapped invalid character.
-    #[display(fmt = "segment started with invalid character: ('{_0}')")]
+    #[display("segment started with invalid character: ('{_0}')")]
     BadStart(char),
 
     /// Segment contained the wrapped invalid character.
-    #[display(fmt = "segment contained invalid character ('{_0}')")]
+    #[display("segment contained invalid character ('{_0}')")]
     BadChar(char),
 
     /// Segment ended with the wrapped invalid character.
-    #[display(fmt = "segment ended with invalid character: ('{_0}')")]
+    #[display("segment ended with invalid character: ('{_0}')")]
     BadEnd(char),
 
     /// Path is not a valid UTF-8 string after percent-decoding.
-    #[display(fmt = "path is not a valid UTF-8 string after percent-decoding")]
+    #[display("path is not a valid UTF-8 string after percent-decoding")]
     NotValidUtf8,
 }
 
