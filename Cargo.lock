@@ -113,7 +113,7 @@ dependencies = [
  "rcgen",
  "regex",
  "rustls 0.23.35",
- "rustls-pemfile",
+ "rustls-pki-types",
  "rustversion",
  "serde",
  "serde_json",
@@ -388,7 +388,7 @@ dependencies = [
  "regex",
  "regex-lite",
  "rustls 0.23.35",
- "rustls-pemfile",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -649,7 +649,7 @@ dependencies = [
  "rustls 0.21.12",
  "rustls 0.22.4",
  "rustls 0.23.35",
- "rustls-pemfile",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -2532,19 +2532,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls-pemfile"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
-dependencies = [
- "rustls-pki-types",
-]
-
-[[package]]
 name = "rustls-pki-types"
-version = "1.13.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94182ad936a0c91c324cd46c6511b9510ed16af436d7b5bab34beab0afd55f7a"
+checksum = "708c0f9d5f54ba0272468c1d306a52c495b31fa155e91bc25371e6df7996908c"
 dependencies = [
  "zeroize",
 ]

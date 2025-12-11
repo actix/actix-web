@@ -82,29 +82,16 @@ impl Stream for Heartbeat {
 }
 
 fn tls_config() -> rustls::ServerConfig {
-    use std::io::BufReader;
-
-    use rustls_pemfile::{certs, pkcs8_private_keys};
-
     let rcgen::CertifiedKey { cert, key_pair } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
-    let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
-
-    let cert_file = &mut BufReader::new(cert_file.as_bytes());
-    let key_file = &mut BufReader::new(key_file.as_bytes());
-
-    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
-    let mut keys = pkcs8_private_keys(key_file)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let cert_chain = vec![cert.der().clone()];
+    let key_der = rustls_pki_types::PrivateKeyDer::Pkcs8(
+        rustls_pki_types::PrivatePkcs8KeyDer::from(key_pair.serialize_der()),
+    );
 
     let mut config = rustls::ServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(
-            cert_chain,
-            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
-        )
+        .with_single_cert(cert_chain, key_der)
         .unwrap();
 
     config.alpn_protocols.push(b"http/1.1".to_vec());

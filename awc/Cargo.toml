@@ -149,7 +149,7 @@ flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
 rcgen = "0.13"
-rustls-pemfile = "2"
+rustls-pki-types = "1.13.1"
 tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests

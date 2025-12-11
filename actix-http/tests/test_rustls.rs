@@ -4,7 +4,7 @@ extern crate tls_rustls_023 as rustls;
 
 use std::{
     convert::Infallible,
-    io::{self, BufReader, Write},
+    io::{self, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
     task::Poll,
@@ -27,7 +27,7 @@ use derive_more::{Display, Error};
 use futures_core::{ready, Stream};
 use futures_util::stream::once;
 use rustls::{pki_types::ServerName, ServerConfig as RustlsServerConfig};
-use rustls_pemfile::{certs, pkcs8_private_keys};
+use rustls_pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 
 async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -54,23 +54,12 @@ where
 fn tls_config() -> RustlsServerConfig {
     let rcgen::CertifiedKey { cert, key_pair } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
-    let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
-
-    let cert_file = &mut BufReader::new(cert_file.as_bytes());
-    let key_file = &mut BufReader::new(key_file.as_bytes());
-
-    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
-    let mut keys = pkcs8_private_keys(key_file)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let cert_chain = vec![cert.der().clone()];
+    let key_der = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_pair.serialize_der()));
 
     let mut config = RustlsServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(
-            cert_chain,
-            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
-        )
+        .with_single_cert(cert_chain, key_der)
         .unwrap();
 
     config.alpn_protocols.push(HTTP1_1_ALPN_PROTOCOL.to_vec());
