@@ -16,17 +16,12 @@ use proc_macro2::Ident;
 use quote::quote;
 use syn::{parse_macro_input, Type};
 
-#[derive(FromMeta)]
+#[derive(Default, FromMeta)]
 enum DuplicateField {
+    #[default]
     Ignore,
     Deny,
     Replace,
-}
-
-impl Default for DuplicateField {
-    fn default() -> Self {
-        Self::Ignore
-    }
 }
 
 #[derive(FromDeriveInput, Default)]

@@ -176,11 +176,7 @@ impl Inner {
     /// Register future waiting data from payload.
     /// Waker would be used in `Inner::wake`
     fn register(&mut self, cx: &Context<'_>) {
-        if self
-            .task
-            .as_ref()
-            .map_or(true, |w| !cx.waker().will_wake(w))
-        {
+        if self.task.as_ref().is_none_or(|w| !cx.waker().will_wake(w)) {
             self.task = Some(cx.waker().clone());
         }
     }
@@ -191,7 +187,7 @@ impl Inner {
         if self
             .io_task
             .as_ref()
-            .map_or(true, |w| !cx.waker().will_wake(w))
+            .is_none_or(|w| !cx.waker().will_wake(w))
         {
             self.io_task = Some(cx.waker().clone());
         }
