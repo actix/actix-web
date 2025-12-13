@@ -73,11 +73,13 @@ where
 
     fn call(&self, req: ConnectRequest) -> Self::Future {
         match req {
-            ConnectRequest::Tunnel(head, addr) => {
-                let fut = self.connector.call(ConnectRequest::Tunnel(head, addr));
+            ConnectRequest::Tunnel(head, addr, sni_host) => {
+                let fut = self
+                    .connector
+                    .call(ConnectRequest::Tunnel(head, addr, sni_host));
                 RedirectServiceFuture::Tunnel { fut }
             }
-            ConnectRequest::Client(head, body, addr) => {
+            ConnectRequest::Client(head, body, addr, sni_host) => {
                 let connector = Rc::clone(&self.connector);
                 let max_redirect_times = self.max_redirect_times;
 
@@ -96,7 +98,7 @@ where
                     _ => None,
                 };
 
-                let fut = connector.call(ConnectRequest::Client(head, body, addr));
+                let fut = connector.call(ConnectRequest::Client(head, body, addr, sni_host));
 
                 RedirectServiceFuture::Client {
                     fut,
@@ -221,7 +223,8 @@ where
                         let fut = connector
                             .as_ref()
                             .unwrap()
-                            .call(ConnectRequest::Client(head, body_new, addr));
+                            // @TODO find a way to get sni host
+                            .call(ConnectRequest::Client(head, body_new, addr, None));
 
                         self.set(RedirectServiceFuture::Client {
                             fut,
