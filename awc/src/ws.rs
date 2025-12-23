@@ -38,7 +38,7 @@ use base64::prelude::*;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::ClientConfig,
+    client::{ClientConfig, ServerName},
     connect::{BoxedSocket, ConnectRequest},
     error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
     http::{
@@ -58,6 +58,7 @@ pub struct WebsocketsRequest {
     max_size: usize,
     server_mode: bool,
     config: ClientConfig,
+    sni_host: Option<ServerName>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -96,6 +97,7 @@ impl WebsocketsRequest {
             server_mode: false,
             #[cfg(feature = "cookies")]
             cookies: None,
+            sni_host: None,
         }
     }
 
@@ -249,6 +251,12 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
+    /// Set SNI (Server Name Indication) host for this request.
+    pub fn sni_host(mut self, host: impl Into<String>) -> Self {
+        self.sni_host = Some(ServerName::Owned(host.into()));
+        self
+    }
+
     /// Complete request construction and connect to a WebSocket server.
     pub async fn connect(
         mut self,
@@ -338,7 +346,7 @@ impl WebsocketsRequest {
         let max_size = self.max_size;
         let server_mode = self.server_mode;
 
-        let req = ConnectRequest::Tunnel(head, self.addr);
+        let req = ConnectRequest::Tunnel(head, self.addr, self.sni_host);
 
         let fut = self.config.connector.call(req);
 
