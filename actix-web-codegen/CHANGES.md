@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
 ## 4.3.0
 
 - Add `#[scope]` macro.

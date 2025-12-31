@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.82.
+
+## 0.6.9
+
+- Correct `derive_more` dependency feature requirements.
+
 ## 0.6.8
 
 - Add `Files::with_permanent_redirect()` method.
