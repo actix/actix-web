@@ -1,4 +1,4 @@
-use super::{Guard, GuardContext};
+use super::{Guard, GuardContext, GuardDetail};
 use crate::http::header::Accept;
 
 /// A guard that verifies that an `Accept` header is present and it contains a compatible MIME type.
@@ -63,6 +63,37 @@ impl Guard for Acceptable {
 
         false
     }
+
+    fn name(&self) -> String {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            if self.match_star_star {
+                format!("Acceptable({}, match_star_star=true)", self.mime)
+            } else {
+                format!("Acceptable({})", self.mime)
+            }
+        }
+        #[cfg(not(feature = "experimental-introspection"))]
+        {
+            std::any::type_name::<Self>().to_string()
+        }
+    }
+
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            let mut details = Vec::new();
+            details.push(GuardDetail::Generic(format!("mime={}", self.mime)));
+            if self.match_star_star {
+                details.push(GuardDetail::Generic("match_star_star=true".to_string()));
+            }
+            Some(details)
+        }
+        #[cfg(not(feature = "experimental-introspection"))]
+        {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -95,5 +126,29 @@ mod tests {
         assert!(Acceptable::new(mime::APPLICATION_JSON)
             .match_star_star()
             .check(&req.guard_ctx()));
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    #[test]
+    fn acceptable_guard_details_include_mime() {
+        let guard = Acceptable::new(mime::APPLICATION_JSON).match_star_star();
+        let details = guard.details().expect("missing guard details");
+
+        assert!(details.iter().any(|detail| match detail {
+            GuardDetail::Generic(value) => value == "match_star_star=true",
+            _ => false,
+        }));
+        let expected = format!("mime={}", mime::APPLICATION_JSON);
+        assert!(details.iter().any(|detail| match detail {
+            GuardDetail::Generic(value) => value == &expected,
+            _ => false,
+        }));
+        assert_eq!(
+            guard.name(),
+            format!(
+                "Acceptable({}, match_star_star=true)",
+                mime::APPLICATION_JSON
+            )
+        );
     }
 }
