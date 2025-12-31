@@ -473,15 +473,18 @@ where
                 );
 
                 for full_path in &full_paths {
-                    config.introspector.borrow_mut().register_route(
+                    let info = crate::introspection::RouteInfo::new(
                         full_path.clone(),
                         methods.clone(),
                         guard_names.clone(),
                         guard_details.clone(),
                         patterns.clone(),
                         resource_name.clone(),
-                        scope_id,
                     );
+                    config
+                        .introspector
+                        .borrow_mut()
+                        .register_route(info, scope_id);
                 }
             }
         }

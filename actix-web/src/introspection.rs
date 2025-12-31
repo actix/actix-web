@@ -41,6 +41,37 @@ pub struct RouteDetail {
     is_resource: bool,
 }
 
+/// Input data for registering routes with the introspector.
+#[derive(Clone)]
+pub struct RouteInfo {
+    full_path: String,
+    methods: Vec<Method>,
+    guards: Vec<String>,
+    guard_details: Vec<GuardReport>,
+    patterns: Vec<String>,
+    resource_name: Option<String>,
+}
+
+impl RouteInfo {
+    pub fn new(
+        full_path: String,
+        methods: Vec<Method>,
+        guards: Vec<String>,
+        guard_details: Vec<GuardReport>,
+        patterns: Vec<String>,
+        resource_name: Option<String>,
+    ) -> Self {
+        Self {
+            full_path,
+            methods,
+            guards,
+            guard_details,
+            patterns,
+            resource_name,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GuardReport {
     pub name: String,
@@ -273,28 +304,15 @@ impl IntrospectionCollector {
 
     pub fn register_service(
         &mut self,
-        full_path: String,
-        methods: Vec<Method>,
-        guards: Vec<String>,
-        guard_details: Vec<GuardReport>,
-        patterns: Vec<String>,
-        resource_name: Option<String>,
+        info: RouteInfo,
         is_resource: bool,
         is_prefix: bool,
         scope_id: Option<usize>,
         parent_scope_id: Option<usize>,
     ) {
-        let full_path = normalize_path(&full_path);
+        let full_path = normalize_path(&info.full_path);
 
-        self.register_pattern_detail(
-            full_path.clone(),
-            methods.clone(),
-            guards.clone(),
-            guard_details.clone(),
-            patterns.clone(),
-            resource_name.clone(),
-            is_resource,
-        );
+        self.register_pattern_detail(&full_path, &info, is_resource);
 
         self.registrations.push(Registration {
             order: self.next_registration_order,
@@ -303,33 +321,16 @@ impl IntrospectionCollector {
             parent_scope_id,
             full_path,
             is_prefix,
-            methods,
-            guards,
+            methods: info.methods,
+            guards: info.guards,
         });
         self.next_registration_order += 1;
     }
 
-    pub fn register_route(
-        &mut self,
-        full_path: String,
-        methods: Vec<Method>,
-        guards: Vec<String>,
-        guard_details: Vec<GuardReport>,
-        patterns: Vec<String>,
-        resource_name: Option<String>,
-        scope_id: Option<usize>,
-    ) {
-        let full_path = normalize_path(&full_path);
+    pub fn register_route(&mut self, info: RouteInfo, scope_id: Option<usize>) {
+        let full_path = normalize_path(&info.full_path);
 
-        self.register_pattern_detail(
-            full_path.clone(),
-            methods.clone(),
-            guards.clone(),
-            guard_details.clone(),
-            patterns.clone(),
-            resource_name.clone(),
-            true,
-        );
+        self.register_pattern_detail(&full_path, &info, true);
 
         self.registrations.push(Registration {
             order: self.next_registration_order,
@@ -338,8 +339,8 @@ impl IntrospectionCollector {
             parent_scope_id: None,
             full_path,
             is_prefix: false,
-            methods,
-            guards,
+            methods: info.methods,
+            guards: info.guards,
         });
         self.next_registration_order += 1;
     }
@@ -366,36 +367,32 @@ impl IntrospectionCollector {
     /// Registers details for a route pattern.
     pub fn register_pattern_detail(
         &mut self,
-        full_path: String,
-        methods: Vec<Method>,
-        guards: Vec<String>,
-        guard_details: Vec<GuardReport>,
-        patterns: Vec<String>,
-        resource_name: Option<String>,
+        full_path: &str,
+        info: &RouteInfo,
         is_resource: bool,
     ) {
-        let full_path = normalize_path(&full_path);
+        let full_path = normalize_path(full_path);
 
         self.details
             .entry(full_path)
             .and_modify(|d| {
-                update_unique(&mut d.methods, &methods);
-                update_unique(&mut d.guards, &guards);
-                merge_guard_reports(&mut d.guard_details, &guard_details);
-                update_unique(&mut d.patterns, &patterns);
+                update_unique(&mut d.methods, &info.methods);
+                update_unique(&mut d.guards, &info.guards);
+                merge_guard_reports(&mut d.guard_details, &info.guard_details);
+                update_unique(&mut d.patterns, &info.patterns);
                 if d.resource_name.is_none() {
-                    d.resource_name = resource_name.clone();
+                    d.resource_name = info.resource_name.clone();
                 }
                 if !d.is_resource && is_resource {
                     d.is_resource = true;
                 }
             })
             .or_insert(RouteDetail {
-                methods,
-                guards,
-                guard_details,
-                patterns,
-                resource_name,
+                methods: info.methods.clone(),
+                guards: info.guards.clone(),
+                guard_details: info.guard_details.clone(),
+                patterns: info.patterns.clone(),
+                resource_name: info.resource_name.clone(),
                 is_resource,
             });
     }
@@ -413,13 +410,8 @@ impl IntrospectionCollector {
             let mut assembled = String::new();
 
             for part in parts.iter() {
-                if assembled.is_empty() {
-                    assembled.push('/');
-                    assembled.push_str(part);
-                } else {
-                    assembled.push('/');
-                    assembled.push_str(part);
-                }
+                assembled.push('/');
+                assembled.push_str(part);
 
                 let child_full_path = assembled.clone();
                 let existing_child_index = current_node
@@ -939,18 +931,36 @@ avoid exposing introspection endpoints in production"
 mod tests {
     use super::*;
 
+    fn route_info(
+        full_path: &str,
+        methods: Vec<Method>,
+        guards: Vec<String>,
+        guard_details: Vec<GuardReport>,
+        patterns: Vec<String>,
+        resource_name: Option<String>,
+    ) -> RouteInfo {
+        RouteInfo::new(
+            full_path.to_string(),
+            methods,
+            guards,
+            guard_details,
+            patterns,
+            resource_name,
+        )
+    }
+
     #[test]
     fn report_includes_resources_without_methods() {
         let mut collector = IntrospectionCollector::new();
-        collector.register_route(
-            "/no-guards".to_string(),
+        let info = route_info(
+            "/no-guards",
             Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            None,
             None,
         );
+        collector.register_route(info, None);
         let tree = collector.finalize();
         let items: Vec<IntrospectionReportItem> = (&tree.root).into();
 
@@ -979,15 +989,15 @@ mod tests {
             }],
         }];
 
-        collector.register_route(
-            "/meta".to_string(),
+        let info = route_info(
+            "/meta",
             vec![Method::GET],
             vec!["Header(accept, text/plain)".to_string()],
             guard_details,
             vec!["/meta".to_string()],
             Some("meta-resource".to_string()),
-            None,
         );
+        collector.register_route(info, None);
 
         let tree = collector.finalize();
         let items: Vec<IntrospectionReportItem> = (&tree.root).into();
@@ -1024,15 +1034,15 @@ mod tests {
     #[test]
     fn conflicting_method_guards_mark_unreachable() {
         let mut collector = IntrospectionCollector::new();
-        collector.register_route(
-            "/all-guard".to_string(),
+        let info = route_info(
+            "/all-guard",
             vec![Method::GET, Method::POST],
             vec!["AllGuard(GET, POST)".to_string()],
             Vec::new(),
             Vec::new(),
             None,
-            None,
         );
+        collector.register_route(info, None);
         let tree = collector.finalize();
         let items: Vec<IntrospectionReportItem> = (&tree.root).into();
 
@@ -1052,50 +1062,44 @@ mod tests {
         let mut collector = IntrospectionCollector::new();
 
         let scope_a = collector.next_scope_id();
-        collector.register_service(
-            "/extra".to_string(),
+        let info = route_info(
+            "/extra",
             Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            None,
-            true,
-            true,
-            Some(scope_a),
             None,
         );
-        collector.register_route(
-            "/extra/ping".to_string(),
+        collector.register_service(info, true, true, Some(scope_a), None);
+        let info = route_info(
+            "/extra/ping",
             vec![Method::GET],
             Vec::new(),
             Vec::new(),
             Vec::new(),
             None,
-            Some(scope_a),
         );
+        collector.register_route(info, Some(scope_a));
 
         let scope_b = collector.next_scope_id();
-        collector.register_service(
-            "/extra".to_string(),
+        let info = route_info(
+            "/extra",
             Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            None,
-            true,
-            true,
-            Some(scope_b),
             None,
         );
-        collector.register_route(
-            "/extra/ping".to_string(),
+        collector.register_service(info, true, true, Some(scope_b), None);
+        let info = route_info(
+            "/extra/ping",
             vec![Method::POST],
             Vec::new(),
             Vec::new(),
             Vec::new(),
             None,
-            Some(scope_b),
         );
+        collector.register_route(info, Some(scope_b));
 
         let tree = collector.finalize();
         let items: Vec<IntrospectionReportItem> = (&tree.root).into();
@@ -1121,24 +1125,24 @@ mod tests {
     fn shadowed_routes_include_context() {
         let mut collector = IntrospectionCollector::new();
 
-        collector.register_route(
-            "/shadow".to_string(),
+        let info = route_info(
+            "/shadow",
             vec![Method::GET],
             vec!["GET".to_string()],
             Vec::new(),
             Vec::new(),
             None,
-            None,
         );
-        collector.register_route(
-            "/shadow".to_string(),
+        collector.register_route(info, None);
+        let info = route_info(
+            "/shadow",
             vec![Method::GET],
             vec!["GET".to_string()],
             Vec::new(),
             Vec::new(),
             None,
-            None,
         );
+        collector.register_route(info, None);
 
         let tree = collector.finalize();
         let items: Vec<IntrospectionReportItem> = (&tree.root).into();

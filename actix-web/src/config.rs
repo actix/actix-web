@@ -187,13 +187,16 @@ impl AppService {
             let parent_scope_id = self.scope_id_stack.last().copied();
 
             for full_path in full_paths {
-                self.introspector.borrow_mut().register_service(
+                let info = crate::introspection::RouteInfo::new(
                     full_path,
                     methods.clone(),
                     guard_names.clone(),
                     guard_details.clone(),
                     patterns.clone(),
                     resource_name.clone(),
+                );
+                self.introspector.borrow_mut().register_service(
+                    info,
                     is_resource,
                     is_prefix,
                     scope_id,

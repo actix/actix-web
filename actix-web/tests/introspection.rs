@@ -40,12 +40,12 @@ async fn introspection_report_includes_details_and_metadata() {
             .service(
                 web::resource(["/alpha", "/beta"])
                     .name("multi")
-                    .route(web::get().to(|| async { HttpResponse::Ok() })),
+                    .route(web::get().to(HttpResponse::Ok)),
             )
             .service(
                 web::resource("/guarded")
                     .guard(guard::Header("accept", "text/plain"))
-                    .route(web::get().to(|| async { HttpResponse::Ok() })),
+                    .route(web::get().to(HttpResponse::Ok)),
             )
             .service(
                 web::scope("/scoped")
@@ -53,10 +53,7 @@ async fn introspection_report_includes_details_and_metadata() {
                     .configure(|cfg| {
                         cfg.external_resource("scope-external", "https://scope.example/{id}");
                     })
-                    .service(
-                        web::resource("/item")
-                            .route(web::get().to(|| async { HttpResponse::Ok() })),
-                    ),
+                    .service(web::resource("/item").route(web::get().to(HttpResponse::Ok))),
             )
             .service(web::resource("/introspection").route(web::get().to(introspection_handler)))
             .service(
