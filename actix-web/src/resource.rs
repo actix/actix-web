@@ -434,42 +434,55 @@ where
         {
             use crate::http::Method;
 
+            let full_paths = crate::introspection::expand_patterns(&config.current_prefix, &rdef);
+            let patterns = rdef
+                .pattern_iter()
+                .map(|pattern| pattern.to_string())
+                .collect::<Vec<_>>();
             let guards_routes = routes.iter().map(|r| r.guards()).collect::<Vec<_>>();
-
-            let pat = rdef.pattern().unwrap_or("").to_string();
-            let full_path = if config.current_prefix.is_empty() {
-                pat.clone()
-            } else {
-                format!(
-                    "{}/{}",
-                    config.current_prefix.trim_end_matches('/'),
-                    pat.trim_start_matches('/')
-                )
-            };
+            let scope_id = config.scope_id_stack.last().copied();
+            let resource_guards: &[Box<dyn Guard>] = guards.as_deref().unwrap_or(&[]);
+            let resource_name = self.name.clone();
 
             for route_guards in guards_routes {
                 // Log the guards and methods for introspection
-                let guard_names = route_guards.iter().map(|g| g.name()).collect::<Vec<_>>();
-                let methods = route_guards
-                    .iter()
-                    .flat_map(|g| g.details().unwrap_or_default())
-                    .flat_map(|d| {
-                        if let crate::guard::GuardDetail::HttpMethods(v) = d {
-                            v.into_iter()
-                                .filter_map(|s| s.parse::<Method>().ok())
-                                .collect::<Vec<_>>()
-                        } else {
-                            Vec::new()
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                let mut guard_names = Vec::new();
+                let mut methods = Vec::new();
 
-                config.introspector.borrow_mut().register_pattern_detail(
-                    full_path.clone(),
-                    methods,
-                    guard_names,
-                    true,
+                for guard in resource_guards.iter().chain(route_guards.iter()) {
+                    guard_names.push(guard.name());
+                    methods.extend(
+                        guard
+                            .details()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .flat_map(|d| {
+                                if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                                    v.into_iter()
+                                        .filter_map(|s| s.parse::<Method>().ok())
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    Vec::new()
+                                }
+                            }),
+                    );
+                }
+
+                let guard_details = crate::introspection::guard_reports_from_iter(
+                    resource_guards.iter().chain(route_guards.iter()),
                 );
+
+                for full_path in &full_paths {
+                    config.introspector.borrow_mut().register_route(
+                        full_path.clone(),
+                        methods.clone(),
+                        guard_names.clone(),
+                        guard_details.clone(),
+                        patterns.clone(),
+                        resource_name.clone(),
+                        scope_id,
+                    );
+                }
             }
         }
 

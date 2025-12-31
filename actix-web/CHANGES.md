@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `experimental-introspection` feature for retrieving configured route paths and HTTP methods.
+- Add `experimental-introspection` feature to report configured routes (paths, methods, guards, resource metadata), include reachability hints for shadowed/conflicting routes, and provide a separate report for external resources.
 - Minimum supported Rust version (MSRV) is now 1.82.
 
 ## 4.12.1

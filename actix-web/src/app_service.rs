@@ -107,6 +107,10 @@ where
 
         // external resources
         for mut rdef in mem::take(&mut *self.external.borrow_mut()) {
+            #[cfg(feature = "experimental-introspection")]
+            {
+                self.introspector.borrow_mut().register_external(&rdef, "/");
+            }
             rmap.add(&mut rdef, None);
         }
 

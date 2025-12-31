@@ -41,6 +41,16 @@ async fn main() -> std::io::Result<()> {
                 .body(report)
         }
 
+        // GET /introspection/externals for external resources report
+        async fn introspection_handler_externals(
+            tree: web::Data<actix_web::introspection::IntrospectionTree>,
+        ) -> impl Responder {
+            let report = tree.report_externals_as_json();
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .body(report)
+        }
+
         // GET /introspection for plain text response
         async fn introspection_handler_text(
             tree: web::Data<actix_web::introspection::IntrospectionTree>,
@@ -93,6 +103,21 @@ async fn main() -> std::io::Result<()> {
         // GET and POST on /
         async fn root_index() -> impl Responder {
             HttpResponse::Ok().body("Welcome to the Root Endpoint!")
+        }
+
+        // GET /alpha and /beta (named multi-pattern resource)
+        async fn multi_pattern() -> impl Responder {
+            HttpResponse::Ok().body("Hello from multi-pattern resource!")
+        }
+
+        // GET /acceptable (Acceptable guard)
+        async fn acceptable_guarded() -> impl Responder {
+            HttpResponse::Ok().body("Acceptable guard matched!")
+        }
+
+        // GET /hosted (Host guard)
+        async fn host_guarded() -> impl Responder {
+            HttpResponse::Ok().body("Host guard matched!")
         }
 
         // Additional endpoints for /extra
@@ -169,6 +194,8 @@ async fn main() -> std::io::Result<()> {
                 // Get introspection report
                 // curl --location '127.0.0.1:8080/introspection' --header 'Accept: application/json'
                 // curl --location '127.0.0.1:8080/introspection' --header 'Accept: text/plain'
+                // curl --location '127.0.0.1:8080/introspection/externals'
+                .external_resource("app-external", "https://example.com/{id}")
                 .service(
                     web::resource("/introspection")
                         .route(
@@ -182,9 +209,31 @@ async fn main() -> std::io::Result<()> {
                                 .to(introspection_handler_text),
                         ),
                 )
+                .service(
+                    web::resource("/introspection/externals")
+                        .route(web::get().to(introspection_handler_externals)),
+                )
+                .service(
+                    web::resource(["/alpha", "/beta"])
+                        .name("multi")
+                        .route(web::get().to(multi_pattern)),
+                )
+                .route(
+                    "/acceptable",
+                    web::get()
+                        .guard(guard::Acceptable::new(mime::APPLICATION_JSON).match_star_star())
+                        .to(acceptable_guarded),
+                )
+                .route(
+                    "/hosted",
+                    web::get().guard(guard::Host("127.0.0.1")).to(host_guarded),
+                )
                 // API endpoints under /api
                 .service(
                     web::scope("/api")
+                        .configure(|cfg| {
+                            cfg.external_resource("api-external", "https://api.example/{id}");
+                        })
                         // Endpoints under /api/v1
                         .service(
                             web::scope("/v1")

@@ -35,6 +35,10 @@ pub struct AppService {
     #[cfg(feature = "experimental-introspection")]
     pub(crate) introspector:
         std::rc::Rc<std::cell::RefCell<crate::introspection::IntrospectionCollector>>,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) scope_id_stack: Vec<usize>,
+    #[cfg(feature = "experimental-introspection")]
+    pending_scope_id: Option<usize>,
 }
 
 impl AppService {
@@ -51,6 +55,10 @@ impl AppService {
             introspector: std::rc::Rc::new(std::cell::RefCell::new(
                 crate::introspection::IntrospectionCollector::new(),
             )),
+            #[cfg(feature = "experimental-introspection")]
+            scope_id_stack: Vec::new(),
+            #[cfg(feature = "experimental-introspection")]
+            pending_scope_id: None,
         }
     }
 
@@ -104,6 +112,10 @@ impl AppService {
             current_prefix: self.current_prefix.clone(),
             #[cfg(feature = "experimental-introspection")]
             introspector: std::rc::Rc::clone(&self.introspector),
+            #[cfg(feature = "experimental-introspection")]
+            scope_id_stack: self.scope_id_stack.clone(),
+            #[cfg(feature = "experimental-introspection")]
+            pending_scope_id: None,
         }
     }
 
@@ -138,19 +150,6 @@ impl AppService {
         {
             use std::borrow::Borrow;
 
-            // Build the full path for introspection
-            let pat = rdef.pattern().unwrap_or("").to_string();
-
-            let full_path = if self.current_prefix.is_empty() {
-                pat.clone()
-            } else {
-                format!(
-                    "{}/{}",
-                    self.current_prefix.trim_end_matches('/'),
-                    pat.trim_start_matches('/')
-                )
-            };
-
             // Extract methods and guards for introspection
             let guard_list: &[Box<dyn Guard>] = guards.borrow().as_ref().map_or(&[], |v| &v[..]);
             let methods = guard_list
@@ -170,15 +169,37 @@ impl AppService {
                 .iter()
                 .map(|g| g.name().to_string())
                 .collect::<Vec<_>>();
+            let guard_details = crate::introspection::guard_reports_from_iter(guard_list.iter());
 
-            // Determine if the registered service is a resource
-            let is_resource = rdef.pattern().is_some();
-            self.introspector.borrow_mut().register_pattern_detail(
-                full_path,
-                methods,
-                guard_names,
-                is_resource,
-            );
+            let is_resource = nested.is_none();
+            let full_paths = crate::introspection::expand_patterns(&self.current_prefix, &rdef);
+            let patterns = rdef
+                .pattern_iter()
+                .map(|pattern| pattern.to_string())
+                .collect::<Vec<_>>();
+            let resource_name = rdef.name().map(|name| name.to_string());
+            let is_prefix = rdef.is_prefix();
+            let scope_id = if nested.is_some() {
+                self.pending_scope_id.take()
+            } else {
+                None
+            };
+            let parent_scope_id = self.scope_id_stack.last().copied();
+
+            for full_path in full_paths {
+                self.introspector.borrow_mut().register_service(
+                    full_path,
+                    methods.clone(),
+                    guard_names.clone(),
+                    guard_details.clone(),
+                    patterns.clone(),
+                    resource_name.clone(),
+                    is_resource,
+                    is_prefix,
+                    scope_id,
+                    parent_scope_id,
+                );
+            }
         }
 
         self.services
@@ -188,15 +209,23 @@ impl AppService {
     /// Update the current path prefix.
     #[cfg(feature = "experimental-introspection")]
     pub(crate) fn update_prefix(&mut self, prefix: &str) {
-        self.current_prefix = if self.current_prefix.is_empty() {
-            prefix.to_string()
-        } else {
-            format!(
-                "{}/{}",
-                self.current_prefix.trim_end_matches('/'),
-                prefix.trim_start_matches('/')
-            )
-        };
+        let next = ResourceDef::root_prefix(prefix);
+
+        if self.current_prefix.is_empty() {
+            self.current_prefix = next.pattern().unwrap_or("").to_string();
+            return;
+        }
+
+        let current = ResourceDef::root_prefix(&self.current_prefix);
+        let joined = current.join(&next);
+        self.current_prefix = joined.pattern().unwrap_or("").to_string();
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn prepare_scope_id(&mut self) -> usize {
+        let scope_id = self.introspector.borrow_mut().next_scope_id();
+        self.pending_scope_id = Some(scope_id);
+        scope_id
     }
 }
 

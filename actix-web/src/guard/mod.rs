@@ -66,14 +66,14 @@ pub use self::{
     host::{Host, HostGuard},
 };
 
-/// Enum to encapsulate various introspection details of a Guard.
+/// Enum to encapsulate various introspection details of a guard.
 #[derive(Debug, Clone)]
 pub enum GuardDetail {
-    /// Detail associated with HTTP methods.
+    /// Detail associated with explicit HTTP method guards.
     HttpMethods(Vec<String>),
     /// Detail associated with headers (header, value).
     Headers(Vec<(String, String)>),
-    /// Generic detail.
+    /// Generic detail, typically used for compound guard representations.
     Generic(String),
 }
 
@@ -141,7 +141,9 @@ pub trait Guard {
         std::any::type_name::<Self>().to_string()
     }
 
-    /// Returns detailed introspection information.
+    /// Returns detailed introspection information, when available.
+    ///
+    /// This is best-effort and may omit complex guard logic.
     fn details(&self) -> Option<Vec<GuardDetail>> {
         None
     }
@@ -358,7 +360,14 @@ impl<G: Guard> Guard for Not<G> {
         format!("Not({})", self.0.name())
     }
     fn details(&self) -> Option<Vec<GuardDetail>> {
-        self.0.details()
+        #[cfg(feature = "experimental-introspection")]
+        {
+            Some(vec![GuardDetail::Generic(self.name())])
+        }
+        #[cfg(not(feature = "experimental-introspection"))]
+        {
+            None
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use actix_http::{header, uri::Uri, RequestHead, Version};
 
-use super::{Guard, GuardContext};
+use super::{Guard, GuardContext, GuardDetail};
 
 /// Creates a guard that matches requests targeting a specific host.
 ///
@@ -116,6 +116,41 @@ impl Guard for HostGuard {
 
         // all conditions passed
         true
+    }
+
+    fn name(&self) -> String {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            if let Some(ref scheme) = self.scheme {
+                format!("Host({}, scheme={})", self.host, scheme)
+            } else {
+                format!("Host({})", self.host)
+            }
+        }
+        #[cfg(not(feature = "experimental-introspection"))]
+        {
+            std::any::type_name::<Self>().to_string()
+        }
+    }
+
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            let mut details = vec![GuardDetail::Headers(vec![(
+                "host".to_string(),
+                self.host.clone(),
+            )])];
+
+            if let Some(ref scheme) = self.scheme {
+                details.push(GuardDetail::Generic(format!("scheme={scheme}")));
+            }
+
+            Some(details)
+        }
+        #[cfg(not(feature = "experimental-introspection"))]
+        {
+            None
+        }
     }
 }
 
@@ -238,5 +273,24 @@ mod tests {
 
         let host = Host("localhost");
         assert!(!host.check(&req.guard_ctx()));
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    #[test]
+    fn host_guard_details_include_host_and_scheme() {
+        let host = Host("example.com").scheme("https");
+        let details = host.details().expect("missing guard details");
+
+        assert!(details.iter().any(|detail| match detail {
+            GuardDetail::Headers(headers) => headers
+                .iter()
+                .any(|(name, value)| name == "host" && value == "example.com"),
+            _ => false,
+        }));
+        assert!(details.iter().any(|detail| match detail {
+            GuardDetail::Generic(value) => value == "scheme=https",
+            _ => false,
+        }));
+        assert_eq!(host.name(), "Host(example.com, scheme=https)");
     }
 }
