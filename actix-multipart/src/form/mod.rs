@@ -187,6 +187,45 @@ where
     }
 }
 
+impl<'t, T> FieldGroupReader<'t> for Option<Vec<T>>
+where
+    T: FieldReader<'t>,
+{
+    type Future = LocalBoxFuture<'t, Result<(), MultipartError>>;
+
+    fn handle_field(
+        req: &'t HttpRequest,
+        field: Field,
+        limits: &'t mut Limits,
+        state: &'t mut State,
+        _duplicate_field: DuplicateField,
+    ) -> Self::Future {
+        let field_name = field.name().unwrap().to_string();
+
+        Box::pin(async move {
+            let vec = state
+                .entry(field_name)
+                .or_insert_with(|| Box::<Vec<T>>::default())
+                .downcast_mut::<Vec<T>>()
+                .unwrap();
+
+            let item = T::read_field(req, field, limits).await?;
+            vec.push(item);
+
+            Ok(())
+        })
+    }
+
+    fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
+        if let Some(boxed_vec) = state.remove(name) {
+            let vec = *boxed_vec.downcast::<Vec<T>>().unwrap();
+            Ok(Some(vec))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 /// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor.
 ///
 /// You should use the [`macro@MultipartForm`] macro to derive this for your struct.
