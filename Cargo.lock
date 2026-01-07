@@ -82,7 +82,7 @@ dependencies = [
  "actix-utils",
  "actix-web",
  "async-stream",
- "base64 0.22.1",
+ "base64",
  "bitflags 2.10.0",
  "brotli",
  "bytes",
@@ -623,7 +623,7 @@ dependencies = [
  "actix-tls",
  "actix-utils",
  "actix-web",
- "base64 0.22.1",
+ "base64",
  "brotli",
  "bytes",
  "cfg-if",
@@ -679,12 +679,6 @@ dependencies = [
  "dunce",
  "fs_extra",
 ]
-
-[[package]]
-name = "base64"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "base64"
@@ -902,12 +896,12 @@ dependencies = [
 
 [[package]]
 name = "cookie"
-version = "0.16.2"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e859cd57d0710d9e06c381b550c06e76992472a8c6d527aecd2fc673dcc231fb"
+checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
 dependencies = [
  "aes-gcm",
- "base64 0.20.0",
+ "base64",
  "hkdf",
  "hmac",
  "percent-encoding",
@@ -2142,7 +2136,7 @@ version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "serde_core",
 ]
 

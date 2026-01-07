@@ -543,7 +543,7 @@ mod tests {
             .protocols(["v1", "v2"])
             .set_header_if_none(header::CONTENT_TYPE, "json")
             .set_header_if_none(header::CONTENT_TYPE, "text")
-            .cookie(Cookie::build("cookie1", "value1").finish());
+            .cookie(Cookie::build(("cookie1", "value1")).build());
         assert_eq!(
             req.origin.as_ref().unwrap().to_str().unwrap(),
             "test-origin"
