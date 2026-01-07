@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.82.
+- Upgrade cookie dependency 0.16 to 0.18
 
 ## 3.8.1
 
