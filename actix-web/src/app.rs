@@ -30,6 +30,8 @@ pub struct App<T> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
+    #[cfg(feature = "experimental-introspection")]
+    introspector: Rc<RefCell<crate::introspection::IntrospectionCollector>>,
 }
 
 impl App<AppEntry> {
@@ -46,6 +48,10 @@ impl App<AppEntry> {
             factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: Rc::new(RefCell::new(
+                crate::introspection::IntrospectionCollector::new(),
+            )),
         }
     }
 }
@@ -366,6 +372,8 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
+            #[cfg(feature = "experimental-introspection")]
+            introspector: self.introspector,
         }
     }
 
@@ -429,6 +437,8 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
+            #[cfg(feature = "experimental-introspection")]
+            introspector: self.introspector,
         }
     }
 }
@@ -453,6 +463,8 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
             extensions: RefCell::new(Some(self.extensions)),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: Rc::clone(&self.introspector),
         }
     }
 }
