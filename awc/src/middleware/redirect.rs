@@ -329,6 +329,7 @@ mod tests {
         let res = client.get(srv.url("/")).send().await.unwrap();
 
         assert_eq!(res.status().as_u16(), 400);
+        assert_eq!(res.req_head().uri.path(), "/test");
     }
 
     #[actix_rt::test]

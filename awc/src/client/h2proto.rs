@@ -29,7 +29,7 @@ pub(crate) async fn send_request<Io, B>(
     mut io: H2Connection<Io>,
     head: RequestHeadType,
     body: B,
-) -> Result<(ResponseHead, Payload), SendRequestError>
+) -> Result<(RequestHeadType, ResponseHead, Payload), SendRequestError>
 where
     Io: ConnectionIo,
     B: MessageBody,
@@ -129,10 +129,10 @@ where
     let (parts, body) = resp.into_parts();
     let payload = if head_req { Payload::None } else { body.into() };
 
-    let mut head = ResponseHead::new(parts.status);
-    head.version = parts.version;
-    head.headers = parts.headers.into();
-    Ok((head, payload))
+    let mut res_head = ResponseHead::new(parts.status);
+    res_head.version = parts.version;
+    res_head.headers = parts.headers.into();
+    Ok((head, res_head, payload))
 }
 
 async fn send_body<B>(body: B, mut send: SendStream<Bytes>) -> Result<(), SendRequestError>
