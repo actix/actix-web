@@ -6,9 +6,10 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::{
+    big_bytes::BigBytes,
     body::BodySize,
     header::{
         map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
@@ -323,6 +324,14 @@ impl<T: MessageType> MessageEncoder<T> {
         self.te.encode(msg, buf)
     }
 
+    pub(super) fn encode_chunk_bigbytes(
+        &mut self,
+        msg: Bytes,
+        buf: &mut BigBytes,
+    ) -> io::Result<bool> {
+        self.te.encode_bigbytes(msg, buf)
+    }
+
     /// Encode EOF.
     pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         self.te.encode_eof(buf)
@@ -411,6 +420,63 @@ impl TransferEncoding {
     pub fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Length(len),
+        }
+    }
+
+    #[inline]
+    /// Encode message. Return `EOF` state of encoder
+    pub(super) fn encode_bigbytes(&mut self, msg: Bytes, buf: &mut BigBytes) -> io::Result<bool> {
+        match self.kind {
+            TransferEncodingKind::Eof => {
+                let eof = msg.is_empty();
+                if msg.len() > 1024 * 64 {
+                    buf.put_bytes(msg);
+                } else {
+                    buf.buffer_mut().extend_from_slice(&msg);
+                }
+                Ok(eof)
+            }
+            TransferEncodingKind::Chunked(ref mut eof) => {
+                if *eof {
+                    return Ok(true);
+                }
+
+                if msg.is_empty() {
+                    *eof = true;
+                    buf.buffer_mut().extend_from_slice(b"0\r\n\r\n");
+                } else {
+                    writeln!(helpers::MutWriter(buf.buffer_mut()), "{:X}\r", msg.len())
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+                    if msg.len() > 1024 * 64 {
+                        buf.put_bytes(msg);
+                    } else {
+                        buf.buffer_mut().reserve(msg.len() + 2);
+                        buf.buffer_mut().extend_from_slice(&msg);
+                    }
+                    buf.buffer_mut().extend_from_slice(b"\r\n");
+                }
+                Ok(*eof)
+            }
+            TransferEncodingKind::Length(ref mut remaining) => {
+                if *remaining > 0 {
+                    if msg.is_empty() {
+                        return Ok(*remaining == 0);
+                    }
+                    let len = cmp::min(*remaining, msg.len() as u64);
+
+                    if len > 1024 * 64 {
+                        buf.put_bytes(msg.slice(..len as usize));
+                    } else {
+                        buf.buffer_mut().extend_from_slice(&msg[..len as usize]);
+                    }
+
+                    *remaining -= len;
+                    Ok(*remaining == 0)
+                } else {
+                    Ok(true)
+                }
+            }
         }
     }
 
