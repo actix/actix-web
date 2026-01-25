@@ -82,10 +82,9 @@ test-coverage-lcov: test-coverage
     cargo {{ toolchain }} llvm-cov report --doctests --lcov --output-path=lcov.info
 
 # Document crates in workspace.
-# FIXME: Re-add `RUSTDOCFLAGS="--cfg=docsrs -Dwarnings"` once crypto-related crates are updated.
 doc *args: && doc-set-workspace-crates
     rm -f "$(cargo metadata --format-version=1 | jq -r '.target_directory')/doc/crates.js"
-    cargo +nightly doc --workspace {{ all_crate_features }} {{ args }}
+    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --no-deps --workspace {{ all_crate_features }} {{ args }}
 
 [private]
 doc-set-workspace-crates:
