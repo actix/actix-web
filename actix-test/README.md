@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-test?label=latest)](https://crates.io/crates/actix-test)
 [![Documentation](https://docs.rs/actix-test/badge.svg?version=0.1.5)](https://docs.rs/actix-test/0.1.5)
-![Version](https://img.shields.io/badge/rustc-1.83+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-test.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-test/0.1.5/status.svg)](https://deps.rs/crate/actix-test/0.1.5)

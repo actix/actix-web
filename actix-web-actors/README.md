@@ -8,7 +8,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-actors?label=latest)](https://crates.io/crates/actix-web-actors)
 [![Documentation](https://docs.rs/actix-web-actors/badge.svg?version=4.3.1)](https://docs.rs/actix-web-actors/4.3.1)
-![Version](https://img.shields.io/badge/rustc-1.83+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-actors.svg)
 <br />
 ![maintenance-status](https://img.shields.io/badge/maintenance-deprecated-red.svg)
