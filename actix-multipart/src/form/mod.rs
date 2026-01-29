@@ -187,6 +187,45 @@ where
     }
 }
 
+impl<'t, T> FieldGroupReader<'t> for Option<Vec<T>>
+where
+    T: FieldReader<'t>,
+{
+    type Future = LocalBoxFuture<'t, Result<(), MultipartError>>;
+
+    fn handle_field(
+        req: &'t HttpRequest,
+        field: Field,
+        limits: &'t mut Limits,
+        state: &'t mut State,
+        _duplicate_field: DuplicateField,
+    ) -> Self::Future {
+        let field_name = field.name().unwrap().to_string();
+
+        Box::pin(async move {
+            let vec = state
+                .entry(field_name)
+                .or_insert_with(|| Box::<Vec<T>>::default())
+                .downcast_mut::<Vec<T>>()
+                .unwrap();
+
+            let item = T::read_field(req, field, limits).await?;
+            vec.push(item);
+
+            Ok(())
+        })
+    }
+
+    fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
+        if let Some(boxed_vec) = state.remove(name) {
+            let vec = *boxed_vec.downcast::<Vec<T>>().unwrap();
+            Ok(Some(vec))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 /// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor.
 ///
 /// You should use the [`macro@MultipartForm`] macro to derive this for your struct.
@@ -496,6 +535,40 @@ mod tests {
     #[actix_rt::test]
     async fn test_vec() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_vec_route)));
+
+        let mut form = multipart::Form::default();
+        form.add_text("list1", "value1");
+        form.add_text("list1", "value2");
+        form.add_text("list1", "value3");
+
+        let response = send_form(&srv, form, "/").await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// Test `Option<Vec>` fields.
+    #[derive(MultipartForm)]
+    struct TestOptionVec {
+        list1: Option<Vec<Text<String>>>,
+        list2: Option<Vec<Text<String>>>,
+    }
+
+    async fn test_option_vec_route(form: MultipartForm<TestOptionVec>) -> impl Responder {
+        let form = form.into_inner();
+        let strings = form
+            .list1
+            .unwrap()
+            .into_iter()
+            .map(|s| s.into_inner())
+            .collect::<Vec<_>>();
+        assert_eq!(strings, vec!["value1", "value2", "value3"]);
+        assert!(form.list2.is_none());
+        HttpResponse::Ok().finish()
+    }
+
+    #[actix_rt::test]
+    async fn test_option_vec() {
+        let srv =
+            actix_test::start(|| App::new().route("/", web::post().to(test_option_vec_route)));
 
         let mut form = multipart::Form::default();
         form.add_text("list1", "value1");
