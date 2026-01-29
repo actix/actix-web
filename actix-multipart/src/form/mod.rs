@@ -545,6 +545,40 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    /// Test `Option<Vec>` fields.
+    #[derive(MultipartForm)]
+    struct TestOptionVec {
+        list1: Option<Vec<Text<String>>>,
+        list2: Option<Vec<Text<String>>>,
+    }
+
+    async fn test_option_vec_route(form: MultipartForm<TestOptionVec>) -> impl Responder {
+        let form = form.into_inner();
+        let strings = form
+            .list1
+            .unwrap()
+            .into_iter()
+            .map(|s| s.into_inner())
+            .collect::<Vec<_>>();
+        assert_eq!(strings, vec!["value1", "value2", "value3"]);
+        assert!(form.list2.is_none());
+        HttpResponse::Ok().finish()
+    }
+
+    #[actix_rt::test]
+    async fn test_option_vec() {
+        let srv =
+            actix_test::start(|| App::new().route("/", web::post().to(test_option_vec_route)));
+
+        let mut form = multipart::Form::default();
+        form.add_text("list1", "value1");
+        form.add_text("list1", "value2");
+        form.add_text("list1", "value3");
+
+        let response = send_form(&srv, form, "/").await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
     /// Test the `rename` field attribute.
     #[derive(MultipartForm)]
     struct TestFieldRenaming {

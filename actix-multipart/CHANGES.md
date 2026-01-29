@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.83.
+- Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
 
 ## 0.7.2
 
@@ -82,6 +83,7 @@
 - `MultipartError` is now marked as non-exhaustive. [#2451]
 
 [#2451]: https://github.com/actix/actix-web/pull/2451
+[#3577]: https://github.com/actix/actix-web/pull/3577
 
 ## 0.4.0-beta.7
 
