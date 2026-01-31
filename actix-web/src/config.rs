@@ -68,7 +68,7 @@ impl AppService {
     pub(crate) fn clone_config(&self) -> Self {
         AppService {
             config: self.config.clone(),
-            default: self.default.clone(),
+            default: Rc::clone(&self.default),
             services: Vec::new(),
             root: false,
         }
@@ -81,7 +81,7 @@ impl AppService {
 
     /// Returns default handler factory.
     pub fn default_service(&self) -> Rc<BoxedHttpServiceFactory> {
-        self.default.clone()
+        Rc::clone(&self.default)
     }
 
     /// Register HTTP service.

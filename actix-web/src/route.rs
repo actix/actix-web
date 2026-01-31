@@ -77,7 +77,7 @@ impl ServiceFactory<ServiceRequest> for Route {
 
     fn new_service(&self, _: ()) -> Self::Future {
         let fut = self.service.new_service(());
-        let guards = self.guards.clone();
+        let guards = Rc::clone(&self.guards);
 
         Box::pin(async move {
             let service = fut.await?;

@@ -19,7 +19,7 @@ use crate::{
 /// 1. It is an async function (or a function/closure that returns an appropriate future);
 /// 1. The function parameters (up to 12) implement [`FromRequest`];
 /// 1. The async function (or future) resolves to a type that can be converted into an
-///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
+///    [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
 ///
 ///
 /// # Compiler Errors
@@ -70,7 +70,7 @@ use crate::{
 /// This is the source code for the 2-parameter implementation of `Handler` to help illustrate the
 /// bounds of the handler call after argument extraction:
 /// ```ignore
-/// impl<Func, Arg1, Arg2, Fut> Handler<(Arg1, Arg2)> for Func
+/// impl<Func, Fut, Arg1, Arg2> Handler<(Arg1, Arg2)> for Func
 /// where
 ///     Func: Fn(Arg1, Arg2) -> Fut + Clone + 'static,
 ///     Fut: Future,

@@ -2,9 +2,9 @@
 name = "actix-router"
 version = "0.5.3"
 authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
-    "Rob Ede <robjtede@icloud.com>",
+  "Nikolay Kim <fafhrd91@gmail.com>",
+  "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
+  "Rob Ede <robjtede@icloud.com>",
 ]
 description = "Resource path matching and router"
 keywords = ["actix", "router", "routing"]
@@ -13,10 +13,7 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [package.metadata.cargo_check_external_types]
-allowed_external_types = [
-    "http::*",
-    "serde::*",
-]
+allowed_external_types = ["http::*", "serde::*"]
 
 [features]
 default = ["http", "unicode"]
@@ -35,8 +32,11 @@ tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 http = "0.2.7"
-serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "router"

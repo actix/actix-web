@@ -54,8 +54,8 @@ impl From<PrepForSendingError> for FreezeRequestError {
 impl From<PrepForSendingError> for SendRequestError {
     fn from(err: PrepForSendingError) -> SendRequestError {
         match err {
-            PrepForSendingError::Url(e) => SendRequestError::Url(e),
-            PrepForSendingError::Http(e) => SendRequestError::Http(e),
+            PrepForSendingError::Url(err) => SendRequestError::Url(err),
+            PrepForSendingError::Http(err) => SendRequestError::Http(err),
             PrepForSendingError::Json(err) => {
                 SendRequestError::Custom(Box::new(err), Box::new("json serialization error"))
             }
@@ -156,20 +156,20 @@ impl Future for SendClientRequest {
 }
 
 impl From<SendRequestError> for SendClientRequest {
-    fn from(e: SendRequestError) -> Self {
-        SendClientRequest::Err(Some(e))
+    fn from(err: SendRequestError) -> Self {
+        SendClientRequest::Err(Some(err))
     }
 }
 
 impl From<HttpError> for SendClientRequest {
-    fn from(e: HttpError) -> Self {
-        SendClientRequest::Err(Some(e.into()))
+    fn from(err: HttpError) -> Self {
+        SendClientRequest::Err(Some(err.into()))
     }
 }
 
 impl From<PrepForSendingError> for SendClientRequest {
-    fn from(e: PrepForSendingError) -> Self {
-        SendClientRequest::Err(Some(e.into()))
+    fn from(err: PrepForSendingError) -> Self {
+        SendClientRequest::Err(Some(err.into()))
     }
 }
 

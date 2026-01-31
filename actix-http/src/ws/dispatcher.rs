@@ -114,14 +114,14 @@ mod inner {
     {
         fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
             match *self {
-                DispatcherError::Service(ref e) => {
-                    write!(fmt, "DispatcherError::Service({:?})", e)
+                DispatcherError::Service(ref err) => {
+                    write!(fmt, "DispatcherError::Service({err:?})")
                 }
-                DispatcherError::Encoder(ref e) => {
-                    write!(fmt, "DispatcherError::Encoder({:?})", e)
+                DispatcherError::Encoder(ref err) => {
+                    write!(fmt, "DispatcherError::Encoder({err:?})")
                 }
-                DispatcherError::Decoder(ref e) => {
-                    write!(fmt, "DispatcherError::Decoder({:?})", e)
+                DispatcherError::Decoder(ref err) => {
+                    write!(fmt, "DispatcherError::Decoder({err:?})")
                 }
             }
         }
@@ -136,9 +136,9 @@ mod inner {
     {
         fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
             match *self {
-                DispatcherError::Service(ref e) => write!(fmt, "{}", e),
-                DispatcherError::Encoder(ref e) => write!(fmt, "{:?}", e),
-                DispatcherError::Decoder(ref e) => write!(fmt, "{:?}", e),
+                DispatcherError::Service(ref err) => write!(fmt, "{err}"),
+                DispatcherError::Encoder(ref err) => write!(fmt, "{err:?}"),
+                DispatcherError::Decoder(ref err) => write!(fmt, "{err:?}"),
             }
         }
     }

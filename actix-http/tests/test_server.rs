@@ -16,6 +16,7 @@ use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
+use rand::Rng as _;
 use regex::Regex;
 
 #[actix_rt::test]
@@ -62,7 +63,7 @@ async fn h1_2() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "expect failed")]
+#[display("expect failed")]
 struct ExpectFailed;
 
 impl From<ExpectFailed> for Response<BoxBody> {
@@ -164,7 +165,10 @@ async fn chunked_payload() {
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
-            let random_bytes: Vec<u8> = (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+            let random_bytes = rand::rng()
+                .sample_iter(rand::distr::StandardUniform)
+                .take(*chunk_size)
+                .collect::<Vec<_>>();
 
             bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
             bytes.extend(&random_bytes[..]);
@@ -723,7 +727,7 @@ async fn h1_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {

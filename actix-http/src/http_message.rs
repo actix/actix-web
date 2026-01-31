@@ -103,7 +103,7 @@ pub trait HttpMessage: Sized {
     }
 }
 
-impl<'a, T> HttpMessage for &'a mut T
+impl<T> HttpMessage for &mut T
 where
     T: HttpMessage,
 {

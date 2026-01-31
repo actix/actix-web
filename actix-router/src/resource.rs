@@ -1021,6 +1021,7 @@ impl ResourceDef {
             panic!("prefix resource definitions should not have tail segments");
         }
 
+        #[allow(clippy::literal_string_with_formatting_args)]
         if unprocessed.ends_with('*') {
             // unnamed tail segment
 
@@ -1369,6 +1370,7 @@ mod tests {
         assert_eq!(path.unprocessed(), "");
     }
 
+    #[allow(clippy::literal_string_with_formatting_args)]
     #[test]
     fn newline_patterns_and_paths() {
         let re = ResourceDef::new("/user/a\nb");

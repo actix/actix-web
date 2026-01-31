@@ -31,7 +31,7 @@ use super::{
     Connect,
 };
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Key {
     authority: Authority,
 }
@@ -42,8 +42,8 @@ impl From<Authority> for Key {
     }
 }
 
+/// Connections pool to reuse I/O per [`Authority`].
 #[doc(hidden)]
-/// Connections pool for reuse Io type for certain [`http::uri::Authority`] as key.
 pub struct ConnectionPool<S, Io>
 where
     Io: AsyncWrite + Unpin + 'static,
@@ -52,7 +52,7 @@ where
     inner: ConnectionPoolInner<Io>,
 }
 
-/// wrapper type for check the ref count of Rc.
+/// Wrapper type for check the ref count of Rc.
 pub struct ConnectionPoolInner<Io>(Rc<ConnectionPoolInnerPriv<Io>>)
 where
     Io: AsyncWrite + Unpin + 'static;
@@ -63,7 +63,7 @@ where
 {
     fn new(config: ConnectorConfig) -> Self {
         let permits = Arc::new(Semaphore::new(config.limit));
-        let available = RefCell::new(HashMap::default());
+        let available = RefCell::new(HashMap::new());
 
         Self(Rc::new(ConnectionPoolInnerPriv {
             config,
@@ -72,11 +72,13 @@ where
         }))
     }
 
-    /// spawn a async for graceful shutdown h1 Io type with a timeout.
+    /// Spawns a graceful shutdown task for the underlying I/O with a timeout.
     fn close(&self, conn: ConnectionInnerType<Io>) {
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionInnerType::H1(io) = conn {
-                actix_rt::spawn(CloseConnection::new(io, timeout));
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    actix_rt::spawn(CloseConnection::new(io, timeout));
+                }
             }
         }
     }
@@ -173,12 +175,14 @@ where
             };
 
             // acquire an owned permit and carry it with connection
-            let permit = inner.permits.clone().acquire_owned().await.map_err(|_| {
-                ConnectError::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    "failed to acquire semaphore on client connection pool",
-                ))
-            })?;
+            let permit = Arc::clone(&inner.permits)
+                .acquire_owned()
+                .await
+                .map_err(|_| {
+                    ConnectError::Io(io::Error::other(
+                        "Failed to acquire semaphore on client connection pool",
+                    ))
+                })?;
 
             let conn = {
                 let mut conn = None;

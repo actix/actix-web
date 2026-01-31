@@ -71,7 +71,7 @@ where
         });
 
         // create App config to pass to child services
-        let mut config = AppService::new(config, default.clone());
+        let mut config = AppService::new(config, Rc::clone(&default));
 
         // register services
         mem::take(&mut *self.services.borrow_mut())

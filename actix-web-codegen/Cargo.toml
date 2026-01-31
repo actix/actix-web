@@ -2,10 +2,7 @@
 name = "actix-web-codegen"
 version = "4.3.0"
 description = "Routing and runtime macros for Actix Web"
-authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Rob Ede <robjtede@icloud.com>",
-]
+authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
@@ -33,5 +30,8 @@ actix-utils = "3"
 actix-web = "4"
 
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
+rustversion-msrv = "0.100"
 trybuild = "1"
-rustversion = "1"
+
+[lints]
+workspace = true

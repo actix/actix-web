@@ -278,7 +278,9 @@ where
     {
         // create and configure default resource
         self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
-            |e| log::error!("Can not construct default service: {:?}", e),
+            |err| {
+                log::error!("Can not construct default service: {err:?}");
+            },
         ))));
 
         self

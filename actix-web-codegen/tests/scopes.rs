@@ -1,7 +1,7 @@
 use actix_web::{guard::GuardContext, http, http::header, web, App, HttpResponse, Responder};
 use actix_web_codegen::{delete, get, post, route, routes, scope};
 
-pub fn image_guard(ctx: &GuardContext) -> bool {
+pub fn image_guard(ctx: &GuardContext<'_>) -> bool {
     ctx.header::<header::Accept>()
         .map(|h| h.preference() == "image/*")
         .unwrap_or(false)

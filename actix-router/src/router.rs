@@ -145,6 +145,7 @@ mod tests {
     };
 
     #[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::literal_string_with_formatting_args)]
     #[test]
     fn test_recognizer_1() {
         let mut router = Router::<usize>::build();

@@ -32,7 +32,6 @@ where
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
         Box::pin(async move {
             let config = JsonConfig::from_req(req);
-            let field_name = field.name().to_owned();
 
             if config.validate_content_type {
                 let valid = if let Some(mime) = field.content_type() {
@@ -43,17 +42,19 @@ where
 
                 if !valid {
                     return Err(MultipartError::Field {
-                        field_name,
+                        name: field.form_field_name,
                         source: config.map_error(req, JsonFieldError::ContentType),
                     });
                 }
             }
 
+            let form_field_name = field.form_field_name.clone();
+
             let bytes = Bytes::read_field(req, field, limits).await?;
 
             Ok(Json(serde_json::from_slice(bytes.data.as_ref()).map_err(
                 |err| MultipartError::Field {
-                    field_name,
+                    name: form_field_name,
                     source: config.map_error(req, JsonFieldError::Deserialize(err)),
                 },
             )?))
@@ -65,11 +66,11 @@ where
 #[non_exhaustive]
 pub enum JsonFieldError {
     /// Deserialize error.
-    #[display(fmt = "Json deserialize error: {}", _0)]
+    #[display("Json deserialize error: {}", _0)]
     Deserialize(serde_json::Error),
 
     /// Content type error.
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
 }
 
@@ -133,8 +134,7 @@ impl Default for JsonConfig {
 mod tests {
     use std::collections::HashMap;
 
-    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
-    use bytes::Bytes;
+    use actix_web::{http::StatusCode, web, web::Bytes, App, HttpResponse, Responder};
 
     use crate::form::{
         json::{Json, JsonConfig},

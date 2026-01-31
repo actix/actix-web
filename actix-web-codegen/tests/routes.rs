@@ -136,7 +136,7 @@ async fn routes_overlapping_inaccessible_test(req: HttpRequest) -> impl Responde
 }
 
 #[get("/custom_resource_name", name = "custom")]
-async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
+async fn custom_resource_name_test(req: HttpRequest) -> impl Responder {
     assert!(req.url_for_static("custom").is_ok());
     assert!(req.url_for_static("custom_resource_name_test").is_err());
     HttpResponse::Ok()
@@ -145,7 +145,7 @@ async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
 mod guard_module {
     use actix_web::{guard::GuardContext, http::header};
 
-    pub fn guard(ctx: &GuardContext) -> bool {
+    pub fn guard(ctx: &GuardContext<'_>) -> bool {
         ctx.header::<header::Accept>()
             .map(|h| h.preference() == "image/*")
             .unwrap_or(false)

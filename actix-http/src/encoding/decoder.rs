@@ -100,10 +100,7 @@ where
         loop {
             if let Some(ref mut fut) = this.fut {
                 let (chunk, decoder) = ready!(Pin::new(fut).poll(cx)).map_err(|_| {
-                    PayloadError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Blocking task was cancelled unexpectedly",
-                    ))
+                    PayloadError::Io(io::Error::other("Blocking task was cancelled unexpectedly"))
                 })??;
 
                 *this.decoder = Some(decoder);

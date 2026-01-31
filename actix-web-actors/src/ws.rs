@@ -776,10 +776,7 @@ where
                     }
                     Poll::Pending => break,
                     Poll::Ready(Some(Err(err))) => {
-                        return Poll::Ready(Some(Err(ProtocolError::Io(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("{err}"),
-                        )))));
+                        return Poll::Ready(Some(Err(ProtocolError::Io(io::Error::other(err)))));
                     }
                 }
             }
@@ -795,14 +792,10 @@ where
             }
             Some(frm) => {
                 let msg = match frm {
-                    Frame::Text(data) => {
-                        Message::Text(ByteString::try_from(data).map_err(|e| {
-                            ProtocolError::Io(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("{}", e),
-                            ))
-                        })?)
-                    }
+                    Frame::Text(data) => Message::Text(
+                        ByteString::try_from(data)
+                            .map_err(|err| ProtocolError::Io(io::Error::other(err)))?,
+                    ),
                     Frame::Binary(data) => Message::Binary(data),
                     Frame::Ping(s) => Message::Ping(s),
                     Frame::Pong(s) => Message::Pong(s),

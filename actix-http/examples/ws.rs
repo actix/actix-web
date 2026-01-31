@@ -17,7 +17,6 @@ use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::{ready, Stream};
 use tokio_util::codec::Encoder;
-use tracing::{info, trace};
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -37,12 +36,12 @@ async fn main() -> io::Result<()> {
 }
 
 async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error> {
-    info!("handshaking");
+    tracing::info!("handshaking");
     let mut res = ws::handshake(req.head())?;
 
     // handshake will always fail under HTTP/2
 
-    info!("responding");
+    tracing::info!("responding");
     res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new())))
 }
 
@@ -64,7 +63,7 @@ impl Stream for Heartbeat {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        trace!("poll");
+        tracing::trace!("poll");
 
         ready!(self.as_mut().interval.poll_tick(cx));
 
@@ -83,29 +82,16 @@ impl Stream for Heartbeat {
 }
 
 fn tls_config() -> rustls::ServerConfig {
-    use std::io::BufReader;
-
-    use rustls_pemfile::{certs, pkcs8_private_keys};
-
     let rcgen::CertifiedKey { cert, key_pair } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
-    let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
-
-    let cert_file = &mut BufReader::new(cert_file.as_bytes());
-    let key_file = &mut BufReader::new(key_file.as_bytes());
-
-    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
-    let mut keys = pkcs8_private_keys(key_file)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let cert_chain = vec![cert.der().clone()];
+    let key_der = rustls_pki_types::PrivateKeyDer::Pkcs8(
+        rustls_pki_types::PrivatePkcs8KeyDer::from(key_pair.serialize_der()),
+    );
 
     let mut config = rustls::ServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(
-            cert_chain,
-            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
-        )
+        .with_single_cert(cert_chain, key_der)
         .unwrap();
 
     config.alpn_protocols.push(b"http/1.1".to_vec());

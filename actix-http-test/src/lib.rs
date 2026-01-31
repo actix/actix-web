@@ -1,10 +1,8 @@
 //! Various helpers for Actix applications to use during testing.
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
@@ -108,7 +106,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
             builder.set_verify(SslVerifyMode::NONE);
             let _ = builder
                 .set_alpn_protos(b"\x02h2\x08http/1.1")
-                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                .map_err(|err| log::error!("Can not set ALPN protocol: {err}"));
 
             Connector::new()
                 .conn_lifetime(Duration::from_secs(0))

@@ -3,7 +3,6 @@
 - The return type for `ServiceRequest::app_data::<T>()` was changed from returning a `Data<T>` to simply a `T`. To access a `Data<T>` use `ServiceRequest::app_data::<Data<T>>()`.
 
 - Cookie handling has been offloaded to the `cookie` crate:
-
   - `USERINFO_ENCODE_SET` is no longer exposed. Percent-encoding is still supported; check docs.
   - Some types now require lifetime parameters.
 

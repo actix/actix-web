@@ -183,8 +183,7 @@ where
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
                     .map_err(|_| {
-                        EncoderError::Io(io::Error::new(
-                            io::ErrorKind::Other,
+                        EncoderError::Io(io::Error::other(
                             "Blocking task was cancelled unexpectedly",
                         ))
                     })?
@@ -415,11 +414,11 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
 #[non_exhaustive]
 pub enum EncoderError {
     /// Wrapped body stream error.
-    #[display(fmt = "body")]
+    #[display("body")]
     Body(Box<dyn StdError>),
 
     /// Generic I/O error.
-    #[display(fmt = "io")]
+    #[display("io")]
     Io(io::Error),
 }
 

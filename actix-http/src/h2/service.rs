@@ -434,7 +434,7 @@ where
 
         H2ServiceHandlerResponse {
             state: State::Handshake(
-                Some(self.flow.clone()),
+                Some(Rc::clone(&self.flow)),
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,
