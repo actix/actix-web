@@ -2,7 +2,7 @@
 //! properties and pass them to a handler through request-local data.
 //!
 //! For an example of extracting a client TLS certificate, see:
-//! <https://github.com/actix/examples/tree/master/https-tls/rustls-client-cert>
+//! <https://github.com/actix/examples/tree/main/https-tls/rustls-client-cert>
 
 use std::{any::Any, io, net::SocketAddr};
 

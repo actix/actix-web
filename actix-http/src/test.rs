@@ -11,7 +11,7 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
-use http::{Method, Uri, Version};
+use http::{header, Method, Uri, Version};
 
 use crate::{
     header::{HeaderMap, TryIntoHeaderPair},
@@ -98,9 +98,13 @@ impl TestRequest {
     }
 
     /// Set request payload.
+    ///
+    /// This sets the `Content-Length` header with the size of `data`.
     pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
-        payload.unread_data(data.into());
+        let bytes = data.into();
+        self.insert_header((header::CONTENT_LENGTH, bytes.len()));
+        payload.unread_data(bytes);
         parts(&mut self.0).payload = Some(payload.into());
         self
     }
@@ -271,6 +275,7 @@ impl TestSeqBuffer {
     {
         Self(Rc::new(RefCell::new(TestSeqInner {
             read_buf: data.into(),
+            read_closed: false,
             write_buf: BytesMut::new(),
             err: None,
         })))
@@ -289,36 +294,59 @@ impl TestSeqBuffer {
         Ref::map(self.0.borrow(), |inner| &inner.write_buf)
     }
 
+    pub fn take_write_buf(&self) -> Bytes {
+        self.0.borrow_mut().write_buf.split().freeze()
+    }
+
     pub fn err(&self) -> Ref<'_, Option<io::Error>> {
         Ref::map(self.0.borrow(), |inner| &inner.err)
     }
 
     /// Add data to read buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called after [`TestSeqBuffer::close_read`] has been called
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
-        self.0
-            .borrow_mut()
-            .read_buf
-            .extend_from_slice(data.as_ref())
+        let mut inner = self.0.borrow_mut();
+        if inner.read_closed {
+            panic!("Tried to extend the read buffer after calling close_read");
+        }
+
+        inner.read_buf.extend_from_slice(data.as_ref())
+    }
+
+    /// Closes the [`AsyncRead`]/[`Read`] part of this test buffer.
+    ///
+    /// The current data in the buffer will still be returned by a call to read/poll_read, however,
+    /// after the buffer is empty, it will return `Ok(0)` to signify the EOF condition
+    pub fn close_read(&self) {
+        self.0.borrow_mut().read_closed = true;
     }
 }
 
 pub struct TestSeqInner {
     read_buf: BytesMut,
+    read_closed: bool,
     write_buf: BytesMut,
     err: Option<io::Error>,
 }
 
 impl io::Read for TestSeqBuffer {
     fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        if self.0.borrow().read_buf.is_empty() {
-            if self.0.borrow().err.is_some() {
-                Err(self.0.borrow_mut().err.take().unwrap())
+        let mut inner = self.0.borrow_mut();
+
+        if inner.read_buf.is_empty() {
+            if let Some(err) = inner.err.take() {
+                Err(err)
+            } else if inner.read_closed {
+                Ok(0)
             } else {
                 Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
             }
         } else {
-            let size = std::cmp::min(self.0.borrow().read_buf.len(), dst.len());
-            let b = self.0.borrow_mut().read_buf.split_to(size);
+            let size = std::cmp::min(inner.read_buf.len(), dst.len());
+            let b = inner.read_buf.split_to(size);
             dst[..size].copy_from_slice(&b);
             Ok(size)
         }

@@ -1,7 +1,9 @@
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cell::RefCell,
+    collections::HashMap,
     fmt::Write as _,
+    hash::{BuildHasher, Hash},
     rc::{Rc, Weak},
 };
 
@@ -140,6 +142,56 @@ impl ResourceMap {
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using map of dynamic segment values.
+    ///
+    /// Check [`HttpRequest::url_for_map`] for detailed information.
+    pub fn url_for_map<K, V, S>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        let path = self
+            .named
+            .get(name)
+            .ok_or(UrlGenerationError::ResourceNotFound)?
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
+                node.pattern
+                    .resource_path_from_map(&mut acc, elements)
+                    .then_some(acc)
+            })
+            .ok_or(UrlGenerationError::NotEnoughElements)?;
+
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using an iterator of key-value pairs.
+    ///
+    /// Check [`HttpRequest::url_for_iter`] for detailed information.
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: I,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        let elements = elements.into_iter().collect::<FoldHashMap<K, V>>();
+        self.url_for_map(req, name, &elements)
+    }
+
+    fn url_from_path(&self, req: &HttpRequest, path: String) -> Result<Url, UrlGenerationError> {
         let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
             // build full URL from connection info parts and resource path
             let conn = req.connection_info();
