@@ -243,7 +243,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for_iter(self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generates URL for a named resource.
