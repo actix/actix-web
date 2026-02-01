@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Add `HttpRequest::url_for_map()` that accepts a map of elements by parameter names, an alternative to `HttpRequest::url_for()` (which takes an iterator over elements).
+
+### Changed
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 
 ## 4.12.1
@@ -52,7 +58,6 @@
 
 - Add `middleware::from_fn()` helper.
 - Add `web::ThinData` extractor.
-
 ## 4.8.0
 
 ### Added
