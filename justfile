@@ -12,11 +12,7 @@ fmt:
 # Downgrade dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
-    cargo {{ toolchain }} update -p=divan --precise=0.1.15 # next ver: 1.80.0
-    cargo {{ toolchain }} update -p=half --precise=2.4.1 # next ver: 1.81.0
-    cargo {{ toolchain }} update -p=idna_adapter --precise=1.2.0 # next ver: 1.82.0
-    cargo {{ toolchain }} update -p=litemap --precise=0.7.4 # next ver: 1.81.0
-    cargo {{ toolchain }} update -p=zerofrom --precise=0.1.5 # next ver: 1.81.0
+    # no downgrades currently needed
 
 msrv := ```
     cargo metadata --format-version=1 \
@@ -50,8 +46,7 @@ clippy:
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
 # Run Clippy over workspace using MSRV.
-clippy-msrv:
-    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+clippy-msrv: downgrade-for-msrv
     @just toolchain={{ msrv_rustup }} clippy
 
 # Test workspace code.
@@ -62,8 +57,7 @@ test:
     cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
 
 # Test workspace using MSRV.
-test-msrv:
-    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+test-msrv: downgrade-for-msrv
     @just toolchain={{ msrv_rustup }} test
 
 # Test workspace docs.
@@ -90,7 +84,7 @@ test-coverage-lcov: test-coverage
 # Document crates in workspace.
 doc *args: && doc-set-workspace-crates
     rm -f "$(cargo metadata --format-version=1 | jq -r '.target_directory')/doc/crates.js"
-    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --workspace {{ all_crate_features }} {{ args }}
+    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --no-deps --workspace {{ all_crate_features }} {{ args }}
 
 [private]
 doc-set-workspace-crates:

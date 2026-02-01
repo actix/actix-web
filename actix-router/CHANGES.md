@@ -8,7 +8,8 @@
 
 ### Changed
 
-- Refactor capture_match_info_fn by splitting it into three distinct functions: capture_match_info(), resolve_path_if_match(), and resolve().
+- Refactor `capture_match_info_fn` by splitting it into three distinct functions: `capture_match_info()`, `resolve_path_if_match()`, and `resolve()`.
+- Minimum supported Rust version (MSRV) is now 1.88.
 
 ## 0.5.3
 

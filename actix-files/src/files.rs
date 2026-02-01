@@ -41,6 +41,7 @@ pub struct Files {
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
+    with_permanent_redirect: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -49,6 +50,7 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    read_mode_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -64,6 +66,7 @@ impl Clone for Files {
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
+            with_permanent_redirect: self.with_permanent_redirect,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -73,6 +76,7 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            read_mode_threshold: self.read_mode_threshold,
         }
     }
 }
@@ -111,6 +115,7 @@ impl Files {
             index: None,
             show_index: false,
             redirect_to_slash: false,
+            with_permanent_redirect: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -119,6 +124,7 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            read_mode_threshold: 0,
         }
     }
 
@@ -138,6 +144,14 @@ impl Files {
     /// By default never redirect.
     pub fn redirect_to_slash_directory(mut self) -> Self {
         self.redirect_to_slash = true;
+        self
+    }
+
+    /// Redirect with permanent redirect status code (308).
+    ///
+    /// By default redirect with temporary redirect status code (307).
+    pub fn with_permanent_redirect(mut self) -> Self {
+        self.with_permanent_redirect = true;
         self
     }
 
@@ -201,6 +215,23 @@ impl Files {
     /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
+        self
+    }
+
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
+    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
+    /// files.
+    ///
+    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
         self
     }
 
@@ -367,6 +398,8 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            size_threshold: self.read_mode_threshold,
+            with_permanent_redirect: self.with_permanent_redirect,
         };
 
         if let Some(ref default) = *self.default.borrow() {
