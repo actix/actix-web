@@ -23,13 +23,35 @@ impl FromStr for PathBufWrap {
 }
 
 impl PathBufWrap {
-    /// Parse a safe path from a supplied [`HttpRequest`](actix_web::HttpRequest),
-    /// given the choice of allowing hiddden files to be considered valid segments.
+    /// Parse a safe path from the unprocessed tail of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::match_info`](actix_web::HttpRequest::match_info) and
+    /// [`Path::unprocessed`](actix_web::dev::Path::unprocessed), which returns the part of the
+    /// path not matched by route patterns. This is useful for mounted services (eg. `Files`),
+    /// where only the tail should be parsed.
     ///
     /// Path traversal is guarded by this method.
     #[inline]
-    pub fn parse_req(req: &HttpRequest, hidden_files: bool) -> Result<Self, UriSegmentError> {
+    pub fn parse_unprocessed_req(
+        req: &HttpRequest,
+        hidden_files: bool,
+    ) -> Result<Self, UriSegmentError> {
         Self::parse_path(req.match_info().unprocessed(), hidden_files)
+    }
+
+    /// Parse a safe path from the full request path of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::path`](actix_web::HttpRequest::path), and is more appropriate
+    /// for non-mounted handlers that want the entire request path.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_req_path(req: &HttpRequest, hidden_files: bool) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.path(), hidden_files)
     }
 
     /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
@@ -103,6 +125,7 @@ impl FromRequest for PathBufWrap {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // Uses the unprocessed tail of the request path and disallows hidden files.
         ready(req.match_info().unprocessed().parse())
     }
 }
