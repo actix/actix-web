@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#628]
 
 ## 4.12.1
 
