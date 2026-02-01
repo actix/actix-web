@@ -23,6 +23,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: JohnTitor/cargo-semver-checks@affdc88d7edadc20ad05cf7d901097bcd53ef29e # v0.2.0
+      - uses: JohnTitor/cargo-semver-checks@3b76737b550e48ad0bd5912e2757e80eee6294b0 # v0.2.1
         with:
           label-prefix: B-semver-
+          label-strategy: skip-if-human
