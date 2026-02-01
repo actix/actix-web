@@ -1,4 +1,10 @@
-use std::{future::Future, str, task::Poll, time::Duration};
+use std::{
+    future::Future,
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use actix_codec::Framed;
 use actix_rt::{pin, time::sleep};
@@ -9,13 +15,33 @@ use futures_util::future::lazy;
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
-    body::MessageBody,
+    body::{BoxBody, MessageBody},
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{TestBuffer, TestSeqBuffer},
     Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
+
+struct YieldService;
+
+impl Service<Request> for YieldService {
+    type Response = Response<BoxBody>;
+    type Error = Response<BoxBody>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    actix_service::always_ready!();
+
+    fn call(&self, _: Request) -> Self::Future {
+        Box::pin(async {
+            // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
+            // once in `handle_request` and another in `poll_response`
+            actix_rt::task::yield_now().await;
+            actix_rt::task::yield_now().await;
+            Ok(Response::ok())
+        })
+    }
+}
 
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     memchr::memmem::find(&haystack[from..], needle)
@@ -510,6 +536,73 @@ async fn pipelining_ok_then_ok() {
 }
 
 #[actix_rt::test]
+async fn early_response_with_payload_closes_connection() {
+    lazy(|cx| {
+        let buf = TestBuffer::new(
+            "\
+                GET /unfinished HTTP/1.1\r\n\
+                Content-Length: 2\r\n\
+                \r\n\
+                ",
+        );
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => panic!("Should have shut down"),
+            Poll::Ready(res) => assert!(res.is_ok()),
+        }
+
+        // polls: initial => shutdown
+        assert_eq!(h1.poll_count, 2);
+
+        {
+            let mut res = buf.write_buf_slice_mut();
+            stabilize_date_header(&mut res);
+            let res = &res[..];
+
+            let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 11\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /unfinished\
+                ";
+
+            assert_eq!(
+                res,
+                exp,
+                "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+                String::from_utf8_lossy(res),
+                String::from_utf8_lossy(exp)
+            );
+        }
+    })
+    .await;
+}
+
+#[actix_rt::test]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -922,6 +1015,91 @@ async fn handler_drop_payload() {
         );
     })
     .await;
+}
+
+#[actix_rt::test]
+async fn allow_half_closed() {
+    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 3);
+
+    let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+    stabilize_date_header(&mut res);
+    let exp = http_msg(
+        r"
+        HTTP/1.1 200 OK
+        content-length: 0
+        date: Thu, 01 Jan 1970 12:34:56 UTC
+        ",
+    );
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+        String::from_utf8_lossy(&res),
+        String::from_utf8_lossy(&exp)
+    );
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(inner.state.is_none());
+}
+
+#[actix_rt::test]
+async fn disallow_half_closed() {
+    use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
+
+    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+    let config = ServiceConfigBuilder::new()
+        .h1_allow_half_closed(false)
+        .build();
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        config,
+        None,
+        OnConnectData::default(),
+    );
+    pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 2);
+
+    let res = BytesMut::from(buf.take_write_buf().as_ref());
+    assert!(res.is_empty());
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(matches!(inner.state, State::ServiceCall { .. }))
 }
 
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {
