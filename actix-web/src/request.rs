@@ -1,6 +1,9 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt, net,
+    collections::HashMap,
+    fmt,
+    hash::{BuildHasher, Hash},
+    net,
     rc::Rc,
     str,
 };
@@ -240,6 +243,76 @@ impl HttpRequest {
         I: AsRef<str>,
     {
         self.resource_map().url_for(self, name, elements)
+    }
+
+    /// Generates URL for a named resource using a map of dynamic segment values.
+    ///
+    /// This substitutes URL parameters by name from `elements`, including parameters from parent
+    /// scopes.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one", "1");
+    ///     params.insert("two", "2");
+    ///     let url = req.url_for_map("foo", &params); // <- generate URL for "foo" resource
+    ///     HttpResponse::Ok().into()
+    /// }
+    ///
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for_map`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
+    /// ```
+    pub fn url_for_map<K, V, S>(
+        &self,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        self.resource_map().url_for_map(self, name, elements)
+    }
+
+    /// Generates URL for a named resource using an iterator of key-value pairs.
+    ///
+    /// This is a convenience wrapper around [`HttpRequest::url_for_map`].
+    ///
+    /// Note: passing a borrowed map (e.g. `&HashMap<String, String>`) directly does not satisfy the
+    /// trait bounds because the iterator yields `(&String, &String)`. Prefer `url_for_map` for
+    /// borrowed maps, or map entries to `&str`:
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one".to_string(), "1".to_string());
+    ///     params.insert("two".to_string(), "2".to_string());
+    ///
+    ///     let iter = params.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+    ///     let url = req.url_for_iter("foo", iter);
+    ///     HttpResponse::Ok().into()
+    /// }
+    /// ```
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        name: &str,
+        elements: I,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        self.resource_map().url_for_iter(self, name, elements)
     }
 
     /// Generate URL for named resource
@@ -550,6 +623,8 @@ impl HttpRequestPool {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bytes::Bytes;
 
     use super::*;
@@ -636,6 +711,59 @@ mod tests {
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
         );
+    }
+
+    #[test]
+    fn test_url_for_map() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let mut params = HashMap::new();
+        params.insert("name", "test");
+        params.insert("ext", "html");
+
+        let url = req.url_for_map("index", &params);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        params.remove("ext");
+        assert_eq!(
+            req.url_for_map("index", &params),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
+    }
+
+    #[test]
+    fn test_url_for_iter() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let url = req.url_for_iter("index", [("ext", "html"), ("name", "test")]);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        let url = req.url_for_iter("index", [("name", "test")]);
+        assert_eq!(url, Err(UrlGenerationError::NotEnoughElements));
     }
 
     #[test]
