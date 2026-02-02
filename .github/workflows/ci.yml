@@ -64,7 +64,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@81a2f66614862089b24532663f669a485d79c889 # v2.67.10
+        uses: taiki-e/install-action@650c5ca14212efbbf3e580844b04bdccf68dac31 # v2.67.18
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -117,7 +117,7 @@ jobs:
           toolchain: nightly
 
       - name: Install just
-        uses: taiki-e/install-action@81a2f66614862089b24532663f669a485d79c889 # v2.67.10
+        uses: taiki-e/install-action@650c5ca14212efbbf3e580844b04bdccf68dac31 # v2.67.18
         with:
           tool: just
 
