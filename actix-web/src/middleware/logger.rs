@@ -16,7 +16,7 @@ use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
-use log::{debug, warn};
+use log::{debug, warn, Level};
 use pin_project_lite::pin_project;
 #[cfg(feature = "unicode")]
 use regex::Regex;
@@ -92,6 +92,7 @@ struct Inner {
     exclude: HashSet<String>,
     exclude_regex: Vec<Regex>,
     log_target: Cow<'static, str>,
+    log_level: Level,
 }
 
 impl Logger {
@@ -102,6 +103,7 @@ impl Logger {
             exclude: HashSet::new(),
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            log_level: Level::Info,
         }))
     }
 
@@ -136,6 +138,23 @@ impl Logger {
     pub fn log_target(mut self, target: impl Into<Cow<'static, str>>) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         inner.log_target = target.into();
+        self
+    }
+
+    /// Sets the log level to `level`.
+    ///
+    /// By default, the log level is `Level::Info`.
+    ///
+    /// # Examples
+    /// Using `.log_level(Level::Debug)` would have this effect on request logs:
+    /// ```diff
+    /// - [2015-10-21T07:28:00Z INFO  actix_web::middleware::logger] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    /// + [2015-10-21T07:28:00Z DEBUG  actix_web::middleware::logger] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    ///                         ^^^^^^
+    /// ```
+    pub fn log_level(mut self, level: log::Level) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.log_level = level;
         self
     }
 
@@ -242,6 +261,7 @@ impl Default for Logger {
             exclude: HashSet::new(),
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            log_level: Level::Info,
         }))
     }
 }
@@ -312,6 +332,7 @@ where
                 format: None,
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
+                log_level: self.inner.log_level,
                 _phantom: PhantomData,
             }
         } else {
@@ -327,6 +348,7 @@ where
                 format: Some(format),
                 time: now,
                 log_target: self.inner.log_target.clone(),
+                log_level: self.inner.log_level,
                 _phantom: PhantomData,
             }
         }
@@ -344,6 +366,7 @@ pin_project! {
         time: OffsetDateTime,
         format: Option<Format>,
         log_target: Cow<'static, str>,
+        log_level: Level,
         _phantom: PhantomData<B>,
     }
 }
@@ -390,6 +413,7 @@ where
         let time = *this.time;
         let format = this.format.take();
         let log_target = this.log_target.clone();
+        let log_level = *this.log_level;
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
@@ -397,6 +421,7 @@ where
             format,
             size: 0,
             log_target,
+            log_level,
         })))
     }
 }
@@ -409,6 +434,7 @@ pin_project! {
         size: usize,
         time: OffsetDateTime,
         log_target: Cow<'static, str>,
+        log_level: Level
     }
 
     impl<B> PinnedDrop for StreamLog<B> {
@@ -421,8 +447,9 @@ pin_project! {
                     Ok(())
                 };
 
-                log::info!(
+                log::log!(
                     target: this.log_target.as_ref(),
+                    this.log_level,
                     "{}", FormatDisplay(&render)
                 );
             }
@@ -622,9 +649,9 @@ impl FormatText {
 
             FormatText::ResponseHeader(ref name) => {
                 let s = if let Some(val) = res.headers().get(name) {
-                    val.to_str().unwrap_or("-")
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
                 *self = FormatText::Str(s.to_string())
             }
@@ -666,11 +693,11 @@ impl FormatText {
             FormatText::RequestTime => *self = FormatText::Str(now.format(&Rfc3339).unwrap()),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
-                    val.to_str().unwrap_or("-")
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
-                *self = FormatText::Str(s.to_string());
+                *self = FormatText::Str(s);
             }
             FormatText::RemoteAddr => {
                 let s = if let Some(peer) = req.connection_info().peer_addr() {

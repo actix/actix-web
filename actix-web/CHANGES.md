@@ -2,8 +2,30 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#3895]
+
+[#3895]: https://github.com/actix/actix-web/pull/3895
+
+## 4.12.1
+
+- Correct `actix-http` dependency requirement.
+
+## 4.12.0
+
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now calls `actix_web::response::builder::HttpResponseBuilder::no_chunking()` and returns `SizedStream` if `Content-Length` is set by user.
+- Add `ws` crate feature (on-by-default) which forwards to `actix-http` and guards some of its `ResponseError` impls.
+- Add public export for `EitherExtractError` in `error` module.
+
+## 4.11.0
+
+- Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
 - Add `HttpServer::shutdown_signal()` method.
 - Mark `HttpServer` as `#[must_use]`.
+- Allow SVG images to be compressed by the `Compress` middleware.
+- Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
 - Re-export `mime` dependency.
 - Update `brotli` dependency to `8`.
 
