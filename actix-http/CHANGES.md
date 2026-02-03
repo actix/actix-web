@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Fix truncated body ending without error when connection closed abnormally. [#3067]
+
+[#3067]: https://github.com/actix/actix-web/pull/3067
 
 ## 3.11.2
 
