@@ -500,20 +500,15 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
 
 #[cfg(test)]
 mod tests {
-    use serde::{de, Deserialize};
+    use serde::Deserialize;
 
     use super::*;
-    use crate::{path::Path, router::Router, ResourceDef};
+    use crate::{router::Router, ResourceDef};
 
     #[derive(Deserialize)]
     struct MyStruct {
         key: String,
         value: String,
-    }
-
-    #[derive(Deserialize)]
-    struct Id {
-        _id: String,
     }
 
     #[derive(Debug, Deserialize)]

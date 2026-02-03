@@ -94,7 +94,7 @@ async fn with_query_parameter() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "expect failed")]
+#[display("expect failed")]
 struct ExpectFailed;
 
 impl From<ExpectFailed> for Response<BoxBody> {

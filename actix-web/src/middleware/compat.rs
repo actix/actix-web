@@ -38,15 +38,6 @@ pub struct Compat<T> {
     transform: T,
 }
 
-#[cfg(test)]
-impl Compat<super::Noop> {
-    pub(crate) fn noop() -> Self {
-        Self {
-            transform: super::Noop,
-        }
-    }
-}
-
 impl<T> Compat<T> {
     /// Wrap a middleware to give it broader compatibility.
     pub fn new(middleware: T) -> Self {
@@ -152,7 +143,7 @@ mod tests {
     use crate::{
         dev::ServiceRequest,
         http::StatusCode,
-        middleware::{self, Condition, Logger},
+        middleware::{self, Condition, Identity, Logger},
         test::{self, call_service, init_service, TestRequest},
         web, App, HttpResponse,
     };
@@ -225,7 +216,7 @@ mod tests {
     async fn compat_noop_is_noop() {
         let srv = test::ok_service();
 
-        let mw = Compat::noop()
+        let mw = Compat::new(Identity)
             .new_transform(srv.into_service())
             .await
             .unwrap();

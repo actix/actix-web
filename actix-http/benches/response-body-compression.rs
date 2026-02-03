@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::convert::Infallible;
 
 use actix_http::{encoding::Encoder, ContentEncoding, Request, Response, StatusCode};

@@ -1,11 +1,15 @@
-//! HTTP primitives for the Actix ecosystem.
+//! HTTP types and services for the Actix ecosystem.
 //!
 //! ## Crate Features
+//!
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
-//! | `rustls`            | TLS support via [rustls].                   |
+//! | `rustls-0_20`       | TLS support via rustls 0.20.                |
+//! | `rustls-0_21`       | TLS support via rustls 0.21.                |
+//! | `rustls-0_22`       | TLS support via rustls 0.22.                |
+//! | `rustls-0_23`       | TLS support via [rustls] 0.23.              |
 //! | `compress-brotli`   | Payload compression support: Brotli.        |
 //! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
 //! | `compress-zstd`     | Payload compression support: Zstd.          |
@@ -16,19 +20,16 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
-    clippy::borrow_interior_mutable_const,
-    clippy::uninlined_format_args
+    clippy::borrow_interior_mutable_const
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use ::http::{uri, uri::Uri, Method, StatusCode, Version};
+pub use http::{uri, uri::Uri, Method, StatusCode, Version};
 
 pub mod body;
 mod builder;
@@ -58,11 +59,11 @@ pub mod ws;
 
 #[allow(deprecated)]
 pub use self::payload::PayloadStream;
-#[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg(feature = "__tls")]
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,
-    config::ServiceConfig,
+    config::{ServiceConfig, ServiceConfigBuilder},
     error::Error,
     extensions::Extensions,
     header::ContentEncoding,

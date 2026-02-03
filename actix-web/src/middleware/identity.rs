@@ -2,35 +2,39 @@
 
 use actix_utils::future::{ready, Ready};
 
-use crate::dev::{Service, Transform};
+use crate::dev::{forward_ready, Service, Transform};
 
 /// A no-op middleware that passes through request and response untouched.
-pub(crate) struct Noop;
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Identity;
 
-impl<S: Service<Req>, Req> Transform<S, Req> for Noop {
+impl<S: Service<Req>, Req> Transform<S, Req> for Identity {
     type Response = S::Response;
     type Error = S::Error;
-    type Transform = NoopService<S>;
+    type Transform = IdentityMiddleware<S>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
+    #[inline]
     fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(NoopService { service }))
+        ready(Ok(IdentityMiddleware { service }))
     }
 }
 
 #[doc(hidden)]
-pub(crate) struct NoopService<S> {
+pub struct IdentityMiddleware<S> {
     service: S,
 }
 
-impl<S: Service<Req>, Req> Service<Req> for NoopService<S> {
+impl<S: Service<Req>, Req> Service<Req> for IdentityMiddleware<S> {
     type Response = S::Response;
     type Error = S::Error;
     type Future = S::Future;
 
-    crate::dev::forward_ready!(service);
+    forward_ready!(service);
 
+    #[inline]
     fn call(&self, req: Req) -> Self::Future {
         self.service.call(req)
     }

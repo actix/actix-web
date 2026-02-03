@@ -96,7 +96,7 @@ async fn negotiate_encoding_gzip() {
 
     let req = srv
         .post("/static")
-        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip, br;q=0.8, zstd;q=0.5"))
         .send();
 
     let mut res = req.await.unwrap();
@@ -109,7 +109,7 @@ async fn negotiate_encoding_gzip() {
     let mut res = srv
         .post("/static")
         .no_decompress()
-        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip, br;q=0.8, zstd;q=0.5"))
         .send()
         .await
         .unwrap();
@@ -123,9 +123,11 @@ async fn negotiate_encoding_gzip() {
 async fn negotiate_encoding_br() {
     let srv = test_server!();
 
+    // check that brotli content-encoding header is returned
+
     let req = srv
         .post("/static")
-        .insert_header((header::ACCEPT_ENCODING, "br,zstd,gzip"))
+        .insert_header((header::ACCEPT_ENCODING, "br, zstd, gzip"))
         .send();
 
     let mut res = req.await.unwrap();
@@ -135,10 +137,26 @@ async fn negotiate_encoding_br() {
     let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(LOREM));
 
+    // check that brotli is preferred even when later in (q-less) list
+
+    let req = srv
+        .post("/static")
+        .insert_header((header::ACCEPT_ENCODING, "gzip, zstd, br"))
+        .send();
+
+    let mut res = req.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "br");
+
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(LOREM));
+
+    // check that returned content is actually brotli encoded
+
     let mut res = srv
         .post("/static")
         .no_decompress()
-        .insert_header((header::ACCEPT_ENCODING, "br,zstd,gzip"))
+        .insert_header((header::ACCEPT_ENCODING, "br, zstd, gzip"))
         .send()
         .await
         .unwrap();
@@ -154,7 +172,7 @@ async fn negotiate_encoding_zstd() {
 
     let req = srv
         .post("/static")
-        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip,br"))
+        .insert_header((header::ACCEPT_ENCODING, "zstd, gzip, br;q=0.8"))
         .send();
 
     let mut res = req.await.unwrap();
@@ -167,7 +185,7 @@ async fn negotiate_encoding_zstd() {
     let mut res = srv
         .post("/static")
         .no_decompress()
-        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip,br"))
+        .insert_header((header::ACCEPT_ENCODING, "zstd, gzip, br;q=0.8"))
         .send()
         .await
         .unwrap();
@@ -207,7 +225,7 @@ async fn gzip_no_decompress() {
         // don't decompress response body
         .no_decompress()
         // signal that we want a compressed body
-        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip, br;q=0.8, zstd;q=0.5"))
         .send();
 
     let mut res = req.await.unwrap();

@@ -54,8 +54,8 @@ impl From<PrepForSendingError> for FreezeRequestError {
 impl From<PrepForSendingError> for SendRequestError {
     fn from(err: PrepForSendingError) -> SendRequestError {
         match err {
-            PrepForSendingError::Url(e) => SendRequestError::Url(e),
-            PrepForSendingError::Http(e) => SendRequestError::Http(e),
+            PrepForSendingError::Url(err) => SendRequestError::Url(err),
+            PrepForSendingError::Http(err) => SendRequestError::Http(err),
             PrepForSendingError::Json(err) => {
                 SendRequestError::Custom(Box::new(err), Box::new("json serialization error"))
             }
@@ -122,8 +122,8 @@ impl Future for SendClientRequest {
 
                 Poll::Ready(res)
             }
-            SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Poll::Ready(Err(e)),
+            SendClientRequest::Err(ref mut err) => match err.take() {
+                Some(err) => Poll::Ready(Err(err)),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -147,8 +147,8 @@ impl Future for SendClientRequest {
                     .poll(cx)
                     .map_ok(|res| res.into_client_response()._timeout(delay.take()))
             }
-            SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Poll::Ready(Err(e)),
+            SendClientRequest::Err(ref mut err) => match err.take() {
+                Some(err) => Poll::Ready(Err(err)),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -156,20 +156,20 @@ impl Future for SendClientRequest {
 }
 
 impl From<SendRequestError> for SendClientRequest {
-    fn from(e: SendRequestError) -> Self {
-        SendClientRequest::Err(Some(e))
+    fn from(err: SendRequestError) -> Self {
+        SendClientRequest::Err(Some(err))
     }
 }
 
 impl From<HttpError> for SendClientRequest {
-    fn from(e: HttpError) -> Self {
-        SendClientRequest::Err(Some(e.into()))
+    fn from(err: HttpError) -> Self {
+        SendClientRequest::Err(Some(err.into()))
     }
 }
 
 impl From<PrepForSendingError> for SendClientRequest {
-    fn from(e: PrepForSendingError) -> Self {
-        SendClientRequest::Err(Some(e.into()))
+    fn from(err: PrepForSendingError) -> Self {
+        SendClientRequest::Err(Some(err.into()))
     }
 }
 
@@ -219,8 +219,8 @@ impl RequestSender {
             Err(err) => return PrepForSendingError::Json(err).into(),
         };
 
-        if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
-            return e.into();
+        if let Err(err) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
+            return err.into();
         }
 
         self.send_body(addr, response_decompress, timeout, config, body)
@@ -291,7 +291,7 @@ impl RequestSender {
                         Ok(value) => {
                             head.headers.insert(key, value);
                         }
-                        Err(e) => return Err(e.into()),
+                        Err(err) => return Err(err.into()),
                     }
                 }
             }
@@ -304,7 +304,7 @@ impl RequestSender {
                             let h = extra_headers.get_or_insert(HeaderMap::new());
                             h.insert(key, v)
                         }
-                        Err(e) => return Err(e.into()),
+                        Err(err) => return Err(err.into()),
                     };
                 }
             }

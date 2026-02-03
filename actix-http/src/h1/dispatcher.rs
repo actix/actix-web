@@ -386,7 +386,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendPayload { body },
@@ -404,7 +411,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendErrorPayload { body },
@@ -503,17 +517,31 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                let err = err.into();
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
-                                return Err(DispatchError::Body(err.into()));
+                                return Err(DispatchError::Body(err));
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -540,15 +568,28 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // payload stream finished
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
+                                // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
                                 return Err(DispatchError::Body(
                                     Error::new_body().with_cause(err).into(),
@@ -703,7 +744,7 @@ where
 
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
+                            req.conn_data.clone_from(this.conn_data);
 
                             match this.codec.message_type() {
                                 // request has no payload
@@ -1179,8 +1220,16 @@ where
                     let inner_p = inner.as_mut().project();
                     let state_is_none = inner_p.state.is_none();
 
-                    // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
+                    // If the read-half is closed, we start the shutdown procedure if either is
+                    // true:
+                    //
+                    // - state is [`State::None`], which means that we're done with request
+                    //   processing, so if the client closed its writer-side it means that it won't
+                    //   send more requests.
+                    // - The user requested to not allow half-closures
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT)
+                        && (!inner_p.config.h1_allow_half_closed() || state_is_none)
+                    {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
@@ -1214,6 +1263,9 @@ where
                         inner_p.shutdown_timer,
                     );
 
+                    if inner_p.flags.contains(Flags::SHUTDOWN) {
+                        cx.waker().wake_by_ref();
+                    }
                     Poll::Pending
                 };
 

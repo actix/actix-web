@@ -21,6 +21,20 @@ fn unquote(val: &str) -> &str {
     val.trim().trim_start_matches('"').trim_end_matches('"')
 }
 
+/// Remove port and IPv6 square brackets from a peer specification.
+fn bare_address(val: &str) -> &str {
+    if val.starts_with('[') {
+        val.split("]:")
+            .next()
+            .map(|s| s.trim_start_matches('[').trim_end_matches(']'))
+            // this indicates that the IPv6 address is malformed so shouldn't
+            // usually happen, but if it does, just return the original input
+            .unwrap_or(val)
+    } else {
+        val.split(':').next().unwrap_or(val)
+    }
+}
+
 /// Extracts and trims first value for given header name.
 fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<&'a str> {
     let hdr = req.headers.get(name)?.to_str().ok()?;
@@ -100,7 +114,7 @@ impl ConnectionInfo {
             // --- https://datatracker.ietf.org/doc/html/rfc7239#section-5.2
 
             match name.trim().to_lowercase().as_str() {
-                "for" => realip_remote_addr.get_or_insert_with(|| unquote(val)),
+                "for" => realip_remote_addr.get_or_insert_with(|| bare_address(unquote(val))),
                 "proto" => scheme.get_or_insert_with(|| unquote(val)),
                 "host" => host.get_or_insert_with(|| unquote(val)),
                 "by" => {
@@ -144,7 +158,7 @@ impl ConnectionInfo {
     /// The address is resolved through the following, in order:
     /// - `Forwarded` header
     /// - `X-Forwarded-For` header
-    /// - peer address of opened socket (same as [`remote_addr`](Self::remote_addr))
+    /// - peer address of opened socket (same as [`peer_addr`](Self::peer_addr))
     ///
     /// # Security
     /// Do not use this function for security purposes unless you can be sure that the `Forwarded`
@@ -221,7 +235,7 @@ impl FromRequest for ConnectionInfo {
 /// # let _svc = actix_web::web::to(handler);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Display)]
-#[display(fmt = "{}", _0)]
+#[display("{}", _0)]
 pub struct PeerAddr(pub SocketAddr);
 
 impl PeerAddr {
@@ -233,7 +247,7 @@ impl PeerAddr {
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
-#[display(fmt = "Missing peer address")]
+#[display("Missing peer address")]
 pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}
@@ -368,16 +382,25 @@ mod tests {
             .insert_header((header::FORWARDED, r#"for="192.0.2.60:8080""#))
             .to_http_request();
         let info = req.connection_info();
-        assert_eq!(info.realip_remote_addr(), Some("192.0.2.60:8080"));
+        assert_eq!(info.realip_remote_addr(), Some("192.0.2.60"));
     }
 
     #[test]
     fn forwarded_for_ipv6() {
         let req = TestRequest::default()
+            .insert_header((header::FORWARDED, r#"for="[2001:db8:cafe::17]""#))
+            .to_http_request();
+        let info = req.connection_info();
+        assert_eq!(info.realip_remote_addr(), Some("2001:db8:cafe::17"));
+    }
+
+    #[test]
+    fn forwarded_for_ipv6_with_port() {
+        let req = TestRequest::default()
             .insert_header((header::FORWARDED, r#"for="[2001:db8:cafe::17]:4711""#))
             .to_http_request();
         let info = req.connection_info();
-        assert_eq!(info.realip_remote_addr(), Some("[2001:db8:cafe::17]:4711"));
+        assert_eq!(info.realip_remote_addr(), Some("2001:db8:cafe::17"));
     }
 
     #[test]

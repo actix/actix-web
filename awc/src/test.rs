@@ -65,9 +65,7 @@ impl TestResponse {
 
     /// Set response's payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
-        let (_, mut payload) = h1::Payload::create(true);
-        payload.unread_data(data.into());
-        self.payload = Some(payload.into());
+        self.payload = Some(Payload::from(data.into()));
         self
     }
 
@@ -103,7 +101,7 @@ mod tests {
     use actix_http::header::HttpDate;
 
     use super::*;
-    use crate::{cookie, http::header};
+    use crate::http::header;
 
     #[test]
     fn test_basics() {

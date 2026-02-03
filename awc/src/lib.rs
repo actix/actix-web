@@ -100,17 +100,15 @@
 //! # }
 //! ```
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
+#![allow(unknown_lints)] // temp: #[allow(non_local_definitions)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
-    clippy::needless_doctest_main,
-    clippy::uninlined_format_args
+    clippy::needless_doctest_main
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use actix_http::body;
 #[cfg(feature = "cookies")]

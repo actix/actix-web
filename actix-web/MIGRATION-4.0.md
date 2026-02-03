@@ -115,7 +115,7 @@ An alternative [path param type with public field but no `Deref` impl is availab
 
 ## Rustls Crate Upgrade
 
-Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
+Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/main/https-tls/rustls/)
 
 ## Removed `awc` Client Re-export
 
@@ -372,13 +372,13 @@ You may need to review the [guidance on shared mutable state](https://docs.rs/ac
   HttpServer::new(|| {
 -     App::new()
 -         .data(MyState::default())
--         .service(hander)
+-         .service(handler)
 
 +     let my_state: Data<MyState> = Data::new(MyState::default());
 +
 +     App::new()
 +         .app_data(my_state)
-+         .service(hander)
++         .service(handler)
   })
 ```
 

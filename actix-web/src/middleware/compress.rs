@@ -33,7 +33,7 @@ use crate::{
 /// considered in this selection process.
 ///
 /// # Pre-compressed Payload
-/// If you are serving some data is already using a compressed representation (e.g., a gzip
+/// If you are serving some data that is already using a compressed representation (e.g., a gzip
 /// compressed HTML file from disk) you can signal this to `Compress` by setting an appropriate
 /// `Content-Encoding` header. In addition to preventing double compressing the payload, this header
 /// is required by the spec when using compressed representations and will inform the client that
@@ -191,8 +191,10 @@ where
                             None => true,
                             Some(hdr) => {
                                 match hdr.to_str().ok().and_then(|hdr| hdr.parse::<Mime>().ok()) {
-                                    Some(mime) if mime.type_().as_str() == "image" => false,
-                                    Some(mime) if mime.type_().as_str() == "video" => false,
+                                    Some(mime) if mime.type_() == mime::IMAGE => {
+                                        matches!(mime.subtype(), mime::SVG)
+                                    }
+                                    Some(mime) if mime.type_() == mime::VIDEO => false,
                                     _ => true,
                                 }
                             }
@@ -373,7 +375,7 @@ mod tests {
                 .default_service(web::to(move || {
                     HttpResponse::Ok()
                         .insert_header((header::VARY, "x-test"))
-                        .finish()
+                        .body(TEXT_DATA)
                 }))
         })
         .await;
@@ -428,5 +430,48 @@ mod tests {
         let res = test::call_service(&app, req.to_request()).await;
         assert_successful_identity_res_with_content_type(&res, "image/jpeg");
         assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
+    }
+
+    #[actix_rt::test]
+    async fn prevents_compression_empty() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || HttpResponse::Ok().finish()))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(test::read_body(res).await.is_empty());
+    }
+}
+
+#[cfg(feature = "compress-brotli")]
+#[cfg(test)]
+mod tests_brotli {
+    use super::*;
+    use crate::{test, web, App};
+
+    #[actix_rt::test]
+    async fn prevents_compression_empty() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || HttpResponse::Ok().finish()))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "br"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(test::read_body(res).await.is_empty());
     }
 }

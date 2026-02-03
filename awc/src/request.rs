@@ -83,7 +83,7 @@ impl ClientRequest {
     {
         match Uri::try_from(uri) {
             Ok(uri) => self.head.uri = uri,
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -152,7 +152,7 @@ impl ClientRequest {
             Ok((key, value)) => {
                 self.head.headers.insert(key, value);
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -166,7 +166,7 @@ impl ClientRequest {
                     self.head.headers.insert(key, value);
                 }
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -185,7 +185,7 @@ impl ClientRequest {
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_pair() {
             Ok((key, value)) => self.head.headers.append(key, value),
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -217,7 +217,7 @@ impl ClientRequest {
             Ok(value) => {
                 self.head.headers.insert(header::CONTENT_TYPE, value);
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -299,7 +299,7 @@ impl ClientRequest {
 
             match Uri::from_parts(parts) {
                 Ok(uri) => self.head.uri = uri,
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             }
         }
 
@@ -309,10 +309,7 @@ impl ClientRequest {
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
-        let slf = match self.prep_for_sending() {
-            Ok(slf) => slf,
-            Err(e) => return Err(e.into()),
-        };
+        let slf = self.prep_for_sending()?;
 
         let request = FrozenClientRequest {
             head: Rc::new(slf.head),
@@ -332,7 +329,7 @@ impl ClientRequest {
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_body(
@@ -348,7 +345,7 @@ impl ClientRequest {
     pub fn send_json<T: Serialize>(self, value: &T) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_json(
@@ -366,7 +363,7 @@ impl ClientRequest {
     pub fn send_form<T: Serialize>(self, value: &T) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_form(
@@ -386,7 +383,7 @@ impl ClientRequest {
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_stream(
@@ -402,7 +399,7 @@ impl ClientRequest {
     pub fn send(self) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send(
@@ -415,8 +412,8 @@ impl ClientRequest {
 
     // allow unused mut when cookies feature is disabled
     fn prep_for_sending(#[allow(unused_mut)] mut self) -> Result<Self, PrepForSendingError> {
-        if let Some(e) = self.err {
-            return Err(e.into());
+        if let Some(err) = self.err {
+            return Err(err.into());
         }
 
         // validate uri

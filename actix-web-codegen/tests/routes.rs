@@ -136,7 +136,7 @@ async fn routes_overlapping_inaccessible_test(req: HttpRequest) -> impl Responde
 }
 
 #[get("/custom_resource_name", name = "custom")]
-async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
+async fn custom_resource_name_test(req: HttpRequest) -> impl Responder {
     assert!(req.url_for_static("custom").is_ok());
     assert!(req.url_for_static("custom_resource_name_test").is_err());
     HttpResponse::Ok()
@@ -145,7 +145,7 @@ async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
 mod guard_module {
     use actix_web::{guard::GuardContext, http::header};
 
-    pub fn guard(ctx: &GuardContext) -> bool {
+    pub fn guard(ctx: &GuardContext<'_>) -> bool {
         ctx.header::<header::Accept>()
             .map(|h| h.preference() == "image/*")
             .unwrap_or(false)
@@ -210,6 +210,19 @@ where
 async fn get_wrap(_: web::Path<String>) -> impl Responder {
     // panic!("actually never gets called because path failed to extract");
     HttpResponse::Ok()
+}
+
+/// Using expression, not just path to type, in wrap attribute.
+///
+/// Regression from <https://github.com/actix/actix-web/issues/3118>.
+#[route(
+    "/catalog",
+    method = "GET",
+    method = "HEAD",
+    wrap = "actix_web::middleware::Compress::default()"
+)]
+async fn get_catalog() -> impl Responder {
+    HttpResponse::Ok().body("123123123")
 }
 
 #[actix_rt::test]

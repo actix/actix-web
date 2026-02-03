@@ -100,10 +100,7 @@ where
         loop {
             if let Some(ref mut fut) = this.fut {
                 let (chunk, decoder) = ready!(Pin::new(fut).poll(cx)).map_err(|_| {
-                    PayloadError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Blocking task was cancelled unexpectedly",
-                    ))
+                    PayloadError::Io(io::Error::other("Blocking task was cancelled unexpectedly"))
                 })??;
 
                 *this.decoder = Some(decoder);
@@ -191,7 +188,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -205,7 +202,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -218,7 +215,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-zstd")]
@@ -231,7 +228,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
         }
     }
@@ -250,7 +247,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -265,7 +262,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -280,7 +277,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-zstd")]
@@ -295,7 +292,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
         }
     }

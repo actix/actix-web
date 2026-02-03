@@ -42,9 +42,9 @@ pub use self::{
     as_name::AsHeaderName,
     // re-export list is explicit so that any updates to `http` do not conflict with this set
     common::{
-        CACHE_STATUS, CDN_CACHE_CONTROL, CROSS_ORIGIN_EMBEDDER_POLICY, CROSS_ORIGIN_OPENER_POLICY,
-        CROSS_ORIGIN_RESOURCE_POLICY, PERMISSIONS_POLICY, X_FORWARDED_FOR, X_FORWARDED_HOST,
-        X_FORWARDED_PROTO,
+        CACHE_STATUS, CDN_CACHE_CONTROL, CLEAR_SITE_DATA, CROSS_ORIGIN_EMBEDDER_POLICY,
+        CROSS_ORIGIN_OPENER_POLICY, CROSS_ORIGIN_RESOURCE_POLICY, PERMISSIONS_POLICY,
+        X_FORWARDED_FOR, X_FORWARDED_HOST, X_FORWARDED_PROTO,
     },
     into_pair::TryIntoHeaderPair,
     into_value::TryIntoHeaderValue,

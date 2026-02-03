@@ -50,10 +50,21 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
+    fn empty() -> Self {
+        Encoder {
+            body: EncoderBody::Full { body: Bytes::new() },
+            encoder: None,
+            fut: None,
+            eof: true,
+        }
+    }
+
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
-        // no need to compress an empty body
-        if matches!(body.size(), BodySize::None) {
-            return Self::none();
+        // no need to compress empty bodies
+        match body.size() {
+            BodySize::None => return Self::none(),
+            BodySize::Sized(0) => return Self::empty(),
+            _ => {}
         }
 
         let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
@@ -172,8 +183,7 @@ where
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
                     .map_err(|_| {
-                        EncoderError::Io(io::Error::new(
-                            io::ErrorKind::Other,
+                        EncoderError::Io(io::Error::other(
                             "Blocking task was cancelled unexpectedly",
                         ))
                     })?
@@ -404,11 +414,11 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
 #[non_exhaustive]
 pub enum EncoderError {
     /// Wrapped body stream error.
-    #[display(fmt = "body")]
+    #[display("body")]
     Body(Box<dyn StdError>),
 
     /// Generic I/O error.
-    #[display(fmt = "io")]
+    #[display("io")]
     Io(io::Error),
 }
 

@@ -440,13 +440,11 @@ impl Future for HttpMessageBody {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
-
     use super::*;
     use crate::{
-        http::{header, StatusCode},
+        http::StatusCode,
         test::{call_service, init_service, read_body, TestRequest},
-        web, App, Responder,
+        App, Responder,
     };
 
     #[actix_rt::test]
