@@ -51,7 +51,7 @@ where
     Ok(buf)
 }
 
-fn tls_config() -> RustlsServerConfig {
+fn tls_config_with_alpn(protocols: &[&[u8]]) -> RustlsServerConfig {
     let rcgen::CertifiedKey { cert, key_pair } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
     let cert_chain = vec![cert.der().clone()];
@@ -62,10 +62,21 @@ fn tls_config() -> RustlsServerConfig {
         .with_single_cert(cert_chain, key_der)
         .unwrap();
 
-    config.alpn_protocols.push(HTTP1_1_ALPN_PROTOCOL.to_vec());
-    config.alpn_protocols.push(H2_ALPN_PROTOCOL.to_vec());
+    config.alpn_protocols = protocols.iter().map(|proto| proto.to_vec()).collect();
 
     config
+}
+
+fn tls_config() -> RustlsServerConfig {
+    tls_config_with_alpn(&[HTTP1_1_ALPN_PROTOCOL, H2_ALPN_PROTOCOL])
+}
+
+fn tls_config_h1() -> RustlsServerConfig {
+    tls_config_with_alpn(&[HTTP1_1_ALPN_PROTOCOL])
+}
+
+fn tls_config_h2() -> RustlsServerConfig {
+    tls_config_with_alpn(&[H2_ALPN_PROTOCOL])
 }
 
 pub fn get_negotiated_alpn_protocol(
@@ -98,7 +109,7 @@ async fn h1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h1(|_| ok::<_, Error>(Response::ok()))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
@@ -112,7 +123,7 @@ async fn h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::ok()))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -130,7 +141,7 @@ async fn h1_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_11);
                 ok::<_, Error>(Response::ok())
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
@@ -149,7 +160,7 @@ async fn h2_1() -> io::Result<()> {
                 ok::<_, Error>(Response::ok())
             })
             .rustls_0_23_with_config(
-                tls_config(),
+                tls_config_h2(),
                 TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
             )
     })
@@ -169,7 +180,7 @@ async fn h2_body1() -> io::Result<()> {
                 let body = load_body(req.take_payload()).await?;
                 Ok::<_, Error>(Response::ok().set_body(body))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -195,7 +206,7 @@ async fn h2_content_length() {
                 ];
                 ok::<_, Infallible>(Response::new(statuses[indx]))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -267,7 +278,7 @@ async fn h2_headers() {
                 }
                 ok::<_, Infallible>(config.body(data.clone()))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -306,7 +317,7 @@ async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -323,7 +334,7 @@ async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
             .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -349,7 +360,7 @@ async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -374,7 +385,7 @@ async fn h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -400,7 +411,7 @@ async fn h2_body_length() {
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -424,7 +435,7 @@ async fn h2_body_chunked_explicit() {
                         .body(BodyStream::new(body)),
                 )
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -453,7 +464,7 @@ async fn h2_response_http_error_handling() {
                     )
                 }))
             }))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -483,7 +494,7 @@ async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -500,7 +511,7 @@ async fn h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h1(|_| err::<Response<BoxBody>, _>(BadRequest))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
@@ -519,7 +530,7 @@ const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
 #[actix_rt::test]
 async fn alpn_h1() -> io::Result<()> {
     let srv = test_server(move || {
-        let mut config = tls_config();
+        let mut config = tls_config_h1();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
             .h1(|_| ok::<_, Error>(Response::ok()))
@@ -541,7 +552,7 @@ async fn alpn_h1() -> io::Result<()> {
 #[actix_rt::test]
 async fn alpn_h2() -> io::Result<()> {
     let srv = test_server(move || {
-        let mut config = tls_config();
+        let mut config = tls_config_h2();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::ok()))
