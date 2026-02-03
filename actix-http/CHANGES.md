@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Fix truncated body ending without error when connection closed abnormally. [#3067]
+
+[#3067]: https://github.com/actix/actix-web/pull/3067
 
 ## 3.11.2
 
@@ -95,9 +98,6 @@
 - Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_021()` and `HttpService::rustls_021_with_config()` service constructors.
 - Add `body::to_bytes_limited()` function.
 - Add `body::BodyLimitExceeded` error type.
-
-### Fixed
-- Fix truncated body ending without error when connection closed abnormally. [#3067]
 
 ### Changed
 
