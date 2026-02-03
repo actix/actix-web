@@ -357,11 +357,11 @@ impl NamedFile {
 
     /// Sets the size threshold that determines file read mode (sync/async).
     ///
-    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
-    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
-    /// files.
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
     ///
-    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
     ///
     /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.

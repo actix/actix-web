@@ -11,7 +11,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use crate::{
-    body::{BodyStream, BoxBody, MessageBody},
+    body::{BodyStream, BoxBody, MessageBody, SizedStream},
     dev::Extensions,
     error::{Error, JsonPayloadError},
     http::{
@@ -335,17 +335,18 @@ impl HttpResponseBuilder {
             }
         }
 
-        if let Some(parts) = self.inner() {
-            if let Some(length) = parts.headers.get(header::CONTENT_LENGTH) {
-                if let Ok(length) = length.to_str() {
-                    if let Ok(length) = length.parse::<u64>() {
-                        self.no_chunking(length);
-                    }
-                }
-            }
-        }
+        let content_length = self
+            .inner()
+            .and_then(|parts| parts.headers.get(header::CONTENT_LENGTH))
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
 
-        self.body(BodyStream::new(stream))
+        if let Some(len) = content_length {
+            self.no_chunking(len);
+            self.body(SizedStream::new(len, stream))
+        } else {
+            self.body(BodyStream::new(stream))
+        }
     }
 
     /// Set a JSON body and build the `HttpResponse`.

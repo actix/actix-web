@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.88.
+- `PathBufWrap` & `UriSegmentError` made public. [#3694]
+
+[#3694]: https://github.com/actix/actix-web/pull/3694
+
+## 0.6.9
+
+- Correct `derive_more` dependency feature requirements.
+
 ## 0.6.8
 
 - Add `Files::with_permanent_redirect()` method.

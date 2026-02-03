@@ -11,7 +11,7 @@ mod query;
 mod readlines;
 
 pub use self::{
-    either::Either,
+    either::{Either, EitherExtractError},
     form::{Form, FormConfig, UrlEncoded},
     header::Header,
     html::Html,

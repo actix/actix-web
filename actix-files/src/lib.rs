@@ -14,7 +14,7 @@
 #![warn(missing_docs, missing_debug_implementations)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use std::path::Path;
 
@@ -37,13 +37,12 @@ mod range;
 mod service;
 
 pub use self::{
-    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
-    range::HttpRange, service::FilesService,
+    chunked::ChunkedReadFile, directory::Directory, error::UriSegmentError, files::Files,
+    named::NamedFile, path_buf::PathBufWrap, range::HttpRange, service::FilesService,
 };
 use self::{
     directory::{directory_listing, DirectoryRenderer},
     error::FilesError,
-    path_buf::PathBufWrap,
 };
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;

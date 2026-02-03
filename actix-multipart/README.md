@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-multipart?label=latest)](https://crates.io/crates/actix-multipart)
 [![Documentation](https://docs.rs/actix-multipart/badge.svg?version=0.7.2)](https://docs.rs/actix-multipart/0.7.2)
-![Version](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-multipart.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-multipart/0.7.2/status.svg)](https://deps.rs/crate/actix-multipart/0.7.2)
@@ -84,4 +84,4 @@ curl -v --request POST \
 
 <!-- cargo-rdme end -->
 
-[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
+[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/main/forms/multipart)
