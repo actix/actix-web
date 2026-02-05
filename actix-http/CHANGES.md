@@ -2,8 +2,25 @@
 
 ## Unreleased
 
-### Fixed
-- Fix bug which prevents end-users from discovering when the remote peer has closed its side of the TCP connection.
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Fix truncated body ending without error when connection closed abnormally. [#3067]
+- Fix bug which prevents end-users from discovering when the remote peer has closed its side of the TCP connection. [#3492]
+
+[#3067]: https://github.com/actix/actix-web/pull/3067
+[#3492]: https://github.com/actix/actix-web/pull/3492
+
+## 3.11.2
+
+- Properly wake Payload receivers when feeding errors or EOF.
+- Add `ServiceConfigBuilder` type to facilitate future configuration extensions.
+- Add a configuration option to allow/disallow half closed connections in HTTP/1. This defaults to allow, reverting the change made in 3.11.1.
+- Shutdown connections when HTTP Responses are written without reading full Requests.
+
+## 3.11.1
+
+- Prevent more hangs after client disconnects.
+- More malformed WebSocket frames are now gracefully rejected.
+- Using `TestRequest::set_payload()` now sets a Content-Length header.
 
 ## 3.11.0
 
