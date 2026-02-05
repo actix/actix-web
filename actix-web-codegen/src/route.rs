@@ -328,8 +328,8 @@ pub struct Route {
     /// Name of the handler function being annotated.
     name: syn::Ident,
 
-    /// function generic
-    type_generic: Option<syn::TypeParam>,
+    /// Handler function generics.
+    generics: syn::Generics,
 
     /// Args passed to routing macro.
     ///
@@ -347,12 +347,7 @@ impl Route {
     pub fn new(args: RouteArgs, ast: syn::ItemFn, method: Option<MethodType>) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
 
-        let generics = ast.sig.generics.params.clone();
-        let type_generic = if let Some(syn::GenericParam::Type(ty)) = generics.into_iter().next() {
-            Some(ty)
-        } else {
-            None
-        };
+        let generics = ast.sig.generics.clone();
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
         // Note that multi line doc comments are converted to multiple doc attributes.
@@ -380,7 +375,7 @@ impl Route {
         }
 
         Ok(Self {
-            type_generic,
+            generics,
             name,
             args: vec![args],
             ast,
@@ -391,12 +386,7 @@ impl Route {
     fn multiple(args: Vec<Args>, ast: syn::ItemFn) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
 
-        let generics = ast.sig.generics.params.clone();
-        let type_generic = if let Some(syn::GenericParam::Type(ty)) = generics.into_iter().next() {
-            Some(ty)
-        } else {
-            None
-        };
+        let generics = ast.sig.generics.clone();
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
         // Note that multi line doc comments are converted to multiple doc attributes.
@@ -416,7 +406,7 @@ impl Route {
 
         Ok(Self {
             name,
-            type_generic,
+            generics,
             args,
             ast,
             doc_attributes,
@@ -428,7 +418,7 @@ impl ToTokens for Route {
     fn to_tokens(&self, output: &mut TokenStream2) {
         let Self {
             name,
-            type_generic,
+            generics,
             ast,
             args,
             doc_attributes,
@@ -441,16 +431,53 @@ impl ToTokens for Route {
         #[cfg(feature = "compat-routing-macros-force-pub")]
         let vis = syn::Visibility::Public(<Token![pub]>::default());
 
-        let (struct_generic, trait_generic, impl_type_generic) =
-            if let Some(syn::TypeParam { ident, bounds, .. }) = type_generic {
-                (
-                    Some(quote! { <#ident> (core::marker::PhantomData<T>) }),
-                    Some(quote! { <#ident: #bounds + 'static> }),
-                    Some(quote! { <#ident> }),
-                )
-            } else {
-                (None, None, None)
-            };
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+        let mut struct_generics = generics.clone();
+        struct_generics.where_clause = None;
+
+        let phantom_args: Vec<TokenStream2> = generics
+            .params
+            .iter()
+            .map(|param| match param {
+                syn::GenericParam::Type(ty) => {
+                    let ident = &ty.ident;
+                    quote! { #ident }
+                }
+                syn::GenericParam::Lifetime(lt) => {
+                    let lifetime = &lt.lifetime;
+                    quote! { &#lifetime () }
+                }
+                syn::GenericParam::Const(konst) => {
+                    let ident = &konst.ident;
+                    quote! { [(); #ident] }
+                }
+            })
+            .collect();
+
+        let phantom_tuple = quote! { (#(#phantom_args, )*) };
+
+        let turbofish_args: Vec<TokenStream2> = generics
+            .params
+            .iter()
+            .filter_map(|param| match param {
+                syn::GenericParam::Type(ty) => {
+                    let ident = &ty.ident;
+                    Some(quote! { #ident })
+                }
+                syn::GenericParam::Const(konst) => {
+                    let ident = &konst.ident;
+                    Some(quote! { #ident })
+                }
+                syn::GenericParam::Lifetime(_) => None,
+            })
+            .collect();
+
+        let turbofish = if turbofish_args.is_empty() {
+            TokenStream2::new()
+        } else {
+            quote! { ::<#(#turbofish_args),*> }
+        };
 
         let registrations: TokenStream2 = args
             .iter()
@@ -484,31 +511,35 @@ impl ToTokens for Route {
                     }
                 };
 
-                let type_generic = if let Some(syn::TypeParam { ident, .. }) = type_generic {
-                    Some(quote! { ::<#ident> })
-                } else {
-                    None
-                };
-
                 quote! {
                     let __resource = ::actix_web::Resource::new(#path)
                         .name(#resource_name)
                         #method_guards
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
-                        .to(#name #type_generic);
+                        .to(#name #turbofish);
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                 }
             })
             .collect();
 
+        let struct_def = if generics.params.is_empty() {
+            quote! { #vis struct #name; }
+        } else {
+            quote! {
+                #vis struct #name #struct_generics (core::marker::PhantomData<#phantom_tuple>)
+                #where_clause;
+            }
+        };
+
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types)]
             #[derive(Default)]
-            #vis struct #name #struct_generic;
+            #struct_def
 
-            impl #trait_generic ::actix_web::dev::HttpServiceFactory for #name #impl_type_generic
+            impl #impl_generics ::actix_web::dev::HttpServiceFactory for #name #ty_generics
+            #where_clause
             {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
