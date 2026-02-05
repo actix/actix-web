@@ -527,16 +527,26 @@ impl ToTokens for Route {
             quote! { #vis struct #name; }
         } else {
             quote! {
-                #vis struct #name #struct_generics (core::marker::PhantomData<#phantom_tuple>)
-                #where_clause;
+                #vis struct #name #struct_generics (core::marker::PhantomData<#phantom_tuple>);
             }
+        };
+
+        let default_expr = if generics.params.is_empty() {
+            quote! { Self }
+        } else {
+            quote! { Self(core::marker::PhantomData) }
         };
 
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types)]
-            #[derive(Default)]
             #struct_def
+
+            impl #impl_generics ::core::default::Default for #name #ty_generics {
+                fn default() -> Self {
+                    #default_expr
+                }
+            }
 
             impl #impl_generics ::actix_web::dev::HttpServiceFactory for #name #ty_generics
             #where_clause
