@@ -37,13 +37,12 @@ mod range;
 mod service;
 
 pub use self::{
-    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
-    range::HttpRange, service::FilesService,
+    chunked::ChunkedReadFile, directory::Directory, error::UriSegmentError, files::Files,
+    named::NamedFile, path_buf::PathBufWrap, range::HttpRange, service::FilesService,
 };
 use self::{
     directory::{directory_listing, DirectoryRenderer},
     error::FilesError,
-    path_buf::PathBufWrap,
 };
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;

@@ -1156,6 +1156,7 @@ where
                         let inner = inner.as_mut().project();
                         inner.flags.insert(Flags::READ_DISCONNECT);
                         if let Some(mut payload) = inner.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
                             payload.feed_eof();
                         }
                     };
