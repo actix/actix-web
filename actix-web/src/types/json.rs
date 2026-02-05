@@ -347,7 +347,9 @@ impl<T: DeserializeOwned> JsonBody<T> {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
-        let length = ContentLength::parse(req).ok().map(|x| x.0);
+        let length = ContentLength::parse(req)
+            .ok()
+            .and_then(|x| usize::try_from(x.0).ok());
 
         // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.

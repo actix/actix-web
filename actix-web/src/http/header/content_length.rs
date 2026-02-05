@@ -39,17 +39,17 @@ use crate::{
 ///
 /// [RFC 9110 §8.6]: https://www.rfc-editor.org/rfc/rfc9110#name-content-length
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut)]
-pub struct ContentLength(pub usize);
+pub struct ContentLength(pub u64);
 
 impl ContentLength {
     /// Returns Content-Length value.
-    pub fn into_inner(&self) -> usize {
+    pub fn into_inner(&self) -> u64 {
         self.0
     }
 }
 
 impl str::FromStr for ContentLength {
-    type Err = <usize as str::FromStr>::Err;
+    type Err = <u64 as str::FromStr>::Err;
 
     #[inline]
     fn from_str(val: &str) -> Result<Self, Self::Err> {
@@ -85,39 +85,69 @@ impl Header for ContentLength {
     }
 }
 
-impl From<ContentLength> for usize {
+impl From<ContentLength> for u64 {
     fn from(ContentLength(len): ContentLength) -> Self {
         len
     }
 }
 
-impl From<usize> for ContentLength {
-    fn from(len: usize) -> Self {
+impl From<u64> for ContentLength {
+    fn from(len: u64) -> Self {
         ContentLength(len)
     }
 }
 
-impl PartialEq<usize> for ContentLength {
-    fn eq(&self, other: &usize) -> bool {
+impl From<usize> for ContentLength {
+    fn from(len: usize) -> Self {
+        ContentLength(len as u64)
+    }
+}
+
+impl PartialEq<u64> for ContentLength {
+    fn eq(&self, other: &u64) -> bool {
         self.0 == *other
     }
 }
 
-impl PartialEq<ContentLength> for usize {
+impl PartialEq<ContentLength> for u64 {
     fn eq(&self, other: &ContentLength) -> bool {
         *self == other.0
     }
 }
 
+impl PartialOrd<u64> for ContentLength {
+    fn partial_cmp(&self, other: &u64) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+impl PartialOrd<ContentLength> for u64 {
+    fn partial_cmp(&self, other: &ContentLength) -> Option<std::cmp::Ordering> {
+        self.partial_cmp(&other.0)
+    }
+}
+
+impl PartialEq<usize> for ContentLength {
+    fn eq(&self, other: &usize) -> bool {
+        self.0 == *other as u64
+    }
+}
+
+impl PartialEq<ContentLength> for usize {
+    fn eq(&self, other: &ContentLength) -> bool {
+        (*self as u64) == other.0
+    }
+}
+
 impl PartialOrd<usize> for ContentLength {
     fn partial_cmp(&self, other: &usize) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(other)
+        self.0.partial_cmp(&(*other as u64))
     }
 }
 
 impl PartialOrd<ContentLength> for usize {
     fn partial_cmp(&self, other: &ContentLength) -> Option<std::cmp::Ordering> {
-        self.partial_cmp(&other.0)
+        (*self as u64).partial_cmp(&other.0)
     }
 }
 
@@ -215,10 +245,10 @@ mod tests {
         assert_parse_eq::<ContentLength, _, _>(["0 "], ContentLength(0));
         assert_parse_eq::<ContentLength, _, _>([" 0 "], ContentLength(0));
 
-        // large value (2^64 - 1)
+        // large value (2^64 - 1), now works on 32-bit platforms too
         assert_parse_eq::<ContentLength, _, _>(
             ["18446744073709551615"],
-            ContentLength(18_446_744_073_709_551_615),
+            ContentLength(18_446_744_073_709_551_615_u64),
         );
     }
 
