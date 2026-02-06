@@ -255,14 +255,14 @@ mod tests {
     #[test]
     fn equality() {
         assert!(ContentLength(0) == ContentLength(0));
-        assert!(ContentLength(0) == 0);
-        assert!(0 != ContentLength(123));
+        assert!(ContentLength(0) == 0u64);
+        assert!(0u64 != ContentLength(123));
     }
 
     #[test]
     fn ordering() {
         assert!(ContentLength(0) < ContentLength(123));
-        assert!(ContentLength(0) < 123);
-        assert!(0 < ContentLength(123));
+        assert!(ContentLength(0) < 123u64);
+        assert!(0u64 < ContentLength(123));
     }
 }
