@@ -781,6 +781,16 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_static_files_bad_directory_does_not_serve_cwd_files() {
+        let service = Files::new("/", "./missing").new_service(()).await.unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
     async fn test_default_handler_file_missing() {
         let st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| async {

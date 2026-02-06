@@ -96,6 +96,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
+    /// If `serve_from` cannot be canonicalized at startup, an error is logged and the original
+    /// path is preserved. Requests will return `404 Not Found` until the path exists.
+    ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
@@ -105,7 +108,8 @@ impl Files {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
                 log::error!("Specified path is not a directory: {:?}", orig_dir);
-                PathBuf::new()
+                // Preserve original path so requests don't fall back to CWD.
+                orig_dir
             }
         };
 
