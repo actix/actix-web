@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.6.10
+
+### Security Notice
+
+We addressed 2 vulnerabilities in this release:
+
+- Do not panic with empty Range header.
+- Avoid serving CWD on invalid `Files::new` inputs.
+
+We encourage updating your `actix-files` version as soon as possible.
+
+### Other changes
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 - `PathBufWrap` & `UriSegmentError` made public. [#3694]
 
