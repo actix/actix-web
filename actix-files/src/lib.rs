@@ -471,6 +471,24 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_empty_range_headers() {
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
+
+        for range in ["", "bytes="] {
+            let response = srv
+                .get("/tests/test.binary")
+                .insert_header((header::RANGE, range))
+                .send()
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+            let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+            assert_eq!(content_range.to_str().unwrap(), "bytes */100");
+        }
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 

@@ -550,9 +550,12 @@ impl NamedFile {
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
-                    length = ranges[0].length;
-                    offset = ranges[0].start;
+                if let Some(range) = HttpRange::parse(ranges_header, length)
+                    .ok()
+                    .and_then(|ranges| ranges.first().copied())
+                {
+                    length = range.length;
+                    offset = range.start;
 
                     // When a Content-Encoding header is present in a 206 partial content response
                     // for video content, it prevents browser video players from starting playback
