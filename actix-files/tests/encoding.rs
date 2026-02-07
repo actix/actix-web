@@ -60,13 +60,17 @@ async fn test_compression_encodings() {
         res.headers().get(header::CONTENT_ENCODING),
         Some(&HeaderValue::from_static("gzip")),
     );
+    assert_eq!(
+        res.headers().get(header::VARY),
+        Some(&HeaderValue::from_static("accept-encoding")),
+    );
     assert_eq!(res.into_body().size(), actix_web::body::BodySize::Sized(76),);
 
     // Select the highest priority encoding
     let mut req = TestRequest::with_uri("/utf8.txt").to_request();
     req.headers_mut().insert(
         header::ACCEPT_ENCODING,
-        header::HeaderValue::from_static("gz;q=0.6,br;q=0.8,*"),
+        header::HeaderValue::from_static("gzip;q=0.6,br;q=0.8,*"),
     );
     let res = test::call_service(&srv, req).await;
 
@@ -78,6 +82,10 @@ async fn test_compression_encodings() {
     assert_eq!(
         res.headers().get(header::CONTENT_ENCODING),
         Some(&HeaderValue::from_static("br")),
+    );
+    assert_eq!(
+        res.headers().get(header::VARY),
+        Some(&HeaderValue::from_static("accept-encoding")),
     );
     assert_eq!(res.into_body().size(), actix_web::body::BodySize::Sized(49),);
 
@@ -142,6 +150,7 @@ async fn test_compression_encodings() {
     assert_eq!(res.headers().get(header::CONTENT_ENCODING), None);
 }
 
+#[actix_web::test]
 async fn partial_range_response_encoding() {
     let srv = test::init_service(App::new().default_service(web::to(|| async {
         NamedFile::open_async("./tests/test.binary").await.unwrap()

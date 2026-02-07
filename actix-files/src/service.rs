@@ -100,6 +100,11 @@ impl FilesService {
                 header::CONTENT_ENCODING,
                 header::HeaderValue::from_static(header_value),
             );
+            // Response representation varies by Accept-Encoding when serving pre-compressed assets.
+            res.headers_mut().append(
+                header::VARY,
+                header::HeaderValue::from_static("accept-encoding"),
+            );
         }
         ServiceResponse::new(req, res)
     }
@@ -168,6 +173,15 @@ impl Service<ServiceRequest> for FilesService {
 
             // full file path
             let path = this.directory.join(&path_on_disk);
+
+            // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
+            // Still handle directories (index/listing) through the normal branch below.
+            if this.try_compressed && !path.is_dir() {
+                if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                    return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
+                }
+            }
+
             if let Err(err) = path.canonicalize() {
                 return this.handle_err(err, req).await;
             }
@@ -216,11 +230,6 @@ impl Service<ServiceRequest> for FilesService {
                     )),
                 }
             } else {
-                if this.try_compressed {
-                    if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
-                        return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
-                    }
-                }
                 match NamedFile::open_async(&path).await {
                     Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                     Err(err) => this.handle_err(err, req).await,
@@ -293,11 +302,9 @@ async fn find_compressed(
         };
 
         let mut compressed_path = original_path.to_owned();
-        let filename = match compressed_path.file_name().and_then(|name| name.to_str()) {
-            Some(filename) => filename.to_owned(),
-            None => return None,
-        };
-        compressed_path.set_file_name(filename + extension);
+        let mut filename = compressed_path.file_name()?.to_owned();
+        filename.push(extension);
+        compressed_path.set_file_name(filename);
 
         match NamedFile::open_async(&compressed_path).await {
             Ok(mut named_file) => {

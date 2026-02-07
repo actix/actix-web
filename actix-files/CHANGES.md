@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
+
+[#2615]: https://github.com/actix/actix-web/pull/2615
+
 ## 0.6.10
 
 ### Security Notice
@@ -51,13 +55,10 @@ We encourage updating your `actix-files` version as soon as possible.
 ## 0.6.3
 
 - XHTML files now use `Content-Disposition: inline` instead of `attachment`. [#2903]
-- Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 - Update `tokio-uring` dependency to `0.4`.
 
 [#2903]: https://github.com/actix/actix-web/pull/2903
-[#2615]: https://github.com/actix/actix-web/pull/2615
-
 
 ## 0.6.2
 
