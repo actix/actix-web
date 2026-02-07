@@ -197,9 +197,9 @@ impl Service<ServiceRequest> for FilesService {
                             if let Some((named_file, encoding)) =
                                 find_compressed(&req, &named_path).await
                             {
-                                return Ok(this.serve_named_file_with_encoding(
-                                    req, named_file, encoding,
-                                ));
+                                return Ok(
+                                    this.serve_named_file_with_encoding(req, named_file, encoding)
+                                );
                             }
                         }
                         // fallback to the uncompressed version
@@ -246,7 +246,7 @@ async fn find_compressed(
     original_path: &Path,
 ) -> Option<(NamedFile, header::ContentEncoding)> {
     use actix_web::HttpMessage;
-    use header::{ContentEncoding, Encoding, Preference};
+    use header::{AcceptEncoding, ContentEncoding, Encoding};
 
     // Retrieve the content type and content disposition based on the original filename. If we
     // can't get these successfully, don't even try to find a compressed file.
@@ -256,52 +256,59 @@ async fn find_compressed(
             Err(_) => return None,
         };
 
-    let accept_encoding = req.get_header::<actix_web::http::header::AcceptEncoding>();
-    let ranked_encodings = accept_encoding
-        .map(|encodings| encodings.ranked())
-        .unwrap_or_else(Vec::new);
+    let accept_encoding = req.get_header::<AcceptEncoding>()?;
 
-    let ranked_encodings_iter = ranked_encodings
-        .into_iter()
-        .filter_map(|e| match e {
-            Preference::Any | Preference::Specific(Encoding::Unknown(_)) => None,
-            Preference::Specific(Encoding::Known(encoding)) => Some(encoding),
-        })
-        .filter_map(|encoding| {
-            if !SUPPORTED_PRECOMPRESSION_ENCODINGS.contains(&encoding) {
-                return None;
+    let mut supported = SUPPORTED_PRECOMPRESSION_ENCODINGS
+        .iter()
+        .copied()
+        .map(Encoding::Known)
+        .collect::<Vec<_>>();
+
+    // Only move the original content-type/disposition into the chosen compressed file once.
+    let mut content_type = Some(content_type);
+    let mut content_disposition = Some(content_disposition);
+
+    loop {
+        // Select next acceptable encoding (honouring q=0 rejections) from remaining supported set.
+        let chosen = accept_encoding.negotiate(supported.iter())?;
+
+        let encoding = match chosen {
+            Encoding::Known(enc) => enc,
+            // No supported encoding should ever be unknown here.
+            Encoding::Unknown(_) => return None,
+        };
+
+        // Identity indicates there is no acceptable pre-compressed representation.
+        if encoding == ContentEncoding::Identity {
+            return None;
+        }
+
+        let extension = match encoding {
+            ContentEncoding::Brotli => ".br",
+            ContentEncoding::Gzip => ".gz",
+            ContentEncoding::Zstd => ".zst",
+            ContentEncoding::Identity => unreachable!(),
+            // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here.
+            _ => unreachable!(),
+        };
+
+        let mut compressed_path = original_path.to_owned();
+        let filename = match compressed_path.file_name().and_then(|name| name.to_str()) {
+            Some(filename) => filename.to_owned(),
+            None => return None,
+        };
+        compressed_path.set_file_name(filename + extension);
+
+        match NamedFile::open_async(&compressed_path).await {
+            Ok(mut named_file) => {
+                named_file.content_type = content_type.take().unwrap();
+                named_file.content_disposition = content_disposition.take().unwrap();
+                return Some((named_file, encoding));
             }
-            let extension = match encoding {
-                ContentEncoding::Brotli => Some(".br"),
-                ContentEncoding::Gzip => Some(".gz"),
-                ContentEncoding::Zstd => Some(".zst"),
-                ContentEncoding::Identity => None,
-                // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here
-                _ => unreachable!(),
-            };
-            let path = match extension {
-                Some(extension) => {
-                    let mut compressed_path = original_path.to_owned();
-                    let filename = compressed_path
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .to_string();
-                    compressed_path.set_file_name(filename + extension);
-                    compressed_path
-                }
-                None => original_path.to_owned(),
-            };
-            Some((path, encoding))
-        });
-    for (path, encoding) in ranked_encodings_iter {
-        // Ignore errors while searching disk for a suitable encoding
-        if let Ok(mut named_file) = NamedFile::open_async(&path).await {
-            named_file.content_type = content_type;
-            named_file.content_disposition = content_disposition;
-            return Some((named_file, encoding));
+            // Ignore errors while searching disk for a suitable encoding.
+            Err(_) => {
+                supported.retain(|enc| enc != &chosen);
+            }
         }
     }
-    None
 }

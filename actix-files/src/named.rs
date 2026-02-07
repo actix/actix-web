@@ -714,3 +714,14 @@ impl HttpServiceFactory for NamedFile {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audio_files_use_inline_content_disposition() {
+        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
+        assert_eq!(cd.disposition, DispositionType::Inline);
+    }
+}
