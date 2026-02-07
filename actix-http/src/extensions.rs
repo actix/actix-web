@@ -31,7 +31,7 @@ impl Hasher for NoOpHasher {
 /// All entries into this map must be owned types (or static references).
 #[derive(Default)]
 pub struct Extensions {
-    /// Use AHasher with a std HashMap with for faster lookups on the small `TypeId` keys.
+    // use no-op hasher with a std HashMap with for faster lookups on the small `TypeId` keys
     map: HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<NoOpHasher>>,
 }
 
@@ -102,6 +102,46 @@ impl Extensions {
         self.map
             .get_mut(&TypeId::of::<T>())
             .and_then(|boxed| boxed.downcast_mut())
+    }
+
+    /// Inserts the given `value` into the extensions if it is not present, then returns a reference
+    /// to the value in the extensions.
+    ///
+    /// ```
+    /// # use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// assert_eq!(map.get::<Vec<u32>>(), None);
+    ///
+    /// map.get_or_insert(Vec::<u32>::new()).push(1);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1]));
+    ///
+    /// map.get_or_insert(Vec::<u32>::new()).push(2);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1,2]));
+    /// ```
+    pub fn get_or_insert<T: 'static>(&mut self, value: T) -> &mut T {
+        self.get_or_insert_with(|| value)
+    }
+
+    /// Inserts a value computed from `f` into the extensions if the given `value` is not present,
+    /// then returns a reference to the value in the extensions.
+    ///
+    /// ```
+    /// # use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// assert_eq!(map.get::<Vec<u32>>(), None);
+    ///
+    /// map.get_or_insert_with(Vec::<u32>::new).push(1);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1]));
+    ///
+    /// map.get_or_insert_with(Vec::<u32>::new).push(2);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1,2]));
+    /// ```
+    pub fn get_or_insert_with<T: 'static, F: FnOnce() -> T>(&mut self, default: F) -> &mut T {
+        self.map
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(default()))
+            .downcast_mut()
+            .expect("extensions map should now contain a T value")
     }
 
     /// Remove an item from the map of a given type.

@@ -83,7 +83,7 @@
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
+//! use futures_util::{SinkExt as _, StreamExt as _};
 //!
 //! let (_resp, mut connection) = awc::Client::new()
 //!     .ws("ws://echo.websocket.org")
@@ -100,8 +100,7 @@
 //! # }
 //! ```
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
+#![allow(unknown_lints)] // temp: #[allow(non_local_definitions)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
@@ -109,9 +108,9 @@
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use actix_http::body;
-
 #[cfg(feature = "cookies")]
 pub use cookie;
 
@@ -132,18 +131,18 @@ pub mod http {
     //! Various HTTP related types.
 
     // TODO: figure out how best to expose http::Error vs actix_http::Error
-    pub use actix_http::{
-        header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version,
-    };
+    pub use actix_http::{header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version};
 }
 
-pub use self::builder::ClientBuilder;
-pub use self::client::{Client, Connector};
-pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
-pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
-pub use self::request::ClientRequest;
 #[allow(deprecated)]
 pub use self::responses::{ClientResponse, JsonBody, MessageBody, ResponseBody};
-pub use self::sender::SendClientRequest;
+pub use self::{
+    builder::ClientBuilder,
+    client::{Client, Connect, Connector},
+    connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse},
+    frozen::{FrozenClientRequest, FrozenSendBuilder},
+    request::ClientRequest,
+    sender::SendClientRequest,
+};
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

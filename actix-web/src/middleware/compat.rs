@@ -38,15 +38,6 @@ pub struct Compat<T> {
     transform: T,
 }
 
-#[cfg(test)]
-impl Compat<super::Noop> {
-    pub(crate) fn noop() -> Self {
-        Self {
-            transform: super::Noop,
-        }
-    }
-}
-
 impl<T> Compat<T> {
     /// Wrap a middleware to give it broader compatibility.
     pub fn new(middleware: T) -> Self {
@@ -146,14 +137,13 @@ mod tests {
     // easier to code when cookies feature is disabled
     #![allow(unused_imports)]
 
-    use super::*;
-
     use actix_service::IntoService;
 
+    use super::*;
     use crate::{
         dev::ServiceRequest,
         http::StatusCode,
-        middleware::{self, Condition, Logger},
+        middleware::{self, Condition, Identity, Logger},
         test::{self, call_service, init_service, TestRequest},
         web, App, HttpResponse,
     };
@@ -207,9 +197,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_condition_scope_middleware() {
         let srv = |req: ServiceRequest| {
-            Box::pin(async move {
-                Ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            })
+            Box::pin(
+                async move { Ok(req.into_response(HttpResponse::InternalServerError().finish())) },
+            )
         };
 
         let logger = Logger::default();
@@ -226,7 +216,7 @@ mod tests {
     async fn compat_noop_is_noop() {
         let srv = test::ok_service();
 
-        let mw = Compat::noop()
+        let mw = Compat::new(Identity)
             .new_transform(srv.into_service())
             .await
             .unwrap();

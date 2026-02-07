@@ -16,6 +16,7 @@ pub enum ConnectionType {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub(crate) struct Flags: u8 {
         const CLOSE       = 0b0000_0001;
         const KEEP_ALIVE  = 0b0000_0010;
@@ -65,7 +66,7 @@ impl<T: Head> ops::DerefMut for Message<T> {
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        T::with_pool(|p| p.release(self.head.clone()))
+        T::with_pool(|p| p.release(Rc::clone(&self.head)))
     }
 }
 

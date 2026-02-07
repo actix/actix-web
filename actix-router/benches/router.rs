@@ -13,6 +13,7 @@ macro_rules! register {
         register!(finish => "(.*)", "(.*)", "(.*)", "(.*)")
     }};
     (finish => $p1:literal, $p2:literal, $p3:literal, $p4:literal) => {{
+        #[expect(clippy::useless_concat)]
         let arr = [
             concat!("/authorizations"),
             concat!("/authorizations/", $p1),

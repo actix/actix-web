@@ -118,7 +118,7 @@ mod tests {
     use static_assertions::assert_impl_all;
 
     use super::*;
-    use crate::{http::header, test::TestResponse};
+    use crate::test::TestResponse;
 
     assert_impl_all!(JsonBody<BoxedPayloadStream, String>: Unpin);
 

@@ -1,0 +1,5 @@
+error: Unknown literal value `no`
+ --> tests/trybuild/deny-parse-fail.rs:4:31
+  |
+4 | #[multipart(duplicate_field = "no")]
+  |                               ^^^^

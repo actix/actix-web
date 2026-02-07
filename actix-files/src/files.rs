@@ -8,8 +8,7 @@ use std::{
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
     dev::{
-        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
-        ServiceResponse,
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest, ServiceResponse,
     },
     error::Error,
     guard::Guard,
@@ -42,6 +41,7 @@ pub struct Files {
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
+    with_permanent_redirect: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -51,6 +51,7 @@ pub struct Files {
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
     try_compressed: bool,
+    read_mode_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -66,6 +67,7 @@ impl Clone for Files {
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
+            with_permanent_redirect: self.with_permanent_redirect,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -76,6 +78,7 @@ impl Clone for Files {
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
             try_compressed: self.try_compressed,
+            read_mode_threshold: self.read_mode_threshold,
         }
     }
 }
@@ -95,6 +98,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
+    /// If `serve_from` cannot be canonicalized at startup, an error is logged and the original
+    /// path is preserved. Requests will return `404 Not Found` until the path exists.
+    ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
@@ -104,7 +110,8 @@ impl Files {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
                 log::error!("Specified path is not a directory: {:?}", orig_dir);
-                PathBuf::new()
+                // Preserve original path so requests don't fall back to CWD.
+                orig_dir
             }
         };
 
@@ -114,6 +121,7 @@ impl Files {
             index: None,
             show_index: false,
             redirect_to_slash: false,
+            with_permanent_redirect: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -123,6 +131,7 @@ impl Files {
             guards: Vec::new(),
             hidden_files: false,
             try_compressed: false,
+            read_mode_threshold: 0,
         }
     }
 
@@ -145,7 +154,15 @@ impl Files {
         self
     }
 
-    /// Set custom directory renderer
+    /// Redirect with permanent redirect status code (308).
+    ///
+    /// By default redirect with temporary redirect status code (307).
+    pub fn with_permanent_redirect(mut self) -> Self {
+        self.with_permanent_redirect = true;
+        self
+    }
+
+    /// Set custom directory renderer.
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
         for<'r, 's> F:
@@ -155,7 +172,7 @@ impl Files {
         self
     }
 
-    /// Specifies mime override callback
+    /// Specifies MIME override callback.
     pub fn mime_override<F>(mut self, f: F) -> Self
     where
         F: Fn(&mime::Name<'_>) -> DispositionType + 'static,
@@ -208,6 +225,23 @@ impl Files {
         self
     }
 
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
+        self
+    }
+
     /// Specifies whether to use ETag or not.
     ///
     /// Default is true.
@@ -239,7 +273,7 @@ impl Files {
     /// request starts being handled by the file service, it will not be able to back-out and try
     /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    /// To allow `POST` requests to retrieve files, see [`Files::method_guard()`].
     ///
     /// # Examples
     /// ```
@@ -304,12 +338,8 @@ impl Files {
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
@@ -385,6 +415,8 @@ impl ServiceFactory<ServiceRequest> for Files {
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
             try_compressed: self.try_compressed,
+            size_threshold: self.read_mode_threshold,
+            with_permanent_redirect: self.with_permanent_redirect,
         };
 
         if let Some(ref default) = *self.default.borrow() {
@@ -401,5 +433,48 @@ impl ServiceFactory<ServiceRequest> for Files {
         } else {
             Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        App, HttpResponse,
+    };
+
+    use super::*;
+
+    #[actix_web::test]
+    async fn custom_files_listing_renderer() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .show_files_listing()
+                    .files_listing_renderer(|dir, req| {
+                        Ok(ServiceResponse::new(
+                            req.clone(),
+                            HttpResponse::Ok().body(dir.path.to_str().unwrap().to_owned()),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = test::call_service(&srv, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let actual_path = Path::new(&body_str);
+        let expected_path = Path::new("actix-files/tests");
+        assert!(
+            actual_path.ends_with(expected_path),
+            "body {:?} does not end with {:?}",
+            actual_path,
+            expected_path
+        );
     }
 }

@@ -16,6 +16,7 @@ use crate::{
 };
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     struct Flags: u8 {
         const HEAD               = 0b0000_0001;
         const KEEP_ALIVE_ENABLED = 0b0000_1000;

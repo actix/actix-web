@@ -8,8 +8,11 @@ use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
 
+/// Secure Path Traversal Guard
+///
+/// This struct parses a request-uri [`PathBuf`](std::path::PathBuf)
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct PathBufWrap(PathBuf);
+pub struct PathBufWrap(PathBuf);
 
 impl FromStr for PathBufWrap {
     type Err = UriSegmentError;
@@ -20,6 +23,37 @@ impl FromStr for PathBufWrap {
 }
 
 impl PathBufWrap {
+    /// Parse a safe path from the unprocessed tail of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::match_info`](actix_web::HttpRequest::match_info) and
+    /// [`Path::unprocessed`](actix_web::dev::Path::unprocessed), which returns the part of the
+    /// path not matched by route patterns. This is useful for mounted services (eg. `Files`),
+    /// where only the tail should be parsed.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_unprocessed_req(
+        req: &HttpRequest,
+        hidden_files: bool,
+    ) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.match_info().unprocessed(), hidden_files)
+    }
+
+    /// Parse a safe path from the full request path of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::path`](actix_web::HttpRequest::path), and is more appropriate
+    /// for non-mounted handlers that want the entire request path.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_req_path(req: &HttpRequest, hidden_files: bool) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.path(), hidden_files)
+    }
+
     /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
     ///
     /// Path traversal is guarded by this method.
@@ -30,7 +64,7 @@ impl PathBufWrap {
         let mut segment_count = path.matches('/').count() + 1;
 
         // we can decode the whole path here (instead of per-segment decoding)
-        // because we will reject `%2F` in paths using `segement_count`.
+        // because we will reject `%2F` in paths using `segment_count`.
         let path = percent_encoding::percent_decode_str(path)
             .decode_utf8()
             .map_err(|_| UriSegmentError::NotValidUtf8)?;
@@ -91,14 +125,13 @@ impl FromRequest for PathBufWrap {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // Uses the unprocessed tail of the request path and disallows hidden files.
         ready(req.match_info().unprocessed().parse())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
-
     use super::*;
 
     #[test]

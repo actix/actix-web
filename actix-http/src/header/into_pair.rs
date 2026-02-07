@@ -1,7 +1,5 @@
 //! [`TryIntoHeaderPair`] trait and implementations.
 
-use std::convert::TryFrom as _;
-
 use super::{
     Header, HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue, TryIntoHeaderValue,
 };

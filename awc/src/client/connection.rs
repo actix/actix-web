@@ -7,18 +7,14 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
 use actix_rt::task::JoinHandle;
 use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
-
+use super::{error::SendRequestError, h1proto, h2proto, pool::Acquired};
 use crate::BoxError;
-
-use super::error::SendRequestError;
-use super::pool::Acquired;
-use super::{h1proto, h2proto};
 
 /// Trait alias for types impl [tokio::io::AsyncRead] and [tokio::io::AsyncWrite].
 pub trait ConnectionIo: AsyncRead + AsyncWrite + Unpin + 'static {}
@@ -83,10 +79,7 @@ impl<Io: ConnectionIo> AsyncWrite for H1Connection<Io> {
         self.io_pin_mut().poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         self.io_pin_mut().poll_shutdown(cx)
     }
 
@@ -387,8 +380,6 @@ mod test {
     use std::{
         future::Future,
         net,
-        pin::Pin,
-        task::{Context, Poll},
         time::{Duration, Instant},
     };
 
@@ -401,6 +392,8 @@ mod test {
 
     #[actix_rt::test]
     async fn test_h2_connection_drop() {
+        env_logger::try_init().ok();
+
         let addr = "127.0.0.1:0".parse::<net::SocketAddr>().unwrap();
         let listener = net::TcpListener::bind(addr).unwrap();
         let local = listener.local_addr().unwrap();
@@ -435,8 +428,15 @@ mod test {
                         if this.start_from.elapsed() > Duration::from_secs(10) {
                             panic!("connection should be gone and can not be ready");
                         } else {
-                            let _ = this.interval.poll_tick(cx);
-                            Poll::Pending
+                            match this.interval.poll_tick(cx) {
+                                Poll::Ready(_) => {
+                                    // prevents spurious test hang
+                                    this.interval.reset();
+
+                                    Poll::Pending
+                                }
+                                Poll::Pending => Poll::Pending,
+                            }
                         }
                     }
                     Err(_) => Poll::Ready(()),

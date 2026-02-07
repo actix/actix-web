@@ -105,7 +105,7 @@ fn hex_pair_to_char(d1: u8, d2: u8) -> Option<u8> {
     let d_low = char::from(d2).to_digit(16)?;
 
     // left shift high nibble by 4 bits
-    Some((d_high as u8) << 4 | (d_low as u8))
+    Some(((d_high as u8) << 4) | (d_low as u8))
 }
 
 #[derive(Debug, Default, Clone)]

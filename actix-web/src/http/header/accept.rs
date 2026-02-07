@@ -78,7 +78,7 @@ common_header! {
         // Tests from the RFC
          crate::http::header::common_header_test!(
             test1,
-            vec![b"audio/*; q=0.2, audio/basic"],
+            [b"audio/*; q=0.2, audio/basic"],
             Some(Accept(vec![
                 QualityItem::new("audio/*".parse().unwrap(), q(0.2)),
                 QualityItem::max("audio/basic".parse().unwrap()),
@@ -86,7 +86,7 @@ common_header! {
 
         crate::http::header::common_header_test!(
             test2,
-            vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
+            [b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(Accept(vec![
                 QualityItem::new(mime::TEXT_PLAIN, q(0.5)),
                 QualityItem::max(mime::TEXT_HTML),
@@ -99,13 +99,13 @@ common_header! {
         // Custom tests
         crate::http::header::common_header_test!(
             test3,
-            vec![b"text/plain; charset=utf-8"],
+            [b"text/plain; charset=utf-8"],
             Some(Accept(vec![
                 QualityItem::max(mime::TEXT_PLAIN_UTF_8),
             ])));
         crate::http::header::common_header_test!(
             test4,
-            vec![b"text/plain; charset=utf-8; q=0.5"],
+            [b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![
                 QualityItem::new(mime::TEXT_PLAIN_UTF_8, q(0.5)),
             ])));

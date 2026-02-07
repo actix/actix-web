@@ -2,6 +2,7 @@
 //!
 //! # Request Extractors
 //! - [`Data`]: Application data item
+//! - [`ThinData`]: Cheap-to-clone application data item
 //! - [`ReqData`]: Request-local data item
 //! - [`Path`]: URL path parameters / dynamic segments
 //! - [`Query`]: URL query parameters
@@ -11,23 +12,24 @@
 //! - [`Bytes`]: Raw payload
 //!
 //! # Responders
-//! - [`Json`]: JSON request payload
-//! - [`Bytes`]: Raw request payload
+//! - [`Json`]: JSON response
+//! - [`Form`]: URL-encoded response
+//! - [`Bytes`]: Raw bytes response
+//! - [`Redirect`](Redirect::to): Convenient redirect responses
 
-use std::future::Future;
+use std::{borrow::Cow, future::Future};
 
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+pub use crate::{
+    config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData,
+    thin_data::ThinData, types::*,
+};
 use crate::{
     error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,
     Responder, Route, Scope,
 };
-
-pub use crate::config::ServiceConfig;
-pub use crate::data::Data;
-pub use crate::request_data::ReqData;
-pub use crate::types::*;
 
 /// Creates a new resource for a specific path.
 ///
@@ -36,7 +38,7 @@ pub use crate::types::*;
 ///
 /// A dynamic segment is specified in the form `{identifier}`, where the identifier can be used
 /// later in a request handler to access the matched value for that segment. This is done by looking
-/// up the identifier in the `Path` object returned by [`HttpRequest.match_info()`] method.
+/// up the identifier in the `Path` object returned by [`HttpRequest::match_info()`](crate::HttpRequest::match_info) method.
 ///
 /// By default, each segment matches the regular expression `[^{}/]+`.
 ///
@@ -45,6 +47,7 @@ pub use crate::types::*;
 /// For instance, to route `GET`-requests on any route matching `/users/{userid}/{friend}` and store
 /// `userid` and `friend` in the exposed `Path` object:
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
@@ -74,6 +77,7 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 /// - `/{project_id}/path2`
 /// - `/{project_id}/path3`
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
@@ -181,6 +185,22 @@ where
 /// ```
 pub fn service<T: IntoPatterns>(path: T) -> WebService {
     WebService::new(path)
+}
+
+/// Create a relative or absolute redirect.
+///
+/// See [`Redirect`] docs for usage details.
+///
+/// # Examples
+/// ```
+/// use actix_web::{web, App};
+///
+/// let app = App::new()
+///     // the client will resolve this redirect to /api/to-path
+///     .service(web::redirect("/api/from-path", "to-path"));
+/// ```
+pub fn redirect(from: impl Into<Cow<'static, str>>, to: impl Into<Cow<'static, str>>) -> Redirect {
+    Redirect::new(from, to)
 }
 
 /// Executes blocking function on a thread pool, returns future that resolves to result of the

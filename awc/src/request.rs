@@ -1,8 +1,4 @@
-use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
-
-use bytes::Bytes;
-use futures_core::Stream;
-use serde::Serialize;
+use std::{fmt, net, rc::Rc, time::Duration};
 
 use actix_http::{
     body::MessageBody,
@@ -10,7 +6,13 @@ use actix_http::{
     header::{self, HeaderMap, HeaderValue, TryIntoHeaderPair},
     ConnectionType, Method, RequestHead, Uri, Version,
 };
+use base64::prelude::*;
+use bytes::Bytes;
+use futures_core::Stream;
+use serde::Serialize;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     client::ClientConfig,
     error::{FreezeRequestError, InvalidUrl},
@@ -18,9 +20,6 @@ use crate::{
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
     BoxError,
 };
-
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 
 /// An HTTP Client request builder
 ///
@@ -84,7 +83,7 @@ impl ClientRequest {
     {
         match Uri::try_from(uri) {
             Ok(uri) => self.head.uri = uri,
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -153,7 +152,7 @@ impl ClientRequest {
             Ok((key, value)) => {
                 self.head.headers.insert(key, value);
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -167,7 +166,7 @@ impl ClientRequest {
                     self.head.headers.insert(key, value);
                 }
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -186,7 +185,7 @@ impl ClientRequest {
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_pair() {
             Ok((key, value)) => self.head.headers.append(key, value),
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         };
 
         self
@@ -218,7 +217,7 @@ impl ClientRequest {
             Ok(value) => {
                 self.head.headers.insert(header::CONTENT_TYPE, value);
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -238,7 +237,7 @@ impl ClientRequest {
 
         self.insert_header((
             header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(&auth)),
+            format!("Basic {}", BASE64_STANDARD.encode(auth)),
         ))
     }
 
@@ -290,10 +289,7 @@ impl ClientRequest {
     }
 
     /// Sets the query part of the request
-    pub fn query<T: Serialize>(
-        mut self,
-        query: &T,
-    ) -> Result<Self, serde_urlencoded::ser::Error> {
+    pub fn query<T: Serialize>(mut self, query: &T) -> Result<Self, serde_urlencoded::ser::Error> {
         let mut parts = self.head.uri.clone().into_parts();
 
         if let Some(path_and_query) = parts.path_and_query {
@@ -303,7 +299,7 @@ impl ClientRequest {
 
             match Uri::from_parts(parts) {
                 Ok(uri) => self.head.uri = uri,
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             }
         }
 
@@ -313,10 +309,7 @@ impl ClientRequest {
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
-        let slf = match self.prep_for_sending() {
-            Ok(slf) => slf,
-            Err(e) => return Err(e.into()),
-        };
+        let slf = self.prep_for_sending()?;
 
         let request = FrozenClientRequest {
             head: Rc::new(slf.head),
@@ -336,7 +329,7 @@ impl ClientRequest {
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_body(
@@ -352,7 +345,7 @@ impl ClientRequest {
     pub fn send_json<T: Serialize>(self, value: &T) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_json(
@@ -370,7 +363,7 @@ impl ClientRequest {
     pub fn send_form<T: Serialize>(self, value: &T) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_form(
@@ -390,7 +383,7 @@ impl ClientRequest {
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send_stream(
@@ -406,7 +399,7 @@ impl ClientRequest {
     pub fn send(self) -> SendClientRequest {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
-            Err(e) => return e.into(),
+            Err(err) => return err.into(),
         };
 
         RequestSender::Owned(slf.head).send(
@@ -419,8 +412,8 @@ impl ClientRequest {
 
     // allow unused mut when cookies feature is disabled
     fn prep_for_sending(#[allow(unused_mut)] mut self) -> Result<Self, PrepForSendingError> {
-        if let Some(e) = self.err {
-            return Err(e.into());
+        if let Some(err) = self.err {
+            return Err(err.into());
         }
 
         // validate uri
@@ -565,6 +558,8 @@ mod tests {
         assert_eq!(req.head.version, Version::HTTP_2);
 
         let _ = req.headers_mut();
+
+        #[allow(clippy::let_underscore_future)]
         let _ = req.send_body("");
     }
 

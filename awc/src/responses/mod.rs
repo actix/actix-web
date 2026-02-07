@@ -8,10 +8,9 @@ mod read_body;
 mod response;
 mod response_body;
 
-pub use self::json_body::JsonBody;
-pub use self::response::ClientResponse;
 #[allow(deprecated)]
 pub use self::response_body::{MessageBody, ResponseBody};
+pub use self::{json_body::JsonBody, response::ClientResponse};
 
 /// Default body size limit: 2 MiB
 const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;

@@ -2,13 +2,12 @@
 //! properties and pass them to a handler through request-local data.
 //!
 //! For an example of extracting a client TLS certificate, see:
-//! <https://github.com/actix/examples/tree/master/https-tls/rustls-client-cert>
+//! <https://github.com/actix/examples/tree/main/https-tls/rustls-client-cert>
 
 use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{
-    dev::Extensions, rt::net::TcpStream, web, App, HttpRequest, HttpResponse, HttpServer,
-    Responder,
+    dev::Extensions, rt::net::TcpStream, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 
 #[allow(dead_code)]
@@ -22,12 +21,9 @@ struct ConnectionInfo {
 async fn route_whoami(req: HttpRequest) -> impl Responder {
     match req.conn_data::<ConnectionInfo>() {
         Some(info) => HttpResponse::Ok().body(format!(
-            "Here is some info about your connection:\n\n{:#?}",
-            info
+            "Here is some info about your connection:\n\n{info:#?}",
         )),
-        None => {
-            HttpResponse::InternalServerError().body("Missing expected request extension data")
-        }
+        None => HttpResponse::InternalServerError().body("Missing expected request extension data"),
     }
 }
 
@@ -52,8 +48,8 @@ async fn main() -> io::Result<()> {
 
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
-        .bind(bind)?
-        .workers(1)
+        .bind_auto_h2c(bind)?
+        .workers(2)
         .run()
         .await
 }

@@ -24,8 +24,7 @@ async fn test_utf8_file_contents() {
 
     // disable UTF-8 attribute
     let srv =
-        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(false)))
-            .await;
+        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(false))).await;
 
     let req = TestRequest::with_uri("/utf8.txt").to_request();
     let res = test::call_service(&srv, req).await;
@@ -105,7 +104,7 @@ async fn test_compression_encodings() {
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(
         res.headers().get(header::CONTENT_TYPE),
-        Some(&HeaderValue::from_static("application/x-gzip")),
+        Some(&HeaderValue::from_static("application/gzip")),
     );
     assert_eq!(res.headers().get(header::CONTENT_ENCODING), None,);
 

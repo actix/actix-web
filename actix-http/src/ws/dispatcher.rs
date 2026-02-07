@@ -70,15 +70,14 @@ mod inner {
         task::{Context, Poll},
     };
 
+    use actix_codec::Framed;
     use actix_service::{IntoService, Service};
     use futures_core::stream::Stream;
     use local_channel::mpsc;
     use pin_project_lite::pin_project;
-    use tracing::debug;
-
-    use actix_codec::Framed;
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio_util::codec::{Decoder, Encoder};
+    use tracing::debug;
 
     use crate::{body::BoxBody, Response};
 
@@ -115,14 +114,14 @@ mod inner {
     {
         fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
             match *self {
-                DispatcherError::Service(ref e) => {
-                    write!(fmt, "DispatcherError::Service({:?})", e)
+                DispatcherError::Service(ref err) => {
+                    write!(fmt, "DispatcherError::Service({err:?})")
                 }
-                DispatcherError::Encoder(ref e) => {
-                    write!(fmt, "DispatcherError::Encoder({:?})", e)
+                DispatcherError::Encoder(ref err) => {
+                    write!(fmt, "DispatcherError::Encoder({err:?})")
                 }
-                DispatcherError::Decoder(ref e) => {
-                    write!(fmt, "DispatcherError::Decoder({:?})", e)
+                DispatcherError::Decoder(ref err) => {
+                    write!(fmt, "DispatcherError::Decoder({err:?})")
                 }
             }
         }
@@ -137,9 +136,9 @@ mod inner {
     {
         fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
             match *self {
-                DispatcherError::Service(ref e) => write!(fmt, "{}", e),
-                DispatcherError::Encoder(ref e) => write!(fmt, "{:?}", e),
-                DispatcherError::Decoder(ref e) => write!(fmt, "{:?}", e),
+                DispatcherError::Service(ref err) => write!(fmt, "{err}"),
+                DispatcherError::Encoder(ref err) => write!(fmt, "{err:?}"),
+                DispatcherError::Decoder(ref err) => write!(fmt, "{err:?}"),
             }
         }
     }
@@ -413,9 +412,7 @@ mod inner {
                     }
                     State::Error(_) => {
                         // flush write buffer
-                        if !this.framed.is_write_buf_empty()
-                            && this.framed.flush(cx).is_pending()
-                        {
+                        if !this.framed.is_write_buf_empty() && this.framed.flush(cx).is_pending() {
                             return Poll::Pending;
                         }
                         Poll::Ready(Err(this.state.take_error()))

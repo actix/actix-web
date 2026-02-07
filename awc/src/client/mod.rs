@@ -1,6 +1,6 @@
 //! HTTP client.
 
-use std::{convert::TryFrom, rc::Rc, time::Duration};
+use std::{rc::Rc, time::Duration};
 
 use actix_http::{error::HttpError, header::HeaderMap, Method, RequestHead, Uri};
 use actix_rt::net::TcpStream;
@@ -19,9 +19,11 @@ mod h1proto;
 mod h2proto;
 mod pool;
 
-pub use self::connection::{Connection, ConnectionIo};
-pub use self::connector::{Connector, ConnectorService};
-pub use self::error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError};
+pub use self::{
+    connection::{Connection, ConnectionIo},
+    connector::{Connector, ConnectorService},
+    error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError},
+};
 
 #[derive(Clone)]
 pub struct Connect {

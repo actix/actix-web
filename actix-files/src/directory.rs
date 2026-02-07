@@ -1,4 +1,9 @@
-use std::{fmt::Write, fs::DirEntry, io, path::Path, path::PathBuf};
+use std::{
+    fmt::Write,
+    fs::DirEntry,
+    io,
+    path::{Path, PathBuf},
+};
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
 use percent_encoding::{utf8_percent_encode, CONTROLS};

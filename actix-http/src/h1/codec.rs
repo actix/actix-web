@@ -9,11 +9,10 @@ use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
     encoder, Message, MessageType,
 };
-use crate::{
-    body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig,
-};
+use crate::{body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig};
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     struct Flags: u8 {
         const HEAD               = 0b0000_0001;
         const KEEP_ALIVE_ENABLED = 0b0000_0010;
@@ -199,9 +198,6 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
 
 #[cfg(test)]
 mod tests {
-    use bytes::BytesMut;
-    use http::Method;
-
     use super::*;
     use crate::HttpMessage as _;
 

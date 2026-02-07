@@ -58,19 +58,19 @@ common_header! {
     (AcceptLanguage, header::ACCEPT_LANGUAGE) => (QualityItem<Preference<LanguageTag>>)*
 
     test_parse_and_format {
-        common_header_test!(no_headers, vec![b""; 0], Some(AcceptLanguage(vec![])));
+        common_header_test!(no_headers, [b""; 0], Some(AcceptLanguage(vec![])));
 
-        common_header_test!(empty_header, vec![b""; 1], Some(AcceptLanguage(vec![])));
+        common_header_test!(empty_header, [b""; 1], Some(AcceptLanguage(vec![])));
 
         common_header_test!(
             example_from_rfc,
-            vec![b"da, en-gb;q=0.8, en;q=0.7"]
+            [b"da, en-gb;q=0.8, en;q=0.7"]
         );
 
 
         common_header_test!(
             not_ordered_by_weight,
-            vec![b"en-US, en; q=0.5, fr"],
+            [b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
                 QualityItem::max("en-US".parse().unwrap()),
                 QualityItem::new("en".parse().unwrap(), q(0.5)),
@@ -80,7 +80,7 @@ common_header! {
 
         common_header_test!(
             has_wildcard,
-            vec![b"fr-CH, fr; q=0.9, en; q=0.8, de; q=0.7, *; q=0.5"],
+            [b"fr-CH, fr; q=0.9, en; q=0.8, de; q=0.7, *; q=0.5"],
             Some(AcceptLanguage(vec![
                 QualityItem::max("fr-CH".parse().unwrap()),
                 QualityItem::new("fr".parse().unwrap(), q(0.9)),
@@ -137,7 +137,7 @@ impl AcceptLanguage {
             b.quality.cmp(&a.quality)
         });
 
-        types.into_iter().map(|qitem| qitem.item).collect()
+        types.into_iter().map(|q_item| q_item.item).collect()
     }
 }
 

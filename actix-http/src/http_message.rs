@@ -61,9 +61,7 @@ pub trait HttpMessage: Sized {
     fn encoding(&self) -> Result<&'static Encoding, ContentTypeError> {
         if let Some(mime_type) = self.mime_type()? {
             if let Some(charset) = mime_type.get_param("charset") {
-                if let Some(enc) =
-                    Encoding::for_label_no_replacement(charset.as_str().as_bytes())
-                {
+                if let Some(enc) = Encoding::for_label_no_replacement(charset.as_str().as_bytes()) {
                     Ok(enc)
                 } else {
                     Err(ContentTypeError::UnknownEncoding)
@@ -105,7 +103,7 @@ pub trait HttpMessage: Sized {
     }
 }
 
-impl<'a, T> HttpMessage for &'a mut T
+impl<T> HttpMessage for &mut T
 where
     T: HttpMessage,
 {
@@ -146,7 +144,7 @@ mod tests {
             .finish();
         assert_eq!(req.content_type(), "text/plain");
         let req = TestRequest::default()
-            .insert_header(("content-type", "application/json; charset=utf=8"))
+            .insert_header(("content-type", "application/json; charset=utf-8"))
             .finish();
         assert_eq!(req.content_type(), "application/json");
         let req = TestRequest::default().finish();

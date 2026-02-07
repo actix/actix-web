@@ -5,6 +5,7 @@
 //! architecture in [`actix-rt`]'s docs.
 //!
 //! # Running Actix Web Without Macros
+//!
 //! ```no_run
 //! use actix_web::{middleware, rt, web, App, HttpRequest, HttpServer};
 //!
@@ -25,12 +26,17 @@
 //! ```
 //!
 //! # Running Actix Web Using `#[tokio::main]`
+//!
 //! If you need to run something that uses Tokio's work stealing functionality alongside Actix Web,
 //! you can run Actix Web under `#[tokio::main]`. The [`Server`](crate::dev::Server) object returned
 //! from [`HttpServer::run`](crate::HttpServer::run) can also be [`spawn`]ed, if preferred.
 //!
 //! Note that `actix` actor support (and therefore WebSocket support through `actix-web-actors`)
 //! still require `#[actix_web::main]` since they require a [`System`] to be set up.
+//!
+//! Also note that calls to this module's [`spawn()`] re-export require an `#[actix_web::main]`
+//! runtime (or a manually configured `LocalSet`) since it makes calls into to the current thread's
+//! `LocalSet`, which `#[tokio::main]` does not set up.
 //!
 //! ```no_run
 //! use actix_web::{get, middleware, rt, web, App, HttpRequest, HttpServer};
@@ -66,8 +72,7 @@
 // - Re-export but hide the runtime macros because they won't work directly but are required for
 //   `#[actix_web::main]` and `#[actix_web::test]` to work.
 
-pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemRunner};
-
 #[cfg(feature = "macros")]
 #[doc(hidden)]
 pub use actix_macros::{main, test};
+pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemRunner};

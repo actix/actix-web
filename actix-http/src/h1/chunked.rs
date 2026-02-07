@@ -71,7 +71,7 @@ impl ChunkedState {
 
         match size.checked_mul(radix) {
             Some(n) => {
-                *size = n as u64;
+                *size = n;
                 *size += rem as u64;
 
                 Poll::Ready(Ok(ChunkedState::Size))

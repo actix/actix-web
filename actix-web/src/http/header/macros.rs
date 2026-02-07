@@ -314,7 +314,7 @@ macro_rules! common_header {
     };
 }
 
-pub(crate) use {common_header, common_header_test_module};
-
+pub(crate) use common_header;
 #[cfg(test)]
 pub(crate) use common_header_test;
+pub(crate) use common_header_test_module;

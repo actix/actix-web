@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::cmp::min;
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -94,8 +94,22 @@ impl Parser {
             Some(res) => res,
         };
 
+        let frame_len = match idx.checked_add(length) {
+            Some(len) => len,
+            None => return Err(ProtocolError::Overflow),
+        };
+
         // not enough data
-        if src.len() < idx + length {
+        if src.len() < frame_len {
+            let min_length = min(length, max_size);
+            let required_cap = match idx.checked_add(min_length) {
+                Some(cap) => cap,
+                None => return Err(ProtocolError::Overflow),
+            };
+
+            if src.capacity() < required_cap {
+                src.reserve(required_cap - src.capacity());
+            }
             return Ok(None);
         }
 
@@ -174,14 +188,14 @@ impl Parser {
         };
 
         if payload_len < 126 {
-            dst.reserve(p_len + 2 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 2);
             dst.put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.reserve(p_len + 4 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 4);
             dst.put_slice(&[one, two | 126]);
             dst.put_u16(payload_len as u16);
         } else {
-            dst.reserve(p_len + 10 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 10);
             dst.put_slice(&[one, two | 127]);
             dst.put_u64(payload_len as u64);
         };
@@ -217,8 +231,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,
@@ -396,5 +411,15 @@ mod tests {
         let mut buf = BytesMut::new();
         Parser::write_close(&mut buf, None, false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
+    }
+
+    #[test]
+    fn test_parse_length_overflow() {
+        let buf: [u8; 14] = [
+            0x0a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xeb, 0x0e, 0x8f,
+        ];
+        let mut buf = BytesMut::from(&buf[..]);
+        let result = Parser::parse(&mut buf, true, 65536);
+        assert!(matches!(result, Err(ProtocolError::Overflow)));
     }
 }
