@@ -188,16 +188,16 @@ impl Decoder for ClientPayloadCodec {
     }
 }
 
-impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
+impl Encoder<Message<(&mut RequestHeadType, BodySize)>> for ClientCodec {
     type Error = io::Error;
 
     fn encode(
         &mut self,
-        item: Message<(RequestHeadType, BodySize)>,
+        item: Message<(&mut RequestHeadType, BodySize)>,
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((mut head, length)) => {
+            Message::Item((head, length)) => {
                 let inner = &mut self.inner;
                 inner.version = head.as_ref().version;
                 inner
@@ -219,7 +219,7 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut head,
+                    head,
                     false,
                     false,
                     inner.version,

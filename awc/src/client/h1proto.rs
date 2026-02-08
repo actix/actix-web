@@ -28,7 +28,7 @@ pub(crate) async fn send_request<Io, B>(
     io: H1Connection<Io>,
     mut head: RequestHeadType,
     body: B,
-) -> Result<(ResponseHead, Payload), SendRequestError>
+) -> Result<(RequestHeadType, ResponseHead, Payload), SendRequestError>
 where
     Io: ConnectionIo,
     B: MessageBody,
@@ -86,7 +86,7 @@ where
 
     // special handle for EXPECT request.
     let (do_send, mut res_head) = if is_expect {
-        pin_framed.send((head, body.size()).into()).await?;
+        pin_framed.send((&mut head, body.size()).into()).await?;
 
         let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
             .await
@@ -96,7 +96,7 @@ where
         // and current head would be used as final response head.
         (head.status == StatusCode::CONTINUE, Some(head))
     } else {
-        pin_framed.feed((head, body.size()).into()).await?;
+        pin_framed.feed((&mut head, body.size()).into()).await?;
 
         (true, None)
     };
@@ -118,17 +118,16 @@ where
         res_head = Some(head);
     }
 
-    let head = res_head.unwrap();
-
     match pin_framed.codec_ref().message_type() {
         h1::MessageType::None => {
             let keep_alive = pin_framed.codec_ref().keep_alive();
             pin_framed.io_mut().on_release(keep_alive);
 
-            Ok((head, Payload::None))
+            Ok((head, res_head.unwrap(), Payload::None))
         }
         _ => Ok((
             head,
+            res_head.unwrap(),
             Payload::Stream {
                 payload: Box::pin(PlStream::new(framed)),
             },
@@ -138,21 +137,21 @@ where
 
 pub(crate) async fn open_tunnel<Io>(
     io: Io,
-    head: RequestHeadType,
-) -> Result<(ResponseHead, Framed<Io, h1::ClientCodec>), SendRequestError>
+    mut head: RequestHeadType,
+) -> Result<(RequestHeadType, ResponseHead, Framed<Io, h1::ClientCodec>), SendRequestError>
 where
     Io: ConnectionIo,
 {
     // create Framed and send request.
     let mut framed = Framed::new(io, h1::ClientCodec::default());
-    framed.send((head, BodySize::None).into()).await?;
+    framed.send((&mut head, BodySize::None).into()).await?;
 
     // read response head.
-    let head = poll_fn(|cx| Pin::new(&mut framed).poll_next(cx))
+    let res_head = poll_fn(|cx| Pin::new(&mut framed).poll_next(cx))
         .await
         .ok_or(ConnectError::Disconnected)??;
 
-    Ok((head, framed))
+    Ok((head, res_head, framed))
 }
 
 /// send request body to the peer
