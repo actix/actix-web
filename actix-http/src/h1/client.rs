@@ -1,9 +1,9 @@
 use std::{fmt, io};
 
-use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use http::{Method, Version};
+use tokio_util::codec::{Decoder, Encoder};
 
 use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
@@ -16,6 +16,7 @@ use crate::{
 };
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     struct Flags: u8 {
         const HEAD               = 0b0000_0001;
         const KEEP_ALIVE_ENABLED = 0b0000_1000;

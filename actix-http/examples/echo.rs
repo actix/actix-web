@@ -23,7 +23,7 @@ async fn main() -> io::Result<()> {
                         body.extend_from_slice(&item?);
                     }
 
-                    info!("request body: {:?}", body);
+                    info!("request body: {body:?}");
 
                     let res = Response::build(StatusCode::OK)
                         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
@@ -31,8 +31,7 @@ async fn main() -> io::Result<()> {
 
                     Ok::<_, Error>(res)
                 })
-                // No TLS
-                .tcp()
+                .tcp() // No TLS
         })?
         .run()
         .await

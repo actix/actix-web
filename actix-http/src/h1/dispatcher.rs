@@ -8,22 +8,16 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder as _, Encoder as _, Framed, FramedParts};
+use actix_codec::{Framed, FramedParts};
 use actix_rt::time::sleep_until;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::{Decoder as _, Encoder as _};
 use tracing::{error, trace};
-
-use crate::{
-    body::{BodySize, BoxBody, MessageBody},
-    config::ServiceConfig,
-    error::{DispatchError, ParseError, PayloadError},
-    service::HttpFlow,
-    Error, Extensions, OnConnectData, Request, Response, StatusCode,
-};
 
 use super::{
     codec::Codec,
@@ -32,12 +26,20 @@ use super::{
     timer::TimerState,
     Message, MessageType,
 };
+use crate::{
+    body::{BodySize, BoxBody, MessageBody},
+    config::ServiceConfig,
+    error::{DispatchError, ParseError, PayloadError},
+    service::HttpFlow,
+    Error, Extensions, OnConnectData, Request, Response, StatusCode,
+};
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
         /// Set when stream is read for first time.
         const STARTED          = 0b0000_0001;
@@ -210,9 +212,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::None => write!(f, "State::None"),
-            Self::ExpectCall { .. } => {
-                f.debug_struct("State::ExpectCall").finish_non_exhaustive()
-            }
+            Self::ExpectCall { .. } => f.debug_struct("State::ExpectCall").finish_non_exhaustive(),
             Self::ServiceCall { .. } => {
                 f.debug_struct("State::ServiceCall").finish_non_exhaustive()
             }
@@ -273,9 +273,7 @@ where
 
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
                     ka_timer: TimerState::new(config.keep_alive().enabled()),
-                    shutdown_timer: TimerState::new(
-                        config.client_disconnect_deadline().is_some(),
-                    ),
+                    shutdown_timer: TimerState::new(config.client_disconnect_deadline().is_some()),
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
@@ -388,7 +386,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendPayload { body },
@@ -406,7 +411,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendErrorPayload { body },
@@ -453,9 +465,7 @@ where
                     }
 
                     // return with upgrade request and poll it exclusively
-                    Some(DispatcherMessage::Upgrade(req)) => {
-                        return Ok(PollResponse::Upgrade(req))
-                    }
+                    Some(DispatcherMessage::Upgrade(req)) => return Ok(PollResponse::Upgrade(req)),
 
                     // all messages are dealt with
                     None => {
@@ -507,17 +517,31 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                let err = err.into();
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
-                                return Err(DispatchError::Body(err.into()));
+                                return Err(DispatchError::Body(err));
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -544,15 +568,28 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // payload stream finished
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
+                                // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
                                 return Err(DispatchError::Body(
                                     Error::new_body().with_cause(err).into(),
@@ -672,9 +709,7 @@ where
                 }
 
                 _ => {
-                    unreachable!(
-                        "State must be set to ServiceCall or ExceptCall in handle_request"
-                    )
+                    unreachable!("State must be set to ServiceCall or ExceptCall in handle_request")
                 }
             }
         }
@@ -683,10 +718,7 @@ where
     /// Process one incoming request.
     ///
     /// Returns true if any meaningful work was done.
-    fn poll_request(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<bool, DispatchError> {
+    fn poll_request(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
@@ -712,7 +744,7 @@ where
 
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
+                            req.conn_data.clone_from(this.conn_data);
 
                             match this.codec.message_type() {
                                 // request has no payload
@@ -856,10 +888,7 @@ where
         Ok(())
     }
 
-    fn poll_ka_timer(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<(), DispatchError> {
+    fn poll_ka_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         let this = self.as_mut().project();
         if let TimerState::Active { timer } = this.ka_timer {
             debug_assert!(
@@ -924,10 +953,7 @@ where
     }
 
     /// Poll head, keep-alive, and disconnect timer.
-    fn poll_timers(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<(), DispatchError> {
+    fn poll_timers(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         self.as_mut().poll_head_timer(cx)?;
         self.as_mut().poll_ka_timer(cx)?;
         self.as_mut().poll_shutdown_timer(cx)?;
@@ -941,10 +967,7 @@ where
     /// - `std::io::ErrorKind::ConnectionReset` after partial read;
     /// - all data read done.
     #[inline(always)] // TODO: bench this inline
-    fn read_available(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<bool, DispatchError> {
+    fn read_available(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
         let this = self.project();
 
         if this.flags.contains(Flags::READ_DISCONNECT) {
@@ -1004,7 +1027,7 @@ where
                 this.read_buf.reserve(HW_BUFFER_SIZE - remaining);
             }
 
-            match actix_codec::poll_read_buf(io.as_mut(), cx, this.read_buf) {
+            match tokio_util::io::poll_read_buf(io.as_mut(), cx, this.read_buf) {
                 Poll::Ready(Ok(n)) => {
                     this.flags.remove(Flags::FINISHED);
 
@@ -1133,6 +1156,7 @@ where
                         let inner = inner.as_mut().project();
                         inner.flags.insert(Flags::READ_DISCONNECT);
                         if let Some(mut payload) = inner.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
                             payload.feed_eof();
                         }
                     };
@@ -1196,8 +1220,16 @@ where
                     let inner_p = inner.as_mut().project();
                     let state_is_none = inner_p.state.is_none();
 
-                    // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
+                    // If the read-half is closed, we start the shutdown procedure if either is
+                    // true:
+                    //
+                    // - state is [`State::None`], which means that we're done with request
+                    //   processing, so if the client closed its writer-side it means that it won't
+                    //   send more requests.
+                    // - The user requested to not allow half-closures
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT)
+                        && (!inner_p.config.h1_allow_half_closed() || state_is_none)
+                    {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
@@ -1231,6 +1263,9 @@ where
                         inner_p.shutdown_timer,
                     );
 
+                    if inner_p.flags.contains(Flags::SHUTDOWN) {
+                        cx.waker().wake_by_ref();
+                    }
                     Poll::Pending
                 };
 

@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 
@@ -50,16 +50,24 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 /// will pass by unchanged by this middleware.
 ///
 /// # Examples
-/// ```
-/// use actix_web::http::{header, StatusCode};
-/// use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
-/// use actix_web::{dev, web, App, HttpResponse, Result};
 ///
-/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// Adding a header:
+///
+/// ```
+/// use actix_web::{
+///     dev::ServiceResponse,
+///     http::{header, StatusCode},
+///     middleware::{ErrorHandlerResponse, ErrorHandlers},
+///     web, App, HttpResponse, Result,
+/// };
+///
+/// fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Error"),
 ///     );
+///
+///     // body is unchanged, map to "left" slot
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
@@ -67,24 +75,63 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     .wrap(ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_header))
 ///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
 /// ```
-/// ## Registering default handler
+///
+/// Modifying response body:
+///
 /// ```
-/// # use actix_web::http::{header, StatusCode};
-/// # use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
-/// # use actix_web::{dev, web, App, HttpResponse, Result};
-/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// use actix_web::{
+///     dev::ServiceResponse,
+///     http::{header, StatusCode},
+///     middleware::{ErrorHandlerResponse, ErrorHandlers},
+///     web, App, HttpResponse, Result,
+/// };
+///
+/// fn add_error_body<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+///     // split service response into request and response components
+///     let (req, res) = res.into_parts();
+///
+///     // set body of response to modified body
+///     let res = res.set_body("An error occurred.");
+///
+///     // modified bodies need to be boxed and placed in the "right" slot
+///     let res = ServiceResponse::new(req, res)
+///         .map_into_boxed_body()
+///         .map_into_right_body();
+///
+///     Ok(ErrorHandlerResponse::Response(res))
+/// }
+///
+/// let app = App::new()
+///     .wrap(ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_body))
+///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
+/// ```
+///
+/// Registering default handler:
+///
+/// ```
+/// # use actix_web::{
+/// #     dev::ServiceResponse,
+/// #     http::{header, StatusCode},
+/// #     middleware::{ErrorHandlerResponse, ErrorHandlers},
+/// #     web, App, HttpResponse, Result,
+/// # };
+/// fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Error"),
 ///     );
+///
+///     // body is unchanged, map to "left" slot
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
-/// fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// fn handle_bad_request<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Bad Request Error"),
 ///     );
+///
+///     // body is unchanged, map to "left" slot
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
@@ -98,20 +145,24 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     )
 ///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
 /// ```
-/// Alternatively, you can set default handlers for only client or only server errors:
 ///
-/// ```rust
-/// # use actix_web::http::{header, StatusCode};
-/// # use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
-/// # use actix_web::{dev, web, App, HttpResponse, Result};
-/// # fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// You can set default handlers for all client (4xx) or all server (5xx) errors:
+///
+/// ```
+/// # use actix_web::{
+/// #     dev::ServiceResponse,
+/// #     http::{header, StatusCode},
+/// #     middleware::{ErrorHandlerResponse, ErrorHandlers},
+/// #     web, App, HttpResponse, Result,
+/// # };
+/// # fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 /// #     res.response_mut().headers_mut().insert(
 /// #         header::CONTENT_TYPE,
 /// #         header::HeaderValue::from_static("Error"),
 /// #     );
 /// #     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// # }
-/// # fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// # fn handle_bad_request<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 /// #     res.response_mut().headers_mut().insert(
 /// #         header::CONTENT_TYPE,
 /// #         header::HeaderValue::from_static("Bad Request Error"),
@@ -134,7 +185,7 @@ pub struct ErrorHandlers<B> {
     handlers: Handlers<B>,
 }
 
-type Handlers<B> = Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>;
+type Handlers<B> = Rc<FoldHashMap<StatusCode, Box<ErrorHandler<B>>>>;
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
@@ -169,16 +220,20 @@ impl<B> ErrorHandlers<B> {
     /// [`.handler()`][ErrorHandlers::handler]) will fall back on this.
     ///
     /// Note that this will overwrite any default handlers previously set by calling
-    /// [`.default_handler_client()`][ErrorHandlers::default_handler_client] or
-    /// [`.default_handler_server()`][ErrorHandlers::default_handler_server], but not any set by
-    /// calling [`.handler()`][ErrorHandlers::handler].
+    /// [`default_handler_client()`] or [`.default_handler_server()`], but not any set by calling
+    /// [`.handler()`].
+    ///
+    /// [`default_handler_client()`]: ErrorHandlers::default_handler_client
+    /// [`.default_handler_server()`]: ErrorHandlers::default_handler_server
+    /// [`.handler()`]: ErrorHandlers::handler
     pub fn default_handler<F>(self, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
     {
         let handler = Rc::new(handler);
+        let handler2 = Rc::clone(&handler);
         Self {
-            default_server: Some(handler.clone()),
+            default_server: Some(handler2),
             default_client: Some(handler),
             ..self
         }
@@ -219,8 +274,8 @@ impl<B> ErrorHandlers<B> {
         handlers
             .get(status)
             .map(|h| h.as_ref())
-            .or_else(|| status.is_client_error().then(|| default_client).flatten())
-            .or_else(|| status.is_server_error().then(|| default_server).flatten())
+            .or_else(|| status.is_client_error().then_some(default_client).flatten())
+            .or_else(|| status.is_server_error().then_some(default_server).flatten())
     }
 }
 
@@ -237,7 +292,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        let handlers = self.handlers.clone();
+        let handlers = Rc::clone(&self.handlers);
         let default_client = self.default_client.clone();
         let default_server = self.default_server.clone();
         Box::pin(async move {
@@ -272,7 +327,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let handlers = self.handlers.clone();
+        let handlers = Rc::clone(&self.handlers);
         let default_client = self.default_client.clone();
         let default_server = self.default_server.clone();
         let fut = self.service.call(req);
@@ -351,15 +406,12 @@ mod tests {
     use actix_service::IntoService;
     use actix_utils::future::ok;
     use bytes::Bytes;
-    use futures_util::future::FutureExt as _;
+    use futures_util::FutureExt as _;
 
     use super::*;
     use crate::{
         body,
-        http::{
-            header::{HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::{self, TestRequest},
     };
 
@@ -489,21 +541,17 @@ mod tests {
         let mw_server = make_mw(StatusCode::INTERNAL_SERVER_ERROR).await;
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
     #[actix_rt::test]
     async fn default_handlers_separate_client_server() {
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_client<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
@@ -511,9 +559,7 @@ mod tests {
         }
 
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_server<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_server<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0002"));
@@ -531,21 +577,17 @@ mod tests {
         let mw_server = make_mw(StatusCode::INTERNAL_SERVER_ERROR).await;
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
     #[actix_rt::test]
     async fn default_handlers_specialization() {
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_client<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
@@ -573,12 +615,10 @@ mod tests {
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
         let mw_specific = make_mw(StatusCode::UNPROCESSABLE_ENTITY).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_specific, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_specific, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0003");
     }
 }

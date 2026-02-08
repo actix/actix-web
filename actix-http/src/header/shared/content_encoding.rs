@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::str::FromStr;
 
 use derive_more::{Display, Error};
 use http::header::InvalidHeaderValue;
@@ -11,7 +11,7 @@ use crate::{
 
 /// Error returned when a content encoding is unknown.
 #[derive(Debug, Display, Error)]
-#[display(fmt = "unsupported content encoding")]
+#[display("unsupported content encoding")]
 pub struct ContentEncodingParseError;
 
 /// Represents a supported content encoding.

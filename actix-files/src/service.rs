@@ -23,7 +23,7 @@ impl Deref for FilesService {
     type Target = FilesServiceInner;
 
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        &self.0
     }
 }
 
@@ -39,6 +39,8 @@ pub struct FilesServiceInner {
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
+    pub(crate) size_threshold: u64,
+    pub(crate) with_permanent_redirect: bool,
 }
 
 impl fmt::Debug for FilesServiceInner {
@@ -62,11 +64,7 @@ impl FilesService {
         }
     }
 
-    fn serve_named_file(
-        &self,
-        req: ServiceRequest,
-        mut named_file: NamedFile,
-    ) -> ServiceResponse {
+    fn serve_named_file(&self, req: ServiceRequest, mut named_file: NamedFile) -> ServiceResponse {
         if let Some(ref mime_override) = self.mime_override {
             let new_disposition = mime_override(&named_file.content_type.type_());
             named_file.content_disposition.disposition = new_disposition;
@@ -74,7 +72,9 @@ impl FilesService {
         named_file.flags = self.file_flags;
 
         let (req, _) = req.into_parts();
-        let res = named_file.into_response(&req);
+        let res = named_file
+            .read_mode_threshold(self.size_threshold)
+            .into_response(&req);
         ServiceResponse::new(req, res)
     }
 
@@ -83,7 +83,7 @@ impl FilesService {
 
         let (req, _) = req.into_parts();
 
-        (self.renderer)(&dir, &req).unwrap_or_else(|e| ServiceResponse::from_err(e, req))
+        (self.renderer)(&dir, &req).unwrap_or_else(|err| ServiceResponse::from_err(err, req))
     }
 }
 
@@ -120,13 +120,11 @@ impl Service<ServiceRequest> for FilesService {
                 ));
             }
 
-            let path_on_disk = match PathBufWrap::parse_path(
-                req.match_info().unprocessed(),
-                this.hidden_files,
-            ) {
-                Ok(item) => item,
-                Err(err) => return Ok(req.error_response(err)),
-            };
+            let path_on_disk =
+                match PathBufWrap::parse_path(req.match_info().unprocessed(), this.hidden_files) {
+                    Ok(item) => item,
+                    Err(err) => return Ok(req.error_response(err)),
+                };
 
             if let Some(filter) = &this.path_filter {
                 if !filter(path_on_disk.as_ref(), req.head()) {
@@ -151,11 +149,15 @@ impl Service<ServiceRequest> for FilesService {
                 {
                     let redirect_to = format!("{}/", req.path());
 
-                    return Ok(req.into_response(
-                        HttpResponse::Found()
-                            .insert_header((header::LOCATION, redirect_to))
-                            .finish(),
-                    ));
+                    let response = if this.with_permanent_redirect {
+                        HttpResponse::PermanentRedirect()
+                    } else {
+                        HttpResponse::TemporaryRedirect()
+                    }
+                    .insert_header((header::LOCATION, redirect_to))
+                    .finish();
+
+                    return Ok(req.into_response(response));
                 }
 
                 match this.index {
@@ -175,18 +177,7 @@ impl Service<ServiceRequest> for FilesService {
                 }
             } else {
                 match NamedFile::open_async(&path).await {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = this.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-                        named_file.flags = this.file_flags;
-
-                        let (req, _) = req.into_parts();
-                        let res = named_file.into_response(&req);
-                        Ok(ServiceResponse::new(req, res))
-                    }
+                    Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                     Err(err) => this.handle_err(err, req).await,
                 }
             }

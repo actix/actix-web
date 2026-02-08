@@ -8,13 +8,13 @@ use std::{
 use actix_web::{
     body::{self, BoxBody, SizedStream},
     dev::{
-        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory,
-        ServiceRequest, ServiceResponse,
+        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory, ServiceRequest,
+        ServiceResponse,
     },
     http::{
         header::{
-            self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
-            DispositionType, ExtendedValue, HeaderValue,
+            self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
+            ExtendedValue, HeaderValue,
         },
         StatusCode,
     },
@@ -24,11 +24,11 @@ use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use mime::Mime;
-use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub(crate) struct Flags: u8 {
         const ETAG =                0b0000_0001;
         const LAST_MD =             0b0000_0010;
@@ -80,10 +80,12 @@ pub struct NamedFile {
     pub(crate) content_type: Mime,
     pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
+    pub(crate) read_mode_threshold: u64,
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
+
 #[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
 
@@ -126,20 +128,25 @@ impl NamedFile {
                 }
             };
 
-            let ct = from_path(&path).first_or_octet_stream();
+            let ct = mime_guess::from_path(&path).first_or_octet_stream();
 
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
                 mime::APPLICATION => match ct.subtype() {
                     mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" => DispositionType::Inline,
+                    name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
                     _ => DispositionType::Attachment,
                 },
                 _ => DispositionType::Attachment,
             };
 
-            let mut parameters =
-                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            // replace special characters in filenames which could occur on some filesystems
+            let filename_s = filename
+                .replace('\n', "%0A") // \n line break
+                .replace('\x0B', "%0B") // \v vertical tab
+                .replace('\x0C', "%0C") // \f form feed
+                .replace('\r', "%0D"); // \r carriage return
+            let mut parameters = vec![DispositionParam::Filename(filename_s)];
 
             if !filename.is_ascii() {
                 parameters.push(DispositionParam::FilenameExt(ExtendedValue {
@@ -194,6 +201,7 @@ impl NamedFile {
             encoding,
             status_code: StatusCode::OK,
             flags: Flags::default(),
+            read_mode_threshold: 0,
         })
     }
 
@@ -347,6 +355,23 @@ impl NamedFile {
         self
     }
 
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
+        self
+    }
+
     /// Specifies whether to return `ETag` header in response.
     ///
     /// Default is true.
@@ -434,7 +459,8 @@ impl NamedFile {
                 res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
-            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader =
+                chunked::new_chunked_read(self.md.len(), 0, self.file, self.read_mode_threshold);
 
             return res.streaming(reader);
         }
@@ -524,9 +550,12 @@ impl NamedFile {
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
-                    length = ranges[0].length;
-                    offset = ranges[0].start;
+                if let Some(range) = HttpRange::parse(ranges_header, length)
+                    .ok()
+                    .and_then(|ranges| ranges.first().copied())
+                {
+                    length = range.length;
+                    offset = range.start;
 
                     // When a Content-Encoding header is present in a 206 partial content response
                     // for video content, it prevents browser video players from starting playback
@@ -571,7 +600,7 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = chunked::new_chunked_read(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
         if offset != 0 || length != self.md.len() {
             res.status(StatusCode::PARTIAL_CONTENT);

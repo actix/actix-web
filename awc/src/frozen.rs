@@ -1,15 +1,14 @@
 use std::{net, rc::Rc, time::Duration};
 
-use bytes::Bytes;
-use futures_core::Stream;
-use serde::Serialize;
-
 use actix_http::{
     body::MessageBody,
     error::HttpError,
     header::{HeaderMap, TryIntoHeaderPair},
     Method, RequestHead, Uri,
 };
+use bytes::Bytes;
+use futures_core::Stream;
+use serde::Serialize;
 
 use crate::{
     client::ClientConfig,
@@ -50,7 +49,7 @@ impl FrozenClientRequest {
     where
         B: MessageBody + 'static,
     {
-        RequestSender::Rc(self.head.clone(), None).send_body(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_body(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -61,7 +60,7 @@ impl FrozenClientRequest {
 
     /// Send a json body.
     pub fn send_json<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send_json(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_json(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -72,7 +71,7 @@ impl FrozenClientRequest {
 
     /// Send an urlencoded body.
     pub fn send_form<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send_form(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_form(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -87,7 +86,7 @@ impl FrozenClientRequest {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        RequestSender::Rc(self.head.clone(), None).send_stream(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_stream(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -98,7 +97,7 @@ impl FrozenClientRequest {
 
     /// Send an empty body.
     pub fn send(&self) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send(
+        RequestSender::Rc(Rc::clone(&self.head), None).send(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -148,8 +147,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send a body.
     pub fn send_body(self, body: impl MessageBody + 'static) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_body(
@@ -178,8 +177,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send an urlencoded body.
     pub fn send_form(self, value: impl Serialize) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_form(
@@ -197,8 +196,8 @@ impl FrozenSendBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_stream(
@@ -212,8 +211,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send an empty body.
     pub fn send(self) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send(

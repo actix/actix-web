@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     future::Future,
     io,
     ops::Deref,
@@ -17,20 +17,21 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use actix_http::Protocol;
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
-use ahash::AHashMap;
 use futures_core::future::LocalBoxFuture;
-use futures_util::FutureExt;
+use futures_util::FutureExt as _;
 use http::uri::Authority;
 use pin_project_lite::pin_project;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use super::config::ConnectorConfig;
-use super::connection::{ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner};
-use super::error::ConnectError;
-use super::h2proto::handshake;
-use super::Connect;
+use super::{
+    config::ConnectorConfig,
+    connection::{ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner},
+    error::ConnectError,
+    h2proto::handshake,
+    Connect,
+};
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Key {
     authority: Authority,
 }
@@ -41,8 +42,8 @@ impl From<Authority> for Key {
     }
 }
 
+/// Connections pool to reuse I/O per [`Authority`].
 #[doc(hidden)]
-/// Connections pool for reuse Io type for certain [`http::uri::Authority`] as key.
 pub struct ConnectionPool<S, Io>
 where
     Io: AsyncWrite + Unpin + 'static,
@@ -51,7 +52,7 @@ where
     inner: ConnectionPoolInner<Io>,
 }
 
-/// wrapper type for check the ref count of Rc.
+/// Wrapper type for check the ref count of Rc.
 pub struct ConnectionPoolInner<Io>(Rc<ConnectionPoolInnerPriv<Io>>)
 where
     Io: AsyncWrite + Unpin + 'static;
@@ -62,7 +63,7 @@ where
 {
     fn new(config: ConnectorConfig) -> Self {
         let permits = Arc::new(Semaphore::new(config.limit));
-        let available = RefCell::new(AHashMap::default());
+        let available = RefCell::new(HashMap::new());
 
         Self(Rc::new(ConnectionPoolInnerPriv {
             config,
@@ -71,11 +72,13 @@ where
         }))
     }
 
-    /// spawn a async for graceful shutdown h1 Io type with a timeout.
+    /// Spawns a graceful shutdown task for the underlying I/O with a timeout.
     fn close(&self, conn: ConnectionInnerType<Io>) {
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionInnerType::H1(io) = conn {
-                actix_rt::spawn(CloseConnection::new(io, timeout));
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    actix_rt::spawn(CloseConnection::new(io, timeout));
+                }
             }
         }
     }
@@ -97,7 +100,7 @@ where
     type Target = ConnectionPoolInnerPriv<Io>;
 
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        &self.0
     }
 }
 
@@ -124,7 +127,7 @@ where
     Io: AsyncWrite + Unpin + 'static,
 {
     config: ConnectorConfig,
-    available: RefCell<AHashMap<Key, VecDeque<PooledConnection<Io>>>>,
+    available: RefCell<HashMap<Key, VecDeque<PooledConnection<Io>>>>,
     permits: Arc<Semaphore>,
 }
 
@@ -172,12 +175,14 @@ where
             };
 
             // acquire an owned permit and carry it with connection
-            let permit = inner.permits.clone().acquire_owned().await.map_err(|_| {
-                ConnectError::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    "failed to acquire semaphore on client connection pool",
-                ))
-            })?;
+            let permit = Arc::clone(&inner.permits)
+                .acquire_owned()
+                .await
+                .map_err(|_| {
+                    ConnectError::Io(io::Error::other(
+                        "Failed to acquire semaphore on client connection pool",
+                    ))
+                })?;
 
             let conn = {
                 let mut conn = None;
@@ -202,7 +207,9 @@ where
                             // check if the connection is still usable
                             if let ConnectionInnerType::H1(ref mut io) = c.conn {
                                 let check = ConnectionCheckFuture { io };
-                                match check.now_or_never().expect("ConnectionCheckFuture must never yield with Poll::Pending.") {
+                                match check.now_or_never().expect(
+                                    "ConnectionCheckFuture must never yield with Poll::Pending.",
+                                ) {
                                     ConnectionState::Tainted => {
                                         inner.close(c.conn);
                                         continue;
@@ -371,12 +378,11 @@ impl<Io: ConnectionIo> Acquired<Io> {
 
 #[cfg(test)]
 mod test {
-    use std::{cell::Cell, io};
+    use std::cell::Cell;
 
     use http::Uri;
 
     use super::*;
-    use crate::client::connection::ConnectionType;
 
     /// A stream type that always returns pending on async read.
     ///

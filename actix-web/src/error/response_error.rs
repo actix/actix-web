@@ -7,7 +7,6 @@ use std::{
     io::{self, Write as _},
 };
 
-use actix_http::Response;
 use bytes::BytesMut;
 
 use crate::{
@@ -126,19 +125,23 @@ impl ResponseError for actix_http::error::PayloadError {
     }
 }
 
-impl ResponseError for actix_http::ws::ProtocolError {}
-
 impl ResponseError for actix_http::error::ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
 
+#[cfg(feature = "ws")]
 impl ResponseError for actix_http::ws::HandshakeError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        Response::from(self).map_into_boxed_body().into()
+        actix_http::Response::from(self)
+            .map_into_boxed_body()
+            .into()
     }
 }
+
+#[cfg(feature = "ws")]
+impl ResponseError for actix_http::ws::ProtocolError {}
 
 #[cfg(test)]
 mod tests {
@@ -152,7 +155,7 @@ mod tests {
         let resp_err: &dyn ResponseError = &err;
 
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "Payload reached size limit.");
+        assert_eq!(err.to_string(), "payload reached size limit");
 
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());

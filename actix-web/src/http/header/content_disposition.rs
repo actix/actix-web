@@ -13,7 +13,10 @@
 use std::fmt::{self, Write};
 
 use once_cell::sync::Lazy;
+#[cfg(feature = "unicode")]
 use regex::Regex;
+#[cfg(not(feature = "unicode"))]
+use regex_lite::Regex;
 
 use super::{ExtendedValue, Header, TryIntoHeaderValue, Writer};
 use crate::http::header;
@@ -151,7 +154,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_name(&self) -> Option<&str> {
         match self {
-            DispositionParam::Name(ref name) => Some(name.as_str()),
+            DispositionParam::Name(name) => Some(name.as_str()),
             _ => None,
         }
     }
@@ -160,7 +163,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename(&self) -> Option<&str> {
         match self {
-            DispositionParam::Filename(ref filename) => Some(filename.as_str()),
+            DispositionParam::Filename(filename) => Some(filename.as_str()),
             _ => None,
         }
     }
@@ -169,7 +172,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename_ext(&self) -> Option<&ExtendedValue> {
         match self {
-            DispositionParam::FilenameExt(ref value) => Some(value),
+            DispositionParam::FilenameExt(value) => Some(value),
             _ => None,
         }
     }
@@ -203,11 +206,11 @@ impl DispositionParam {
     }
 }
 
-/// A *Content-Disposition* header. It is compatible to be used either as
-/// [a response header for the main body](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body)
-/// as (re)defined in [RFC 6266](https://datatracker.ietf.org/doc/html/rfc6266), or as
-/// [a header for a multipart body](https://mdn.io/Content-Disposition#As_a_header_for_a_multipart_body)
-/// as (re)defined in [RFC 7587](https://datatracker.ietf.org/doc/html/rfc7578).
+/// `Content-Disposition` header.
+///
+/// It is compatible to be used either as [a response header for the main body][use_main_body]
+/// as (re)defined in [RFC 6266], or as [a header for a multipart body][use_multipart] as
+/// (re)defined in [RFC 7587].
 ///
 /// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
 /// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
@@ -264,7 +267,7 @@ impl DispositionParam {
 ///     parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
 ///         charset: Charset::Iso_8859_1, // The character set for the bytes of the filename
 ///         language_tag: None, // The optional language tag (see `language-tag` crate)
-///         value: b"\xa9 Copyright 1989.txt".to_vec(), // the actual bytes of the filename
+///         value: b"\xA9 Ferris 2011.txt".to_vec(), // the actual bytes of the filename
 ///     })],
 /// };
 /// assert!(cd1.is_attachment());
@@ -302,6 +305,11 @@ impl DispositionParam {
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
 /// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
+///
+/// [use_main_body]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body
+/// [RFC 6266]: https://datatracker.ietf.org/doc/html/rfc6266
+/// [use_multipart]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_header_for_a_multipart_body
+/// [RFC 7587]: https://datatracker.ietf.org/doc/html/rfc7578
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentDisposition {
     /// The disposition type
@@ -490,7 +498,7 @@ impl Header for ContentDisposition {
     }
 
     fn parse<T: crate::HttpMessage>(msg: &T) -> Result<Self, crate::error::ParseError> {
-        if let Some(h) = msg.headers().get(&Self::name()) {
+        if let Some(h) = msg.headers().get(Self::name()) {
             Self::from_raw(h)
         } else {
             Err(crate::error::ParseError::Header)
@@ -592,9 +600,8 @@ mod tests {
     fn test_from_raw_basic() {
         assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());
 
-        let a = HeaderValue::from_static(
-            "form-data; dummy=3; name=upload; filename=\"sample.png\"",
-        );
+        let a =
+            HeaderValue::from_static("form-data; dummy=3; name=upload; filename=\"sample.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -648,8 +655,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
-                    b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r', b'a',
+                    b't', b'e', b's',
                 ],
             })],
         };
@@ -665,8 +672,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
-                    b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r', b'a',
+                    b't', b'e', b's',
                 ],
             })],
         };
@@ -742,8 +749,8 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a = ContentDisposition::from_raw(&HeaderValue::from_static("unknown-disp-param"))
-            .unwrap();
+        let a =
+            ContentDisposition::from_raw(&HeaderValue::from_static("unknown-disp-param")).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Ext(String::from("unknown-disp-param")),
             parameters: vec![],
@@ -782,8 +789,7 @@ mod tests {
         Mainstream browsers like Firefox (gecko) and Chrome use UTF-8 directly as above.
         (And now, only UTF-8 is handled by this implementation.)
         */
-        let a =
-            HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"").unwrap();
+        let a = HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"").unwrap();
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -803,9 +809,7 @@ mod tests {
             disposition: DispositionType::FormData,
             parameters: vec![
                 DispositionParam::Name(String::from("upload")),
-                DispositionParam::Filename(String::from(
-                    "余固知謇謇之為患兮，忍而不能舍也.pptx",
-                )),
+                DispositionParam::Filename(String::from("余固知謇謇之為患兮，忍而不能舍也.pptx")),
             ],
         };
         assert_eq!(a, b);
@@ -870,8 +874,7 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a =
-            HeaderValue::from_static("form-data; name=photo; filename=\"%74%65%73%74.png\"");
+        let a = HeaderValue::from_static("form-data; name=photo; filename=\"%74%65%73%74.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,

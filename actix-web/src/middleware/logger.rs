@@ -3,7 +3,6 @@
 use std::{
     borrow::Cow,
     collections::HashSet,
-    convert::TryFrom,
     env,
     fmt::{self, Display as _},
     future::Future,
@@ -17,16 +16,19 @@ use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
-use log::{debug, warn};
+use log::{debug, warn, Level};
 use pin_project_lite::pin_project;
-use regex::{Regex, RegexSet};
+#[cfg(feature = "unicode")]
+use regex::Regex;
+#[cfg(not(feature = "unicode"))]
+use regex_lite::Regex;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     body::{BodySize, MessageBody},
     http::header::HeaderName,
     service::{ServiceRequest, ServiceResponse},
-    Error, HttpResponse, Result,
+    Error, Result,
 };
 
 /// Middleware for logging request and response summaries to the terminal.
@@ -69,10 +71,11 @@ use crate::{
 /// `%D` | Time taken to serve the request, in milliseconds
 /// `%U` | Request URL
 /// `%{r}a` | "Real IP" remote address **\***
-/// `%{FOO}i` |  `request.headers["FOO"]`
+/// `%{FOO}i` | `request.headers["FOO"]`
 /// `%{FOO}o` | `response.headers["FOO"]`
 /// `%{FOO}e` | `env_var["FOO"]`
 /// `%{FOO}xi` | [Custom request replacement](Logger::custom_request_replace) labelled "FOO"
+/// `%{FOO}xo` | [Custom response replacement](Logger::custom_response_replace) labelled "FOO"
 ///
 /// # Security
 /// **\*** "Real IP" remote address is calculated using
@@ -87,8 +90,9 @@ pub struct Logger(Rc<Inner>);
 struct Inner {
     format: Format,
     exclude: HashSet<String>,
-    exclude_regex: RegexSet,
+    exclude_regex: Vec<Regex>,
     log_target: Cow<'static, str>,
+    log_level: Level,
 }
 
 impl Logger {
@@ -97,8 +101,9 @@ impl Logger {
         Logger(Rc::new(Inner {
             format: Format::new(format),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::empty(),
+            exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            log_level: Level::Info,
         }))
     }
 
@@ -114,10 +119,7 @@ impl Logger {
     /// Ignore and do not log access info for paths that match regex.
     pub fn exclude_regex<T: Into<String>>(mut self, path: T) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
-        let mut patterns = inner.exclude_regex.patterns().to_vec();
-        patterns.push(path.into());
-        let regex_set = RegexSet::new(patterns).unwrap();
-        inner.exclude_regex = regex_set;
+        inner.exclude_regex.push(Regex::new(&path.into()).unwrap());
         self
     }
 
@@ -136,6 +138,23 @@ impl Logger {
     pub fn log_target(mut self, target: impl Into<Cow<'static, str>>) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         inner.log_target = target.into();
+        self
+    }
+
+    /// Sets the log level to `level`.
+    ///
+    /// By default, the log level is `Level::Info`.
+    ///
+    /// # Examples
+    /// Using `.log_level(Level::Debug)` would have this effect on request logs:
+    /// ```diff
+    /// - [2015-10-21T07:28:00Z INFO  actix_web::middleware::logger] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    /// + [2015-10-21T07:28:00Z DEBUG  actix_web::middleware::logger] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    ///                         ^^^^^^
+    /// ```
+    pub fn log_level(mut self, level: log::Level) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.log_level = level;
         self
     }
 
@@ -179,6 +198,55 @@ impl Logger {
 
         self
     }
+
+    /// Register a function that receives a `ServiceResponse` and returns a string for use in the
+    /// log line.
+    ///
+    /// The label passed as the first argument should match a replacement substring in
+    /// the logger format like `%{label}xo`.
+    ///
+    /// It is convention to print "-" to indicate no output instead of an empty string.
+    ///
+    /// The replacement function does not have access to the response body.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_web::{dev::ServiceResponse, middleware::Logger};
+    /// fn log_if_error(res: &ServiceResponse) -> String {
+    ///     if res.status().as_u16() >= 400 {
+    ///         "ERROR".to_string()
+    ///     } else {
+    ///         "-".to_string()
+    ///     }
+    /// }
+    ///
+    /// Logger::new("example %{ERROR_STATUS}xo")
+    ///     .custom_response_replace("ERROR_STATUS", |res| log_if_error(res) );
+    /// ```
+    pub fn custom_response_replace(
+        mut self,
+        label: &str,
+        f: impl Fn(&ServiceResponse) -> String + 'static,
+    ) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+
+        let ft = inner.format.0.iter_mut().find(
+            |ft| matches!(ft, FormatText::CustomResponse(unit_label, _) if label == unit_label),
+        );
+
+        if let Some(FormatText::CustomResponse(_, res_fn)) = ft {
+            *res_fn = Some(CustomResponseFn {
+                inner_fn: Rc::new(f),
+            });
+        } else {
+            debug!(
+                "Attempted to register custom response logging function for non-existent label: {}",
+                label
+            );
+        }
+
+        self
+    }
 }
 
 impl Default for Logger {
@@ -191,8 +259,9 @@ impl Default for Logger {
         Logger(Rc::new(Inner {
             format: Format::default(),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::empty(),
+            exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            log_level: Level::Info,
         }))
     }
 }
@@ -210,10 +279,16 @@ where
 
     fn new_transform(&self, service: S) -> Self::Future {
         for unit in &self.0.format.0 {
-            // missing request replacement function diagnostic
             if let FormatText::CustomRequest(label, None) = unit {
                 warn!(
-                    "No custom request replacement function was registered for label \"{}\".",
+                    "No custom request replacement function was registered for label: {}",
+                    label
+                );
+            }
+
+            if let FormatText::CustomResponse(label, None) = unit {
+                warn!(
+                    "No custom response replacement function was registered for label: {}",
                     label
                 );
             }
@@ -221,7 +296,7 @@ where
 
         ready(Ok(LoggerMiddleware {
             service,
-            inner: self.0.clone(),
+            inner: Rc::clone(&self.0),
         }))
     }
 }
@@ -245,7 +320,11 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let excluded = self.inner.exclude.contains(req.path())
-            || self.inner.exclude_regex.is_match(req.path());
+            || self
+                .inner
+                .exclude_regex
+                .iter()
+                .any(|r| r.is_match(req.path()));
 
         if excluded {
             LoggerResponse {
@@ -253,6 +332,7 @@ where
                 format: None,
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
+                log_level: self.inner.log_level,
                 _phantom: PhantomData,
             }
         } else {
@@ -268,6 +348,7 @@ where
                 format: Some(format),
                 time: now,
                 log_target: self.inner.log_target.clone(),
+                log_level: self.inner.log_level,
                 _phantom: PhantomData,
             }
         }
@@ -285,6 +366,7 @@ pin_project! {
         time: OffsetDateTime,
         format: Option<Format>,
         log_target: Cow<'static, str>,
+        log_level: Level,
         _phantom: PhantomData<B>,
     }
 }
@@ -301,22 +383,37 @@ where
 
         let res = match ready!(this.fut.poll(cx)) {
             Ok(res) => res,
-            Err(e) => return Poll::Ready(Err(e)),
+            Err(err) => return Poll::Ready(Err(err)),
         };
 
         if let Some(error) = res.response().error() {
             debug!("Error in response: {:?}", error);
         }
 
-        if let Some(ref mut format) = this.format {
+        let res = if let Some(ref mut format) = this.format {
+            // to avoid polluting all the Logger types with the body parameter we swap the body
+            // out temporarily since it's not usable in custom response functions anyway
+
+            let (req, res) = res.into_parts();
+            let (res, body) = res.into_parts();
+
+            let temp_res = ServiceResponse::new(req, res.map_into_boxed_body());
+
             for unit in &mut format.0 {
-                unit.render_response(res.response());
+                unit.render_response(&temp_res);
             }
-        }
+
+            // re-construct original service response
+            let (req, res) = temp_res.into_parts();
+            ServiceResponse::new(req, res.set_body(body))
+        } else {
+            res
+        };
 
         let time = *this.time;
         let format = this.format.take();
         let log_target = this.log_target.clone();
+        let log_level = *this.log_level;
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
@@ -324,6 +421,7 @@ where
             format,
             size: 0,
             log_target,
+            log_level,
         })))
     }
 }
@@ -336,6 +434,7 @@ pin_project! {
         size: usize,
         time: OffsetDateTime,
         log_target: Cow<'static, str>,
+        log_level: Level
     }
 
     impl<B> PinnedDrop for StreamLog<B> {
@@ -348,8 +447,9 @@ pin_project! {
                     Ok(())
                 };
 
-                log::info!(
+                log::log!(
                     target: this.log_target.as_ref(),
+                    this.log_level,
                     "{}", FormatDisplay(&render)
                 );
             }
@@ -399,7 +499,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[%atPrUsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|x[io])|[%atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -417,17 +517,14 @@ impl Format {
                         if key.as_str() == "r" {
                             FormatText::RealIpRemoteAddr
                         } else {
-                            unreachable!()
+                            unreachable!("regex and code mismatch")
                         }
                     }
-                    "i" => {
-                        FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap())
-                    }
-                    "o" => {
-                        FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap())
-                    }
+                    "i" => FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap()),
+                    "o" => FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap()),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
                     "xi" => FormatText::CustomRequest(key.as_str().to_owned(), None),
+                    "xo" => FormatText::CustomResponse(key.as_str().to_owned(), None),
                     _ => unreachable!(),
                 })
             } else {
@@ -475,6 +572,7 @@ enum FormatText {
     ResponseHeader(HeaderName),
     EnvironHeader(String),
     CustomRequest(String, Option<CustomRequestFn>),
+    CustomResponse(String, Option<CustomResponseFn>),
 }
 
 #[derive(Clone)]
@@ -491,6 +589,23 @@ impl CustomRequestFn {
 impl fmt::Debug for CustomRequestFn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("custom_request_fn")
+    }
+}
+
+#[derive(Clone)]
+struct CustomResponseFn {
+    inner_fn: Rc<dyn Fn(&ServiceResponse) -> String>,
+}
+
+impl CustomResponseFn {
+    fn call(&self, res: &ServiceResponse) -> String {
+        (self.inner_fn)(res)
+    }
+}
+
+impl fmt::Debug for CustomResponseFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("custom_response_fn")
     }
 }
 
@@ -526,23 +641,30 @@ impl FormatText {
         }
     }
 
-    fn render_response<B>(&mut self, res: &HttpResponse<B>) {
+    fn render_response(&mut self, res: &ServiceResponse) {
         match self {
             FormatText::ResponseStatus => {
                 *self = FormatText::Str(format!("{}", res.status().as_u16()))
             }
+
             FormatText::ResponseHeader(ref name) => {
                 let s = if let Some(val) = res.headers().get(name) {
-                    if let Ok(s) = val.to_str() {
-                        s
-                    } else {
-                        "-"
-                    }
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
                 *self = FormatText::Str(s.to_string())
             }
+
+            FormatText::CustomResponse(_, res_fn) => {
+                let text = match res_fn {
+                    Some(res_fn) => FormatText::Str(res_fn.call(res)),
+                    None => FormatText::Str("-".to_owned()),
+                };
+
+                *self = text;
+            }
+
             _ => {}
         }
     }
@@ -571,15 +693,11 @@ impl FormatText {
             FormatText::RequestTime => *self = FormatText::Str(now.format(&Rfc3339).unwrap()),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
-                    if let Ok(s) = val.to_str() {
-                        s
-                    } else {
-                        "-"
-                    }
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
-                *self = FormatText::Str(s.to_string());
+                *self = FormatText::Str(s);
             }
             FormatText::RemoteAddr => {
                 let s = if let Some(peer) = req.connection_info().peer_addr() {
@@ -611,11 +729,9 @@ impl FormatText {
 }
 
 /// Converter to get a String from something that writes to a Formatter.
-pub(crate) struct FormatDisplay<'a>(
-    &'a dyn Fn(&mut fmt::Formatter<'_>) -> Result<(), fmt::Error>,
-);
+pub(crate) struct FormatDisplay<'a>(&'a dyn Fn(&mut fmt::Formatter<'_>) -> Result<(), fmt::Error>);
 
-impl<'a> fmt::Display for FormatDisplay<'a> {
+impl fmt::Display for FormatDisplay<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         (self.0)(fmt)
     }
@@ -623,12 +739,15 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{IntoService, Service, Transform};
+    use actix_service::IntoService;
     use actix_utils::future::ok;
 
     use super::*;
-    use crate::http::{header, StatusCode};
-    use crate::test::{self, TestRequest};
+    use crate::{
+        http::{header, StatusCode},
+        test::{self, TestRequest},
+        HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_logger() {
@@ -691,9 +810,10 @@ mod tests {
             unit.render_request(now, &req);
         }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().finish());
         for unit in &mut format.0 {
-            unit.render_response(&resp);
+            unit.render_response(&res);
         }
 
         let entry_time = OffsetDateTime::now_utc();
@@ -723,9 +843,10 @@ mod tests {
             unit.render_request(now, &req);
         }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().force_close().finish());
         for unit in &mut format.0 {
-            unit.render_response(&resp);
+            unit.render_response(&res);
         }
 
         let render = |fmt: &mut fmt::Formatter<'_>| {
@@ -755,9 +876,10 @@ mod tests {
             unit.render_request(now, &req);
         }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().force_close().finish());
         for unit in &mut format.0 {
-            unit.render_response(&resp);
+            unit.render_response(&res);
         }
 
         let entry_time = OffsetDateTime::now_utc();
@@ -784,9 +906,10 @@ mod tests {
             unit.render_request(now, &req);
         }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().force_close().finish());
         for unit in &mut format.0 {
-            unit.render_response(&resp);
+            unit.render_response(&res);
         }
 
         let render = |fmt: &mut fmt::Formatter<'_>| {
@@ -815,9 +938,10 @@ mod tests {
             unit.render_request(now, &req);
         }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().finish());
         for unit in &mut format.0 {
-            unit.render_response(&resp);
+            unit.render_response(&res);
         }
 
         let entry_time = OffsetDateTime::now_utc();
@@ -832,7 +956,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_custom_closure_log() {
+    async fn test_custom_closure_req_log() {
         let mut logger = Logger::new("test %{CUSTOM}xi")
             .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
                 String::from("custom_log")
@@ -850,6 +974,38 @@ mod tests {
         let now = OffsetDateTime::now_utc();
 
         unit.render_request(now, &req);
+
+        let render = |fmt: &mut fmt::Formatter<'_>| unit.render(fmt, 1024, now);
+
+        let log_output = FormatDisplay(&render).to_string();
+        assert_eq!(log_output, "custom_log");
+    }
+
+    #[actix_rt::test]
+    async fn test_custom_closure_response_log() {
+        let mut logger = Logger::new("test %{CUSTOM}xo").custom_response_replace(
+            "CUSTOM",
+            |res: &ServiceResponse| -> String {
+                if res.status().as_u16() == 200 {
+                    String::from("custom_log")
+                } else {
+                    String::from("-")
+                }
+            },
+        );
+        let mut unit = Rc::get_mut(&mut logger.0).unwrap().format.0[1].clone();
+
+        let label = match &unit {
+            FormatText::CustomResponse(label, _) => label,
+            ft => panic!("expected CustomResponse, found {:?}", ft),
+        };
+
+        assert_eq!(label, "CUSTOM");
+
+        let req = TestRequest::default().to_http_request();
+        let resp_ok = ServiceResponse::new(req, HttpResponse::Ok().finish());
+        let now = OffsetDateTime::now_utc();
+        unit.render_response(&resp_ok);
 
         let render = |fmt: &mut fmt::Formatter<'_>| unit.render(fmt, 1024, now);
 

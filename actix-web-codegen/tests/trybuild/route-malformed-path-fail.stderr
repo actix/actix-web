@@ -20,10 +20,7 @@ error: custom attribute panicked
 13 | #[get("/{}")]
    | ^^^^^^^^^^^^^
    |
-   = help: message: Wrong path pattern: "/{}" regex parse error:
-               ((?s-m)^/(?P<>[^/]+))$
-                            ^
-           error: empty capture group name
+   = help: message: Wrong path pattern: "/{}" empty capture group names are not allowed
 
 error: custom attribute panicked
   --> $DIR/route-malformed-path-fail.rs:23:1

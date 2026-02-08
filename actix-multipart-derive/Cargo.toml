@@ -1,0 +1,33 @@
+[package]
+name = "actix-multipart-derive"
+version = "0.7.0"
+authors = ["Jacob Halsey <jacob@jhalsey.com>"]
+description = "Multipart form derive macro for Actix Web"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+bytesize = "2"
+darling = "0.20"
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
+
+[dev-dependencies]
+actix-multipart = "0.7"
+actix-web = "4"
+rustversion-msrv = "0.100"
+trybuild = "1"
+
+[lints]
+workspace = true

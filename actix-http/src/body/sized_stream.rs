@@ -44,7 +44,7 @@ where
 
     #[inline]
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.size as u64)
+        BodySize::Sized(self.size)
     }
 
     /// Attempts to pull out the next value of the underlying [`Stream`].

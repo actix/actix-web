@@ -60,6 +60,12 @@ impl<T: ResponseError + 'static> From<T> for Error {
     }
 }
 
+impl From<Box<dyn ResponseError>> for Error {
+    fn from(value: Box<dyn ResponseError>) -> Self {
+        Error { cause: value }
+    }
+}
+
 impl From<Error> for Response<BoxBody> {
     fn from(err: Error) -> Response<BoxBody> {
         err.error_response().into()

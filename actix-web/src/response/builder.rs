@@ -1,6 +1,5 @@
 use std::{
     cell::{Ref, RefMut},
-    convert::TryInto,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -12,11 +11,13 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use crate::{
-    body::{BodyStream, BoxBody, MessageBody},
+    body::{BodyStream, BoxBody, MessageBody, SizedStream},
     dev::Extensions,
     error::{Error, JsonPayloadError},
-    http::header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    http::{ConnectionType, StatusCode},
+    http::{
+        header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
+        ConnectionType, StatusCode,
+    },
     BoxError, HttpRequest, HttpResponse, Responder,
 };
 
@@ -63,7 +64,7 @@ impl HttpResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -85,7 +86,7 @@ impl HttpResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -209,7 +210,7 @@ impl HttpResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
         self
@@ -317,13 +318,35 @@ impl HttpResponseBuilder {
     /// Set a streaming body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
+    ///
+    /// If `Content-Type` is not set, then it is automatically set to `application/octet-stream`.
+    ///
+    /// If `Content-Length` is set, then [`no_chunking()`](Self::no_chunking) is automatically called.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        self.body(BodyStream::new(stream))
+        // Set mime type to application/octet-stream if it is not set
+        if let Some(parts) = self.inner() {
+            if !parts.headers.contains_key(header::CONTENT_TYPE) {
+                self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
+            }
+        }
+
+        let content_length = self
+            .inner()
+            .and_then(|parts| parts.headers.get(header::CONTENT_LENGTH))
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+
+        if let Some(len) = content_length {
+            self.no_chunking(len);
+            self.body(SizedStream::new(len, stream))
+        } else {
+            self.body(BodyStream::new(stream))
+        }
     }
 
     /// Set a JSON body and build the `HttpResponse`.
@@ -407,10 +430,7 @@ mod tests {
     use super::*;
     use crate::{
         body,
-        http::{
-            header::{self, HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::assert_body_eq,
     };
 
@@ -457,7 +477,7 @@ mod tests {
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
-        let res = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let res = HttpResponse::Ok().json(["v1", "v2", "v3"]);
         let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);
@@ -465,7 +485,7 @@ mod tests {
         // content type override
         let res = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
-            .json(&vec!["v1", "v2", "v3"]);
+            .json(["v1", "v2", "v3"]);
         let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);
@@ -473,9 +493,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        let resp = HttpResponse::Ok().body(
-            serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
-        );
+        let resp = HttpResponse::Ok()
+            .body(serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap());
 
         assert_eq!(
             body::to_bytes(resp.into_body()).await.unwrap().as_ref(),

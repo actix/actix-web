@@ -1,0 +1,5 @@
+error: scopes should not have trailing slashes; see https://docs.rs/actix-web/4/actix_web/struct.Scope.html#avoid-trailing-slashes
+ --> tests/trybuild/scope-trailing-slash.rs:3:9
+  |
+3 | #[scope("/api/")]
+  |         ^^^^^^^

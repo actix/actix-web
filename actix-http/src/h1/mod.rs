@@ -17,14 +17,16 @@ mod timer;
 mod upgrade;
 mod utils;
 
-pub use self::client::{ClientCodec, ClientPayloadCodec};
-pub use self::codec::Codec;
-pub use self::dispatcher::Dispatcher;
-pub use self::expect::ExpectHandler;
-pub use self::payload::Payload;
-pub use self::service::{H1Service, H1ServiceHandler};
-pub use self::upgrade::UpgradeHandler;
-pub use self::utils::SendResponse;
+pub use self::{
+    client::{ClientCodec, ClientPayloadCodec},
+    codec::Codec,
+    dispatcher::Dispatcher,
+    expect::ExpectHandler,
+    payload::Payload,
+    service::{H1Service, H1ServiceHandler},
+    upgrade::UpgradeHandler,
+    utils::SendResponse,
+};
 
 #[derive(Debug)]
 /// Codec message

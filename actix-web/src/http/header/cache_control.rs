@@ -47,13 +47,13 @@ common_header! {
     (CacheControl, header::CACHE_CONTROL) => (CacheDirective)+
 
     test_parse_and_format {
-        common_header_test!(no_headers, vec![b""; 0], None);
-        common_header_test!(empty_header, vec![b""; 1], None);
-        common_header_test!(bad_syntax, vec![b"foo="], None);
+        common_header_test!(no_headers, [b""; 0], None);
+        common_header_test!(empty_header, [b""; 1], None);
+        common_header_test!(bad_syntax, [b"foo="], None);
 
         common_header_test!(
             multiple_headers,
-            vec![&b"no-cache"[..], &b"private"[..]],
+            [&b"no-cache"[..], &b"private"[..]],
             Some(CacheControl(vec![
                 CacheDirective::NoCache,
                 CacheDirective::Private,
@@ -62,7 +62,7 @@ common_header! {
 
         common_header_test!(
             argument,
-            vec![b"max-age=100, private"],
+            [b"max-age=100, private"],
             Some(CacheControl(vec![
                 CacheDirective::MaxAge(100),
                 CacheDirective::Private,
@@ -71,7 +71,7 @@ common_header! {
 
         common_header_test!(
             extension,
-            vec![b"foo, bar=baz"],
+            [b"foo, bar=baz"],
             Some(CacheControl(vec![
                 CacheDirective::Extension("foo".to_owned(), None),
                 CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned())),
@@ -176,7 +176,7 @@ impl str::FromStr for CacheDirective {
 
             _ => match s.find('=') {
                 Some(idx) if idx + 1 < s.len() => {
-                    match (&s[..idx], (&s[idx + 1..]).trim_matches('"')) {
+                    match (&s[..idx], s[idx + 1..].trim_matches('"')) {
                         ("max-age", secs) => secs.parse().map(MaxAge).map_err(Some),
                         ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
                         ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),

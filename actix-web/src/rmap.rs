@@ -1,12 +1,14 @@
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cell::RefCell,
+    collections::HashMap,
     fmt::Write as _,
+    hash::{BuildHasher, Hash},
     rc::{Rc, Weak},
 };
 
 use actix_router::ResourceDef;
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use url::Url;
 
 use crate::{error::UrlGenerationError, request::HttpRequest};
@@ -19,7 +21,7 @@ pub struct ResourceMap {
 
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
-    named: AHashMap<String, Rc<ResourceMap>>,
+    named: FoldHashMap<String, Rc<ResourceMap>>,
 
     parent: RefCell<Weak<ResourceMap>>,
 
@@ -32,7 +34,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             pattern: root,
-            named: AHashMap::default(),
+            named: FoldHashMap::default(),
             parent: RefCell::new(Weak::new()),
             nodes: Some(Vec::new()),
         }
@@ -81,12 +83,12 @@ impl ResourceMap {
                 "`pattern` and `nested` mismatch"
             );
             // parents absorb references to the named resources of children
-            self.named.extend(new_node.named.clone().into_iter());
+            self.named.extend(new_node.named.clone());
             self.nodes.as_mut().unwrap().push(new_node);
         } else {
             let new_node = Rc::new(ResourceMap {
                 pattern: pattern.clone(),
-                named: AHashMap::default(),
+                named: FoldHashMap::default(),
                 parent: RefCell::new(Weak::new()),
                 nodes: None,
             });
@@ -136,10 +138,60 @@ impl ResourceMap {
             .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
                 node.pattern
                     .resource_path_from_iter(&mut acc, &mut elements)
-                    .then(|| acc)
+                    .then_some(acc)
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using map of dynamic segment values.
+    ///
+    /// Check [`HttpRequest::url_for_map`] for detailed information.
+    pub fn url_for_map<K, V, S>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        let path = self
+            .named
+            .get(name)
+            .ok_or(UrlGenerationError::ResourceNotFound)?
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
+                node.pattern
+                    .resource_path_from_map(&mut acc, elements)
+                    .then_some(acc)
+            })
+            .ok_or(UrlGenerationError::NotEnoughElements)?;
+
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using an iterator of key-value pairs.
+    ///
+    /// Check [`HttpRequest::url_for_iter`] for detailed information.
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: I,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        let elements = elements.into_iter().collect::<FoldHashMap<K, V>>();
+        self.url_for_map(req, name, &elements)
+    }
+
+    fn url_from_path(&self, req: &HttpRequest, path: String) -> Result<Url, UrlGenerationError> {
         let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
             // build full URL from connection info parts and resource path
             let conn = req.connection_info();
@@ -149,7 +201,7 @@ impl ResourceMap {
             // external resource; third slash would be the root slash in the path
             let third_slash_index = path
                 .char_indices()
-                .filter_map(|(i, c)| (c == '/').then(|| i))
+                .filter_map(|(i, c)| (c == '/').then_some(i))
                 .nth(2)
                 .unwrap_or(path.len());
 
@@ -449,12 +501,12 @@ mod tests {
         let req = req.to_http_request();
 
         let url = rmap
-            .url_for(&req, "post", &["u123", "foobar"])
+            .url_for(&req, "post", ["u123", "foobar"])
             .unwrap()
             .to_string();
         assert_eq!(url, "http://localhost:8888/user/u123/post/foobar");
 
-        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
     }
 
     #[test]
@@ -490,7 +542,7 @@ mod tests {
         assert_eq!(url.path(), OUTPUT);
 
         assert!(rmap.url_for(&req, "external.2", INPUT).is_err());
-        assert!(rmap.url_for(&req, "external.2", &[""]).is_err());
+        assert!(rmap.url_for(&req, "external.2", [""]).is_err());
     }
 
     #[test]
@@ -524,7 +576,7 @@ mod tests {
         let req = req.to_http_request();
 
         assert_eq!(
-            rmap.url_for(&req, "duck", &["abcd"]).unwrap().to_string(),
+            rmap.url_for(&req, "duck", ["abcd"]).unwrap().to_string(),
             "https://duck.com/abcd"
         );
     }
@@ -552,9 +604,9 @@ mod tests {
 
         let req = crate::test::TestRequest::default().to_http_request();
 
-        let url = rmap.url_for(&req, "nested", &[""; 0]).unwrap().to_string();
+        let url = rmap.url_for(&req, "nested", [""; 0]).unwrap().to_string();
         assert_eq!(url, "http://localhost:8080/bar/nested");
 
-        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
     }
 }

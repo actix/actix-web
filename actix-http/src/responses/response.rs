@@ -83,13 +83,13 @@ impl<B> Response<B> {
     /// Returns a reference to the head of this response.
     #[inline]
     pub fn head(&self) -> &ResponseHead {
-        &*self.head
+        &self.head
     }
 
     /// Returns a mutable reference to the head of this response.
     #[inline]
     pub fn head_mut(&mut self) -> &mut ResponseHead {
-        &mut *self.head
+        &mut self.head
     }
 
     /// Returns the status code of this response.

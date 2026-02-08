@@ -1,0 +1,8 @@
+disallowed-names = [
+  "..",
+  "e", # no single letter error bindings
+]
+disallowed-methods = [
+  { path = "std::cell::RefCell::default()", reason = "prefer explicit inner type default (remove allow-invalid when rust-lang/rust-clippy/#8581 is fixed)", allow-invalid = true },
+  { path = "std::rc::Rc::default()", reason = "prefer explicit inner type default (remove allow-invalid when rust-lang/rust-clippy/#8581 is fixed)", allow-invalid = true },
+]

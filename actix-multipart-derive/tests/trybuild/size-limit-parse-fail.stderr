@@ -1,0 +1,17 @@
+error: Could not parse size limit `2 bytes`: couldn't parse "bytes" into a known SI unit, Failed to parse unit "byt..."
+ --> tests/trybuild/size-limit-parse-fail.rs:6:5
+  |
+6 |     description: Text<String>,
+  |     ^^^^^^^^^^^
+
+error: Could not parse size limit `2 megabytes`: couldn't parse "megabytes" into a known SI unit, Failed to parse unit "meg..."
+  --> tests/trybuild/size-limit-parse-fail.rs:12:5
+   |
+12 |     description: Text<String>,
+   |     ^^^^^^^^^^^
+
+error: Could not parse size limit `four meters`: couldn't parse "four meters" into a ByteSize, cannot parse float from empty string
+  --> tests/trybuild/size-limit-parse-fail.rs:18:5
+   |
+18 |     description: Text<String>,
+   |     ^^^^^^^^^^^

@@ -20,9 +20,8 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    body::EitherBody, error::UrlencodedError, extract::FromRequest,
-    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
-    Responder,
+    body::EitherBody, error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH,
+    web, Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -35,6 +34,7 @@ use crate::{
 ///
 /// Use [`FormConfig`] to configure extraction options.
 ///
+/// ## Examples
 /// ```
 /// use actix_web::{post, web};
 /// use serde::Deserialize;
@@ -46,20 +46,18 @@ use crate::{
 ///
 /// // This handler is only called if:
 /// // - request headers declare the content type as `application/x-www-form-urlencoded`
-/// // - request payload is deserialized into a `Info` struct from the URL encoded format
+/// // - request payload deserializes into an `Info` struct from the URL encoded format
 /// #[post("/")]
-/// async fn index(form: web::Form<Info>) -> String {
+/// async fn index(web::Form(form): web::Form<Info>) -> String {
 ///     format!("Welcome {}!", form.name)
 /// }
 /// ```
 ///
 /// # Responder
-/// The `Form` type also allows you to create URL encoded responses:
-/// simply return a value of type Form<T> where T is the type to be URL encoded.
-/// The type  must implement [`serde::Serialize`].
+/// The `Form` type also allows you to create URL encoded responses by returning a value of type
+/// `Form<T>` where `T` is the type to be URL encoded, as long as `T` implements [`Serialize`].
 ///
-/// Responses use
-///
+/// ## Examples
 /// ```
 /// use actix_web::{get, web};
 /// use serde::Serialize;
@@ -77,7 +75,7 @@ use crate::{
 /// #[get("/")]
 /// async fn index() -> web::Form<SomeForm> {
 ///     web::Form(SomeForm {
-///         name: "actix".into(),
+///         name: "actix".to_owned(),
 ///         age: 123
 ///     })
 /// }
@@ -418,13 +416,12 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::test::TestRequest;
     use crate::{
         http::{
-            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        test::assert_body_eq,
+        test::{assert_body_eq, TestRequest},
     };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]

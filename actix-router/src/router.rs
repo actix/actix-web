@@ -97,6 +97,7 @@ impl<T, U> RouterBuilder<T, U> {
         ctx: U,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
         self.routes.push((rdef, val, ctx));
+        #[allow(clippy::map_identity)] // map is used to distribute &mut-ness to tuple elements
         self.routes
             .last_mut()
             .map(|(rdef, val, ctx)| (rdef, val, ctx))
@@ -117,11 +118,7 @@ where
     U: Default,
 {
     /// Registers resource for specified path.
-    pub fn path(
-        &mut self,
-        path: impl IntoPatterns,
-        val: T,
-    ) -> (&mut ResourceDef, &mut T, &mut U) {
+    pub fn path(&mut self, path: impl IntoPatterns, val: T) -> (&mut ResourceDef, &mut T, &mut U) {
         self.push(ResourceDef::new(path), val, U::default())
     }
 
@@ -142,10 +139,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::path::Path;
-    use crate::router::{ResourceId, Router};
+    use crate::{
+        path::Path,
+        router::{ResourceId, Router},
+    };
 
     #[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::literal_string_with_formatting_args)]
     #[test]
     fn test_recognizer_1() {
         let mut router = Router::<usize>::build();
@@ -188,11 +188,11 @@ mod tests {
         assert_eq!(path.get("file").unwrap(), "file");
         assert_eq!(path.get("ext").unwrap(), "gz");
 
-        let mut path = Path::new("/vtest/ttt/index.html");
+        let mut path = Path::new("/v2/ttt/index.html");
         let (h, info) = router.recognize_mut(&mut path).unwrap();
         assert_eq!(*h, 14);
         assert_eq!(info, ResourceId(4));
-        assert_eq!(path.get("val").unwrap(), "test");
+        assert_eq!(path.get("val").unwrap(), "2");
         assert_eq!(path.get("val2").unwrap(), "ttt");
 
         let mut path = Path::new("/v/blah-blah/index.html");

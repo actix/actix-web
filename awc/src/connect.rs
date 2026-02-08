@@ -13,9 +13,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::{
     any_body::AnyBody,
-    client::{
-        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
-    },
+    client::{Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError},
     ClientResponse,
 };
 
@@ -62,9 +60,9 @@ impl ConnectResponse {
     pub fn into_client_response(self) -> ClientResponse {
         match self {
             ConnectResponse::Client(res) => res,
-            _ => panic!(
-                "ClientResponse only reachable with ConnectResponse::ClientResponse variant"
-            ),
+            _ => {
+                panic!("ClientResponse only reachable with ConnectResponse::ClientResponse variant")
+            }
         }
     }
 
@@ -75,9 +73,9 @@ impl ConnectResponse {
     pub fn into_tunnel_response(self) -> (ResponseHead, Framed<BoxedSocket, ClientCodec>) {
         match self {
             ConnectResponse::Tunnel(head, framed) => (head, framed),
-            _ => panic!(
-                "TunnelResponse only reachable with ConnectResponse::TunnelResponse variant"
-            ),
+            _ => {
+                panic!("TunnelResponse only reachable with ConnectResponse::TunnelResponse variant")
+            }
         }
     }
 }
