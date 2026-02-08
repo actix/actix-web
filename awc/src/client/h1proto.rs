@@ -34,6 +34,35 @@ where
     B: MessageBody,
     B::Error: Into<BoxError>,
 {
+    actix_rt::pin!(body);
+
+    let orig_length = body.size();
+    let mut length = orig_length;
+    let mut first_chunk = None;
+
+    // This avoids sending `Transfer-Encoding: chunked` for requests with an empty body stream.
+    // https://github.com/actix/actix-web/issues/2320
+    if matches!(orig_length, BodySize::Stream) {
+        enum Peek<E> {
+            Pending,
+            Item(Result<Bytes, E>),
+            Eof,
+        }
+
+        match poll_fn(|cx| match body.as_mut().poll_next(cx) {
+            Poll::Pending => Poll::Ready(Peek::Pending),
+            Poll::Ready(Some(res)) => Poll::Ready(Peek::Item(res)),
+            Poll::Ready(None) => Poll::Ready(Peek::Eof),
+        })
+        .await
+        {
+            Peek::Pending => {}
+            Peek::Eof => length = BodySize::Sized(0),
+            Peek::Item(Ok(chunk)) => first_chunk = Some(chunk),
+            Peek::Item(Err(err)) => return Err(SendRequestError::Body(err.into())),
+        }
+    }
+
     // set request host header
     if !head.as_ref().headers.contains_key(HOST)
         && !head.extra_headers().iter().any(|h| h.contains_key(HOST))
@@ -67,7 +96,7 @@ where
     // Check EXPECT header and enable expect handle flag accordingly.
     // See https://datatracker.ietf.org/doc/html/rfc7231#section-5.1.1
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
-        match body.size() {
+        match orig_length {
             BodySize::None | BodySize::Sized(0) => {
                 let keep_alive = framed.codec_ref().keep_alive();
                 framed.io_mut().on_release(keep_alive);
@@ -86,7 +115,7 @@ where
 
     // special handle for EXPECT request.
     let (do_send, mut res_head) = if is_expect {
-        pin_framed.send((head, body.size()).into()).await?;
+        pin_framed.send((head, length).into()).await?;
 
         let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
             .await
@@ -96,18 +125,18 @@ where
         // and current head would be used as final response head.
         (head.status == StatusCode::CONTINUE, Some(head))
     } else {
-        pin_framed.feed((head, body.size()).into()).await?;
+        pin_framed.feed((head, length).into()).await?;
 
         (true, None)
     };
 
     if do_send {
         // send request body
-        match body.size() {
+        match length {
             BodySize::None | BodySize::Sized(0) => {
                 poll_fn(|cx| pin_framed.as_mut().flush(cx)).await?;
             }
-            _ => send_body(body, pin_framed.as_mut()).await?,
+            _ => send_body(body.as_mut(), pin_framed.as_mut(), first_chunk).await?,
         };
 
         // read response and init read body
@@ -157,15 +186,18 @@ where
 
 /// send request body to the peer
 pub(crate) async fn send_body<Io, B>(
-    body: B,
+    mut body: Pin<&mut B>,
     mut framed: Pin<&mut Framed<Io, h1::ClientCodec>>,
+    first_chunk: Option<Bytes>,
 ) -> Result<(), SendRequestError>
 where
     Io: ConnectionIo,
     B: MessageBody,
     B::Error: Into<BoxError>,
 {
-    actix_rt::pin!(body);
+    if let Some(chunk) = first_chunk {
+        framed.as_mut().write(h1::Message::Chunk(Some(chunk)))?;
+    }
 
     let mut eof = false;
     while !eof {
