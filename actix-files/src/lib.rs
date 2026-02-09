@@ -514,6 +514,30 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_range_header_from_zero_to_end_returns_partial_content() {
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
+
+        let response = srv
+            .get("/tests/test.binary")
+            .insert_header((header::RANGE, "bytes=0-"))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes 0-99/100");
+
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "100");
+
+        // Should be no transfer-encoding
+        let transfer_encoding = response.headers().get(header::TRANSFER_ENCODING);
+        assert!(transfer_encoding.is_none());
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 

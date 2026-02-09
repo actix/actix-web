@@ -550,6 +550,7 @@ impl NamedFile {
 
         let mut length = self.md.len();
         let mut offset = 0;
+        let mut ranged_req = false;
 
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
@@ -558,6 +559,7 @@ impl NamedFile {
                     .ok()
                     .and_then(|ranges| ranges.first().copied())
                 {
+                    ranged_req = true;
                     length = range.length;
                     offset = range.start;
 
@@ -606,7 +608,7 @@ impl NamedFile {
 
         let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
-        if offset != 0 || length != self.md.len() {
+        if ranged_req {
             res.status(StatusCode::PARTIAL_CONTENT);
         }
 
