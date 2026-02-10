@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Support `deserialize_any` in `PathDeserializer` (enables derived `#[serde(untagged)]` enums in path segments). [#2881]
+
+[#2881]: https://github.com/actix/actix-web/pull/2881
 
 ## 0.5.3
 
