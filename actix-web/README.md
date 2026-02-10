@@ -9,7 +9,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
 [![Documentation](https://docs.rs/actix-web/badge.svg?version=4.12.1)](https://docs.rs/actix-web/4.12.1)
-![MSRV](https://img.shields.io/badge/rustc-1.83+-ab6000.svg)
+![MSRV](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/4.12.1/status.svg)](https://deps.rs/crate/actix-web/4.12.1)
 <br />

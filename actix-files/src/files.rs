@@ -50,6 +50,7 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    try_compressed: bool,
     read_mode_threshold: u64,
 }
 
@@ -76,6 +77,7 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
             read_mode_threshold: self.read_mode_threshold,
         }
     }
@@ -96,6 +98,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
+    /// If `serve_from` cannot be canonicalized at startup, an error is logged and the original
+    /// path is preserved. Requests will return `404 Not Found` until the path exists.
+    ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
@@ -105,7 +110,8 @@ impl Files {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
                 log::error!("Specified path is not a directory: {:?}", orig_dir);
-                PathBuf::new()
+                // Preserve original path so requests don't fall back to CWD.
+                orig_dir
             }
         };
 
@@ -124,6 +130,7 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            try_compressed: false,
             read_mode_threshold: 0,
         }
     }
@@ -220,11 +227,11 @@ impl Files {
 
     /// Sets the size threshold that determines file read mode (sync/async).
     ///
-    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
-    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
-    /// files.
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
     ///
-    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
     ///
     /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
@@ -347,6 +354,15 @@ impl Files {
         self.hidden_files = true;
         self
     }
+
+    /// Attempts to search for a suitable pre-compressed version of a file on disk before falling
+    /// back to the uncompressed version.
+    ///
+    /// Currently, `.gz`, `.br`, and `.zst` files are supported.
+    pub fn try_compressed(mut self) -> Self {
+        self.try_compressed = true;
+        self
+    }
 }
 
 impl HttpServiceFactory for Files {
@@ -398,6 +414,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
             size_threshold: self.read_mode_threshold,
             with_permanent_redirect: self.with_permanent_redirect,
         };

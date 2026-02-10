@@ -37,13 +37,12 @@ mod range;
 mod service;
 
 pub use self::{
-    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
-    range::HttpRange, service::FilesService,
+    chunked::ChunkedReadFile, directory::Directory, error::UriSegmentError, files::Files,
+    named::NamedFile, path_buf::PathBufWrap, range::HttpRange, service::FilesService,
 };
 use self::{
     directory::{directory_listing, DirectoryRenderer},
     error::FilesError,
-    path_buf::PathBufWrap,
 };
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
@@ -472,6 +471,24 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_empty_range_headers() {
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
+
+        for range in ["", "bytes="] {
+            let response = srv
+                .get("/tests/test.binary")
+                .insert_header((header::RANGE, range))
+                .send()
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+            let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+            assert_eq!(content_range.to_str().unwrap(), "bytes */100");
+        }
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -494,6 +511,30 @@ mod tests {
             .unwrap();
         let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
         assert_eq!(content_range.to_str().unwrap(), "bytes */100");
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_range_header_from_zero_to_end_returns_partial_content() {
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
+
+        let response = srv
+            .get("/tests/test.binary")
+            .insert_header((header::RANGE, "bytes=0-"))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes 0-99/100");
+
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "100");
+
+        // Should be no transfer-encoding
+        let transfer_encoding = response.headers().get(header::TRANSFER_ENCODING);
+        assert!(transfer_encoding.is_none());
     }
 
     #[actix_rt::test]
@@ -776,6 +817,16 @@ mod tests {
         let service = Files::new("/", "./missing").new_service(()).await.unwrap();
 
         let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_bad_directory_does_not_serve_cwd_files() {
+        let service = Files::new("/", "./missing").new_service(()).await.unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
         let resp = test::call_service(&service, req).await;
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);

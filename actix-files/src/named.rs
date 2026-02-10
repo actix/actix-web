@@ -91,6 +91,55 @@ pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
 
+pub(crate) fn get_content_type_and_disposition(
+    path: &Path,
+) -> Result<(mime::Mime, ContentDisposition), io::Error> {
+    let filename = match path.file_name() {
+        Some(name) => name.to_string_lossy(),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Provided path has no filename",
+            ));
+        }
+    };
+
+    let ct = mime_guess::from_path(path).first_or_octet_stream();
+
+    let disposition = match ct.type_() {
+        mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
+        mime::APPLICATION => match ct.subtype() {
+            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        },
+        _ => DispositionType::Attachment,
+    };
+
+    // replace special characters in filenames which could occur on some filesystems
+    let filename_s = filename
+        .replace('\n', "%0A") // \n line break
+        .replace('\x0B', "%0B") // \v vertical tab
+        .replace('\x0C', "%0C") // \f form feed
+        .replace('\r', "%0D"); // \r carriage return
+    let mut parameters = vec![DispositionParam::Filename(filename_s)];
+
+    if !filename.is_ascii() {
+        parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+            charset: Charset::Ext(String::from("UTF-8")),
+            language_tag: None,
+            value: filename.into_owned().into_bytes(),
+        }))
+    }
+
+    let cd = ContentDisposition {
+        disposition,
+        parameters,
+    };
+
+    Ok((ct, cd))
+}
+
 impl NamedFile {
     /// Creates an instance from a previously opened file.
     ///
@@ -117,52 +166,7 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) = {
-            let filename = match path.file_name() {
-                Some(name) => name.to_string_lossy(),
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Provided path has no filename",
-                    ));
-                }
-            };
-
-            let ct = mime_guess::from_path(&path).first_or_octet_stream();
-
-            let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
-                mime::APPLICATION => match ct.subtype() {
-                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
-                    _ => DispositionType::Attachment,
-                },
-                _ => DispositionType::Attachment,
-            };
-
-            // replace special characters in filenames which could occur on some filesystems
-            let filename_s = filename
-                .replace('\n', "%0A") // \n line break
-                .replace('\x0B', "%0B") // \v vertical tab
-                .replace('\x0C', "%0C") // \f form feed
-                .replace('\r', "%0D"); // \r carriage return
-            let mut parameters = vec![DispositionParam::Filename(filename_s)];
-
-            if !filename.is_ascii() {
-                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
-                    charset: Charset::Ext(String::from("UTF-8")),
-                    language_tag: None,
-                    value: filename.into_owned().into_bytes(),
-                }))
-            }
-
-            let cd = ContentDisposition {
-                disposition,
-                parameters,
-            };
-
-            (ct, cd)
-        };
+        let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
         let md = {
             #[cfg(not(feature = "experimental-io-uring"))]
@@ -357,11 +361,11 @@ impl NamedFile {
 
     /// Sets the size threshold that determines file read mode (sync/async).
     ///
-    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
-    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
-    /// files.
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
     ///
-    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
     ///
     /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
@@ -546,13 +550,18 @@ impl NamedFile {
 
         let mut length = self.md.len();
         let mut offset = 0;
+        let mut ranged_req = false;
 
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
-                    length = ranges[0].length;
-                    offset = ranges[0].start;
+                if let Some(range) = HttpRange::parse(ranges_header, length)
+                    .ok()
+                    .and_then(|ranges| ranges.first().copied())
+                {
+                    ranged_req = true;
+                    length = range.length;
+                    offset = range.start;
 
                     // When a Content-Encoding header is present in a 206 partial content response
                     // for video content, it prevents browser video players from starting playback
@@ -599,7 +608,7 @@ impl NamedFile {
 
         let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
-        if offset != 0 || length != self.md.len() {
+        if ranged_req {
             res.status(StatusCode::PARTIAL_CONTENT);
         }
 
@@ -705,5 +714,16 @@ impl HttpServiceFactory for NamedFile {
             self,
             None,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audio_files_use_inline_content_disposition() {
+        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
+        assert_eq!(cd.disposition, DispositionType::Inline);
     }
 }
