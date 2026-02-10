@@ -263,13 +263,9 @@ impl ClientRequest {
     /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies
+            .get_or_insert_with(CookieJar::new)
+            .add(cookie.into_owned());
         self
     }
 

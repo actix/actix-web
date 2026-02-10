@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
+- Fix handling of `bytes=0-`
+
+[#2615]: https://github.com/actix/actix-web/pull/2615
+
 ## 0.6.10
 
 ### Security Notice

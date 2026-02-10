@@ -1,4 +1,9 @@
-use std::{fmt, io, ops::Deref, path::PathBuf, rc::Rc};
+use std::{
+    fmt, io,
+    ops::Deref,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use actix_web::{
     body::BoxBody,
@@ -39,6 +44,7 @@ pub struct FilesServiceInner {
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
+    pub(crate) try_compressed: bool,
     pub(crate) size_threshold: u64,
     pub(crate) with_permanent_redirect: bool,
 }
@@ -64,7 +70,12 @@ impl FilesService {
         }
     }
 
-    fn serve_named_file(&self, req: ServiceRequest, mut named_file: NamedFile) -> ServiceResponse {
+    fn serve_named_file_with_encoding(
+        &self,
+        req: ServiceRequest,
+        mut named_file: NamedFile,
+        encoding: header::ContentEncoding,
+    ) -> ServiceResponse {
         if let Some(ref mime_override) = self.mime_override {
             let new_disposition = mime_override(&named_file.content_type.type_());
             named_file.content_disposition.disposition = new_disposition;
@@ -72,10 +83,34 @@ impl FilesService {
         named_file.flags = self.file_flags;
 
         let (req, _) = req.into_parts();
-        let res = named_file
+        let mut res = named_file
             .read_mode_threshold(self.size_threshold)
             .into_response(&req);
+
+        let header_value = match encoding {
+            header::ContentEncoding::Brotli => Some("br"),
+            header::ContentEncoding::Gzip => Some("gzip"),
+            header::ContentEncoding::Zstd => Some("zstd"),
+            header::ContentEncoding::Identity => None,
+            // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here
+            _ => unreachable!(),
+        };
+        if let Some(header_value) = header_value {
+            res.headers_mut().insert(
+                header::CONTENT_ENCODING,
+                header::HeaderValue::from_static(header_value),
+            );
+            // Response representation varies by Accept-Encoding when serving pre-compressed assets.
+            res.headers_mut().append(
+                header::VARY,
+                header::HeaderValue::from_static("accept-encoding"),
+            );
+        }
         ServiceResponse::new(req, res)
+    }
+
+    fn serve_named_file(&self, req: ServiceRequest, named_file: NamedFile) -> ServiceResponse {
+        self.serve_named_file_with_encoding(req, named_file, header::ContentEncoding::Identity)
     }
 
     fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
@@ -138,6 +173,15 @@ impl Service<ServiceRequest> for FilesService {
 
             // full file path
             let path = this.directory.join(&path_on_disk);
+
+            // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
+            // Still handle directories (index/listing) through the normal branch below.
+            if this.try_compressed && !path.is_dir() {
+                if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                    return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
+                }
+            }
+
             if let Err(err) = path.canonicalize() {
                 return this.handle_err(err, req).await;
             }
@@ -163,6 +207,16 @@ impl Service<ServiceRequest> for FilesService {
                 match this.index {
                     Some(ref index) => {
                         let named_path = path.join(index);
+                        if this.try_compressed {
+                            if let Some((named_file, encoding)) =
+                                find_compressed(&req, &named_path).await
+                            {
+                                return Ok(
+                                    this.serve_named_file_with_encoding(req, named_file, encoding)
+                                );
+                            }
+                        }
+                        // fallback to the uncompressed version
                         match NamedFile::open_async(named_path).await {
                             Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                             Err(_) if this.show_index => Ok(this.show_index(req, path)),
@@ -182,5 +236,86 @@ impl Service<ServiceRequest> for FilesService {
                 }
             }
         })
+    }
+}
+
+/// Flate doesn't have an accepted file extension, so it is not included here.
+const SUPPORTED_PRECOMPRESSION_ENCODINGS: &[header::ContentEncoding] = &[
+    header::ContentEncoding::Brotli,
+    header::ContentEncoding::Gzip,
+    header::ContentEncoding::Zstd,
+    header::ContentEncoding::Identity,
+];
+
+/// Searches disk for an acceptable alternate encoding of the content at the given path, as
+/// preferred by the request's `Accept-Encoding` header. Returns the corresponding `NamedFile` with
+/// the most appropriate supported encoding, if any exist.
+async fn find_compressed(
+    req: &ServiceRequest,
+    original_path: &Path,
+) -> Option<(NamedFile, header::ContentEncoding)> {
+    use actix_web::HttpMessage;
+    use header::{AcceptEncoding, ContentEncoding, Encoding};
+
+    // Retrieve the content type and content disposition based on the original filename. If we
+    // can't get these successfully, don't even try to find a compressed file.
+    let (content_type, content_disposition) =
+        match crate::named::get_content_type_and_disposition(original_path) {
+            Ok(values) => values,
+            Err(_) => return None,
+        };
+
+    let accept_encoding = req.get_header::<AcceptEncoding>()?;
+
+    let mut supported = SUPPORTED_PRECOMPRESSION_ENCODINGS
+        .iter()
+        .copied()
+        .map(Encoding::Known)
+        .collect::<Vec<_>>();
+
+    // Only move the original content-type/disposition into the chosen compressed file once.
+    let mut content_type = Some(content_type);
+    let mut content_disposition = Some(content_disposition);
+
+    loop {
+        // Select next acceptable encoding (honouring q=0 rejections) from remaining supported set.
+        let chosen = accept_encoding.negotiate(supported.iter())?;
+
+        let encoding = match chosen {
+            Encoding::Known(enc) => enc,
+            // No supported encoding should ever be unknown here.
+            Encoding::Unknown(_) => return None,
+        };
+
+        // Identity indicates there is no acceptable pre-compressed representation.
+        if encoding == ContentEncoding::Identity {
+            return None;
+        }
+
+        let extension = match encoding {
+            ContentEncoding::Brotli => ".br",
+            ContentEncoding::Gzip => ".gz",
+            ContentEncoding::Zstd => ".zst",
+            ContentEncoding::Identity => unreachable!(),
+            // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here.
+            _ => unreachable!(),
+        };
+
+        let mut compressed_path = original_path.to_owned();
+        let mut filename = compressed_path.file_name()?.to_owned();
+        filename.push(extension);
+        compressed_path.set_file_name(filename);
+
+        match NamedFile::open_async(&compressed_path).await {
+            Ok(mut named_file) => {
+                named_file.content_type = content_type.take().unwrap();
+                named_file.content_disposition = content_disposition.take().unwrap();
+                return Some((named_file, encoding));
+            }
+            // Ignore errors while searching disk for a suitable encoding.
+            Err(_) => {
+                supported.retain(|enc| enc != &chosen);
+            }
+        }
     }
 }
