@@ -212,7 +212,7 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
     unsupported_type!(deserialize_identifier, "identifier");
     unsupported_type!(deserialize_ignored_any, "ignored_any");
 
-    parse_single_value!(deserialize_any, deserialize_str);
+    parse_single_value!(deserialize_any);
     parse_single_value!(deserialize_bool);
     parse_single_value!(deserialize_i8);
     parse_single_value!(deserialize_i16);
@@ -430,11 +430,37 @@ impl<'de> Deserializer<'de> for Value<'de> {
         Err(de::value::Error::custom("unsupported type: tuple struct"))
     }
 
-    fn deserialize_any<V>(self, v: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        self.deserialize_str(v)
+        let decoded = FULL_QUOTER
+            .with(|q| q.requote_str_lossy(self.value))
+            .map(Cow::Owned)
+            .unwrap_or(Cow::Borrowed(self.value));
+
+        let s = decoded.as_ref();
+        // We have to do it manually here on behalf of serde.
+        if let Ok(v) = s.parse::<u64>() {
+            if let Ok(v) = u32::try_from(v) {
+                return visitor.visit_u32(v);
+            }
+
+            return visitor.visit_u64(v);
+        }
+
+        if let Ok(v) = s.parse::<i64>() {
+            if let Ok(v) = i32::try_from(v) {
+                return visitor.visit_i32(v);
+            }
+
+            return visitor.visit_i64(v);
+        }
+
+        match decoded {
+            Cow::Borrowed(value) => visitor.visit_borrowed_str(value),
+            Cow::Owned(value) => visitor.visit_string(value),
+        }
     }
 
     unsupported_type!(deserialize_seq, "seq");
@@ -731,10 +757,7 @@ mod tests {
                 impl<'de> Visitor<'de> for Vis {
                     type Value = AnyEnumCustom;
 
-                    fn expecting<'a>(
-                        &self,
-                        f: &mut std::fmt::Formatter<'a>,
-                    ) -> std::fmt::Result {
+                    fn expecting<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result {
                         write!(f, "my thing")
                     }
 
@@ -743,6 +766,26 @@ mod tests {
                         E: serde::de::Error,
                     {
                         Ok(AnyEnumCustom::Int(v))
+                    }
+
+                    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match u32::try_from(v) {
+                            Ok(v) => Ok(AnyEnumCustom::Int(v)),
+                            Err(_) => Ok(AnyEnumCustom::String(format!("some str: {v}"))),
+                        }
+                    }
+
+                    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match u32::try_from(v) {
+                            Ok(v) => Ok(AnyEnumCustom::Int(v)),
+                            Err(_) => Ok(AnyEnumCustom::String(format!("some str: {v}"))),
+                        }
                     }
 
                     fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
@@ -788,11 +831,9 @@ mod tests {
         let mut path = Path::new("/other/123");
         rdef.capture_match_info(&mut path);
         let de = PathDeserializer::new(&path);
-        let segment: (AnyEnumCustom, AnyEnumDerive) =
-            serde::Deserialize::deserialize(de).unwrap();
+        let segment: (AnyEnumCustom, AnyEnumDerive) = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(segment.0, AnyEnumCustom::Other);
-        // Deserializes to `String` instead of `Int` because deserializing defaults to `str` and serde doesn't automatically implement parsing numbers from `&str`s
-        assert_eq!(segment.1, AnyEnumDerive::String("123".to_string()));
+        assert_eq!(segment.1, AnyEnumDerive::Int(123));
 
         // map
         #[derive(Deserialize)]
