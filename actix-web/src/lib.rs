@@ -55,7 +55,7 @@
 //! - SSL support using OpenSSL or Rustls
 //! - Middlewares ([Logger, Session, CORS, etc](middleware))
 //! - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-//! - Runs on stable Rust 1.54+
+//! - Runs on stable Rust 1.88+
 //!
 //! # Crate Features
 //! - `cookies` - cookies support (enabled by default)
@@ -69,6 +69,11 @@
 //! - `rustls-0_22` - HTTPS support via `rustls` 0.22 crate, supports `HTTP/2`
 //! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate, supports `HTTP/2`
 //! - `secure-cookies` - secure cookies support
+//!
+//! ## Experimental features
+//! To enable faster release iterations, we mark some features as experimental.
+//! These features are prefixed with `experimental` and a breaking change may happen at any release.
+//! Please use them in a production environment at your own risk.
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
