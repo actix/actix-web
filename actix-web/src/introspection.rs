@@ -1006,10 +1006,7 @@ fn format_reachability(item: &IntrospectionReportItem) -> String {
             .iter()
             .map(|note| sanitize_text(note))
             .collect::<Vec<_>>();
-        format!(
-            " | PotentiallyUnreachable | Notes: {:?}",
-            notes
-        )
+        format!(" | PotentiallyUnreachable | Notes: {:?}", notes)
     }
 }
 
