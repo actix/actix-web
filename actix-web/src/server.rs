@@ -29,6 +29,7 @@ struct Socket {
 struct Config {
     host: Option<String>,
     keep_alive: KeepAlive,
+    tcp_nodelay: Option<bool>,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     h1_allow_half_closed: bool,
@@ -115,6 +116,7 @@ where
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
+                tcp_nodelay: None,
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
@@ -152,6 +154,15 @@ where
     /// By default keep-alive is set to 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
         self.config.lock().unwrap().keep_alive = val.into();
+        self
+    }
+
+    /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    ///
+    /// By default, accepted TCP connections keep the OS default.
+    /// This method overrides that behavior for all accepted TCP connections.
+    pub fn tcp_nodelay(self, enabled: bool) -> Self {
+        self.config.lock().unwrap().tcp_nodelay = Some(enabled);
         self
     }
 
@@ -575,6 +586,10 @@ where
                         .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
 
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
                             svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
@@ -619,6 +634,10 @@ where
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
                         .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
+
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
@@ -690,16 +709,19 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -742,16 +764,19 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -809,16 +834,19 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -876,16 +904,19 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -943,17 +974,20 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()

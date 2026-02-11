@@ -18,9 +18,9 @@ use actix_http::{
     Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::pin;
+use actix_rt::{net::TcpStream as RtTcpStream, pin};
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
+use actix_tls::{accept::rustls_0_23::TlsStream, connect::rustls_0_23::webpki_roots_cert_store};
 use actix_utils::future::{err, ok, poll_fn};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
@@ -163,6 +163,48 @@ async fn h2_1() -> io::Result<()> {
                 tls_config_h2(),
                 TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
             )
+    })
+    .await;
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
+    let srv = test_server(move || {
+        HttpService::build()
+            .tcp_nodelay(true)
+            .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
+                data.insert(io.get_ref().0.nodelay().unwrap());
+            })
+            .h2(|req: Request| {
+                assert_eq!(req.conn_data::<bool>(), Some(&true));
+                ok::<_, Error>(Response::ok())
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
+    let srv = test_server(move || {
+        HttpService::build()
+            .tcp_nodelay(false)
+            .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
+                data.insert(io.get_ref().0.nodelay().unwrap());
+            })
+            .h2(|req: Request| {
+                assert_eq!(req.conn_data::<bool>(), Some(&false));
+                ok::<_, Error>(Response::ok())
+            })
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 

@@ -24,6 +24,16 @@ use crate::{
     h1, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
+#[inline]
+fn desired_nodelay(tcp_nodelay: Option<bool>) -> Option<bool> {
+    tcp_nodelay
+}
+
+#[inline]
+fn set_nodelay(stream: &TcpStream, nodelay: bool) {
+    let _ = stream.set_nodelay(nodelay);
+}
+
 /// A [`ServiceFactory`] for HTTP/1.1 and HTTP/2 connections.
 ///
 /// Use [`build`](Self::build) to begin constructing service. Also see [`HttpServiceBuilder`].
@@ -202,7 +212,13 @@ where
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
     {
-        fn_service(|io: TcpStream| async {
+        let tcp_nodelay = self.cfg.tcp_nodelay();
+
+        fn_service(move |io: TcpStream| async move {
+            if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                set_nodelay(&io, nodelay);
+            }
+
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
         })
@@ -216,6 +232,8 @@ where
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
     {
+        let tcp_nodelay = self.cfg.tcp_nodelay();
+
         fn_service(move |io: TcpStream| async move {
             // subset of HTTP/2 preface defined by RFC 9113 §3.4
             // this subset was chosen to maximize likelihood that peeking only once will allow us to
@@ -232,6 +250,10 @@ where
             } else {
                 Protocol::Http1
             };
+
+            if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                set_nodelay(&io, nodelay);
+            }
 
             let peer_addr = io.peer_addr().ok();
             Ok((io, proto, peer_addr))
@@ -322,6 +344,7 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut acceptor = Acceptor::new(acceptor);
 
             if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
@@ -333,7 +356,7 @@ mod openssl {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
                     let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -343,6 +366,10 @@ mod openssl {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref(), nodelay);
+                    }
 
                     let peer_addr = io.get_ref().peer_addr().ok();
                     (io, proto, peer_addr)
@@ -415,6 +442,7 @@ mod rustls_0_20 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -430,7 +458,7 @@ mod rustls_0_20 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -440,6 +468,11 @@ mod rustls_0_20 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -511,6 +544,7 @@ mod rustls_0_21 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -526,7 +560,7 @@ mod rustls_0_21 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -536,6 +570,11 @@ mod rustls_0_21 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -607,6 +646,7 @@ mod rustls_0_22 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -622,7 +662,7 @@ mod rustls_0_22 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -632,6 +672,11 @@ mod rustls_0_22 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -703,6 +748,7 @@ mod rustls_0_23 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -718,7 +764,7 @@ mod rustls_0_23 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -728,6 +774,11 @@ mod rustls_0_23 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })

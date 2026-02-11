@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn app_data() {
         const TEST_VALUE: u32 = 42;
-        let guard = fn_guard(|ctx| dbg!(ctx.app_data::<u32>()) == Some(&TEST_VALUE));
+        let guard = fn_guard(|ctx| ctx.app_data::<u32>() == Some(&TEST_VALUE));
 
         let req = TestRequest::default().app_data(TEST_VALUE).to_srv_request();
         assert!(guard.check(&req.guard_ctx()));
