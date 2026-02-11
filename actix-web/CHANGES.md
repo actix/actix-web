@@ -7,10 +7,12 @@
 - Ignore unparsable cookies in `Cookie` request header.
 - Add `experimental-introspection` feature to report configured routes [#3594]
 - Add config/method for `TCP_NODELAY`. [#3918]
+- Fix panic when `NormalizePath` rewrites a scoped dynamic path before extraction (e.g., `scope("{tail:.*}")` + `Path<String>`). [#3562]
 
 [#3895]: https://github.com/actix/actix-web/pull/3895
 [#3594]: https://github.com/actix/actix-web/pull/3594
 [#3918]: https://github.com/actix/actix-web/pull/3918
+[#3562]: https://github.com/actix/actix-web/issues/3562
 
 ## 4.12.1
 
