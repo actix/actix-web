@@ -37,7 +37,13 @@
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-- Runs on stable Rust 1.72+
+- Runs on stable Rust 1.88+
+
+### Experimental features
+
+To enable faster release iterations, we mark some features as experimental.
+These features are prefixed with `experimental` and a breaking change may happen at any release.
+Please use them in a production environment at your own risk.
 
 ## Documentation
 
