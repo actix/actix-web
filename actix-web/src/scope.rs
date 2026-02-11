@@ -384,14 +384,32 @@ where
 
         // register nested services
         let mut cfg = config.clone_config();
+
+        // Update the prefix for the nested scope
+        #[cfg(feature = "experimental-introspection")]
+        {
+            let scope_id = config.prepare_scope_id();
+            cfg.scope_id_stack.push(scope_id);
+            cfg.update_prefix(&self.rdef);
+        }
+
         self.services
             .into_iter()
             .for_each(|mut srv| srv.register(&mut cfg));
 
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
+        #[cfg(feature = "experimental-introspection")]
+        let origin_scope = cfg.current_prefix.clone();
+
         // external resources
         for mut rdef in mem::take(&mut self.external) {
+            #[cfg(feature = "experimental-introspection")]
+            {
+                cfg.introspector
+                    .borrow_mut()
+                    .register_external(&rdef, &origin_scope);
+            }
             rmap.add(&mut rdef, None);
         }
 

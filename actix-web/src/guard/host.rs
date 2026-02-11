@@ -117,6 +117,29 @@ impl Guard for HostGuard {
         // all conditions passed
         true
     }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn name(&self) -> String {
+        if let Some(ref scheme) = self.scheme {
+            format!("Host({}, scheme={})", self.host, scheme)
+        } else {
+            format!("Host({})", self.host)
+        }
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn details(&self) -> Option<Vec<super::GuardDetail>> {
+        let mut details = vec![super::GuardDetail::Headers(vec![(
+            "host".to_string(),
+            self.host.clone(),
+        )])];
+
+        if let Some(ref scheme) = self.scheme {
+            details.push(super::GuardDetail::Generic(format!("scheme={scheme}")));
+        }
+
+        Some(details)
+    }
 }
 
 #[cfg(test)]
@@ -238,5 +261,24 @@ mod tests {
 
         let host = Host("localhost");
         assert!(!host.check(&req.guard_ctx()));
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    #[test]
+    fn host_guard_details_include_host_and_scheme() {
+        let host = Host("example.com").scheme("https");
+        let details = host.details().expect("missing guard details");
+
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Headers(headers) => headers
+                .iter()
+                .any(|(name, value)| name == "host" && value == "example.com"),
+            _ => false,
+        }));
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Generic(value) => value == "scheme=https",
+            _ => false,
+        }));
+        assert_eq!(host.name(), "Host(example.com, scheme=https)");
     }
 }
