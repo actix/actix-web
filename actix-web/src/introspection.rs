@@ -74,6 +74,7 @@ impl RouteInfo {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GuardReport {
     pub name: String,
@@ -81,6 +82,7 @@ pub struct GuardReport {
     pub details: Vec<GuardDetailReport>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GuardDetailReport {
@@ -89,6 +91,7 @@ pub enum GuardDetailReport {
     Generic { value: String },
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct HeaderReport {
     pub name: String,
@@ -99,6 +102,7 @@ pub struct HeaderReport {
 ///
 /// `origin_scope` is the scope path where the external resource was registered. It is informational
 /// only and does not affect URL generation or routing; external resources are always global.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExternalResourceReportItem {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,6 +136,7 @@ struct ShadowingContext {
 }
 
 /// Node type within an introspection tree.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum ResourceType {
     /// The application root.
@@ -151,6 +156,7 @@ fn resource_type_label(kind: ResourceType) -> &'static str {
 }
 
 /// A node in the introspection tree.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct IntrospectionNode {
     /// The node's classification.
@@ -178,6 +184,7 @@ pub struct IntrospectionNode {
 }
 
 /// A flattened report item for a route.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize)]
 pub struct IntrospectionReportItem {
     /// Full path for the route.
@@ -460,6 +467,7 @@ impl IntrospectionCollector {
 }
 
 /// The finalized introspection tree.
+#[non_exhaustive]
 #[derive(Clone)]
 pub struct IntrospectionTree {
     /// Root node of the tree.
@@ -793,19 +801,122 @@ fn guards_only_methods(guards: &[String], methods: &[Method]) -> bool {
 }
 
 fn has_conflicting_methods(methods: &[Method], guards: &[String]) -> bool {
-    let method_names = method_set(methods);
-    if method_names.len() <= 1 {
+    // This check is best-effort: it tries to determine if the conjunction of method guards can
+    // match any single HTTP method. It relies on guard names since introspection details flatten
+    // guard structure.
+    if method_set(methods).len() <= 1 {
         return false;
     }
 
-    let has_any = guards.iter().any(|name| name.starts_with("AnyGuard("));
-    let has_all = guards.iter().any(|name| name.starts_with("AllGuard("));
+    fn split_top_level_args(mut args: &str) -> Vec<&str> {
+        args = args.trim();
+        if args.is_empty() {
+            return Vec::new();
+        }
 
-    if has_all {
-        return true;
+        let mut parts = Vec::new();
+        let mut depth = 0usize;
+        let mut start = 0usize;
+
+        for (idx, ch) in args.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    parts.push(args[start..idx].trim());
+                    start = idx + 1;
+                }
+                _ => {}
+            }
+        }
+
+        parts.push(args[start..].trim());
+        parts.into_iter().filter(|s| !s.is_empty()).collect()
     }
 
-    !has_any
+    fn parse_method(name: &str) -> Option<BTreeSet<String>> {
+        name.trim().parse::<Method>().ok().map(|method| {
+            let mut set = BTreeSet::new();
+            set.insert(method.to_string());
+            set
+        })
+    }
+
+    fn union_methods(
+        left: Option<BTreeSet<String>>,
+        right: Option<BTreeSet<String>>,
+    ) -> Option<BTreeSet<String>> {
+        match (left, right) {
+            // If any branch doesn't constrain methods, the disjunction doesn't either.
+            (None, _) | (_, None) => None,
+            (Some(mut a), Some(b)) => {
+                a.extend(b);
+                Some(a)
+            }
+        }
+    }
+
+    fn intersect_methods(
+        left: Option<BTreeSet<String>>,
+        right: Option<BTreeSet<String>>,
+    ) -> Option<BTreeSet<String>> {
+        match (left, right) {
+            (None, x) | (x, None) => x,
+            (Some(a), Some(b)) => Some(a.intersection(&b).cloned().collect()),
+        }
+    }
+
+    fn guard_possible_methods(name: &str) -> Option<BTreeSet<String>> {
+        let name = name.trim();
+        if name.is_empty() {
+            return None;
+        }
+
+        if let Some(set) = parse_method(name) {
+            return Some(set);
+        }
+
+        if let Some(inner) = name
+            .strip_prefix("AnyGuard(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
+            let mut acc = Some(BTreeSet::new());
+            for arg in split_top_level_args(inner) {
+                acc = union_methods(acc, guard_possible_methods(arg));
+                if acc.is_none() {
+                    break;
+                }
+            }
+            return acc;
+        }
+
+        if let Some(inner) = name
+            .strip_prefix("AllGuard(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
+            let mut acc = None;
+            for arg in split_top_level_args(inner) {
+                acc = intersect_methods(acc, guard_possible_methods(arg));
+                if matches!(acc, Some(ref set) if set.is_empty()) {
+                    break;
+                }
+            }
+            return acc;
+        }
+
+        // `Not(...)` (and unknown/custom guard names) are treated as not restricting methods.
+        None
+    }
+
+    let mut possible = None;
+    for guard in guards {
+        possible = intersect_methods(possible, guard_possible_methods(guard));
+        if matches!(possible, Some(ref set) if set.is_empty()) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn method_set(methods: &[Method]) -> BTreeSet<String> {
@@ -890,9 +1001,14 @@ fn format_reachability(item: &IntrospectionReportItem) -> String {
     if item.reachability_notes.is_empty() {
         " | PotentiallyUnreachable".to_string()
     } else {
+        let notes = item
+            .reachability_notes
+            .iter()
+            .map(|note| sanitize_text(note))
+            .collect::<Vec<_>>();
         format!(
             " | PotentiallyUnreachable | Notes: {:?}",
-            item.reachability_notes
+            notes
         )
     }
 }
@@ -1052,6 +1168,61 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/all-guard")
+            .expect("missing route");
+
+        assert!(item.potentially_unreachable);
+        assert!(item
+            .reachability_notes
+            .contains(&"conflicting_method_guards".to_string()));
+    }
+
+    #[test]
+    fn allguard_anyguard_does_not_mark_conflict_when_methods_are_feasible() {
+        let mut collector = IntrospectionCollector::new();
+        let info = route_info(
+            "/feasible",
+            vec![Method::GET, Method::POST],
+            vec![
+                "AllGuard(AnyGuard(GET, POST), Header(x, y))".to_string(),
+                "Header(x, y)".to_string(),
+            ],
+            Vec::new(),
+            Vec::new(),
+            None,
+        );
+        collector.register_route(info, None);
+        let tree = collector.finalize();
+        let items: Vec<IntrospectionReportItem> = (&tree.root).into();
+
+        let item = items
+            .iter()
+            .find(|item| item.full_path == "/feasible")
+            .expect("missing route");
+
+        assert!(!item.potentially_unreachable);
+        assert!(!item
+            .reachability_notes
+            .contains(&"conflicting_method_guards".to_string()));
+    }
+
+    #[test]
+    fn allguard_anyguard_marks_conflict_when_methods_are_impossible() {
+        let mut collector = IntrospectionCollector::new();
+        let info = route_info(
+            "/impossible",
+            vec![Method::GET, Method::POST],
+            vec!["AllGuard(GET, AnyGuard(POST))".to_string()],
+            Vec::new(),
+            Vec::new(),
+            None,
+        );
+        collector.register_route(info, None);
+        let tree = collector.finalize();
+        let items: Vec<IntrospectionReportItem> = (&tree.root).into();
+
+        let item = items
+            .iter()
+            .find(|item| item.full_path == "/impossible")
             .expect("missing route");
 
         assert!(item.potentially_unreachable);
