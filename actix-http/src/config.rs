@@ -60,6 +60,12 @@ impl ServiceConfigBuilder {
         self
     }
 
+    /// Sets `TCP_NODELAY` preference for accepted TCP connections.
+    pub fn tcp_nodelay(mut self, nodelay: Option<bool>) -> Self {
+        self.inner.tcp_nodelay = nodelay;
+        self
+    }
+
     /// Sets whether HTTP/1 connections should support half-closures.
     ///
     /// Clients can choose to shutdown their writer-side of the connection after completing their
@@ -87,6 +93,7 @@ struct Inner {
     client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<SocketAddr>,
+    tcp_nodelay: Option<bool>,
     date_service: DateService,
     h1_allow_half_closed: bool,
 }
@@ -99,6 +106,7 @@ impl Default for Inner {
             client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
+            tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
         }
@@ -120,6 +128,7 @@ impl ServiceConfig {
             client_disconnect_timeout,
             secure,
             local_addr,
+            tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
         }))
@@ -179,6 +188,11 @@ impl ServiceConfig {
     /// server will abort the connection handling as soon as it detects an EOF from the client
     pub fn h1_allow_half_closed(&self) -> bool {
         self.0.h1_allow_half_closed
+    }
+
+    /// Returns configured `TCP_NODELAY` setting for accepted TCP connections.
+    pub fn tcp_nodelay(&self) -> Option<bool> {
+        self.0.tcp_nodelay
     }
 
     pub(crate) fn now(&self) -> Instant {

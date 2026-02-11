@@ -17,6 +17,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    tcp_nodelay: Option<bool>,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     h1_allow_half_closed: bool,
@@ -39,6 +40,7 @@ where
             keep_alive: KeepAlive::default(),
             client_request_timeout: Duration::from_secs(5),
             client_disconnect_timeout: Duration::ZERO,
+            tcp_nodelay: None,
             secure: false,
             local_addr: None,
             h1_allow_half_closed: true,
@@ -120,6 +122,12 @@ where
         self
     }
 
+    /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    pub fn tcp_nodelay(mut self, nodelay: bool) -> Self {
+        self.tcp_nodelay = Some(nodelay);
+        self
+    }
+
     #[doc(hidden)]
     #[deprecated(since = "3.0.0", note = "Renamed to `client_disconnect_timeout`.")]
     pub fn client_disconnect(self, dur: Duration) -> Self {
@@ -154,6 +162,7 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            tcp_nodelay: self.tcp_nodelay,
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
@@ -179,6 +188,7 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            tcp_nodelay: self.tcp_nodelay,
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
@@ -215,6 +225,7 @@ where
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
@@ -241,6 +252,7 @@ where
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
@@ -264,6 +276,7 @@ where
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
