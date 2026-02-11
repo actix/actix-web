@@ -219,13 +219,19 @@ async fn h2_content_length() {
             let req = srv
                 .request(Method::HEAD, srv.surl(&format!("/{}", i)))
                 .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            actix_rt::time::timeout(Duration::from_secs(15), req)
+                .await
+                .expect("request future stalled on recv 1xx frame")
+                .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
 
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            actix_rt::time::timeout(Duration::from_secs(15), req)
+                .await
+                .expect("request future stalled on recv 1xx frame")
+                .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
         }
 
