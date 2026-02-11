@@ -12,7 +12,9 @@
 //!
 //! Notes:
 //! - Method lists are best-effort and derived only from explicit method guards; an empty list means
-//!   the route matches any method.
+//!   no explicit method guards were observed for the node.
+//! - Guard and method lists are aggregated per `full_path` and do not preserve per-route
+//!   correlations when multiple routes/services share the same path.
 //! - Reachability hints are best-effort and should be treated as diagnostics, not a hard guarantee.
 //!
 //! This feature is intended for local/non-production use. Avoid exposing introspection endpoints
@@ -32,7 +34,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct RouteDetail {
+struct RouteDetail {
     methods: Vec<Method>,
     guards: Vec<String>,
     guard_details: Vec<GuardReport>,
@@ -43,7 +45,7 @@ pub struct RouteDetail {
 
 /// Input data for registering routes with the introspector.
 #[derive(Clone)]
-pub struct RouteInfo {
+pub(crate) struct RouteInfo {
     full_path: String,
     methods: Vec<Method>,
     guards: Vec<String>,
@@ -53,7 +55,7 @@ pub struct RouteInfo {
 }
 
 impl RouteInfo {
-    pub fn new(
+    pub(crate) fn new(
         full_path: String,
         methods: Vec<Method>,
         guards: Vec<String>,
@@ -182,9 +184,12 @@ pub struct IntrospectionReportItem {
     pub full_path: String,
     /// Methods derived from explicit method guards.
     ///
-    /// An empty list indicates the route matches any method.
+    /// An empty list indicates no explicit method guards were observed for the node.
     pub methods: Vec<String>,
     /// Guard names attached to the route.
+    ///
+    /// This is aggregated per `full_path` and does not necessarily represent a single matching
+    /// condition when multiple routes/services share the same path.
     pub guards: Vec<String>,
     /// Structured guard details, when available.
     ///
@@ -201,7 +206,10 @@ pub struct IntrospectionReportItem {
     pub patterns: Vec<String>,
     /// The type of node represented by the report item.
     pub resource_type: String,
-    /// Depth within the scope tree (root = 0).
+    /// Depth within this report tree (root = 0).
+    ///
+    /// This currently corresponds to the number of path segments (for example, `/foo` has depth 1
+    /// and `/foo/bar` has depth 2).
     pub scope_depth: usize,
     /// True if the route might be unreachable at runtime.
     #[serde(skip_serializing_if = "is_false")]
@@ -276,7 +284,7 @@ impl From<&IntrospectionNode> for Vec<IntrospectionReportItem> {
 
 /// Collects route details during app configuration.
 #[derive(Clone, Default)]
-pub struct IntrospectionCollector {
+pub(crate) struct IntrospectionCollector {
     details: BTreeMap<String, RouteDetail>,
     registrations: Vec<Registration>,
     externals: Vec<ExternalResourceReportItem>,
@@ -286,7 +294,7 @@ pub struct IntrospectionCollector {
 
 impl IntrospectionCollector {
     /// Creates a new, empty collector.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             details: BTreeMap::new(),
             registrations: Vec::new(),
@@ -296,13 +304,13 @@ impl IntrospectionCollector {
         }
     }
 
-    pub fn next_scope_id(&mut self) -> usize {
+    pub(crate) fn next_scope_id(&mut self) -> usize {
         let scope_id = self.next_scope_id;
         self.next_scope_id += 1;
         scope_id
     }
 
-    pub fn register_service(
+    pub(crate) fn register_service(
         &mut self,
         info: RouteInfo,
         is_resource: bool,
@@ -327,7 +335,7 @@ impl IntrospectionCollector {
         self.next_registration_order += 1;
     }
 
-    pub fn register_route(&mut self, info: RouteInfo, scope_id: Option<usize>) {
+    pub(crate) fn register_route(&mut self, info: RouteInfo, scope_id: Option<usize>) {
         let full_path = normalize_path(&info.full_path);
 
         self.register_pattern_detail(&full_path, &info, true);
@@ -345,7 +353,7 @@ impl IntrospectionCollector {
         self.next_registration_order += 1;
     }
 
-    pub fn register_external(&mut self, rdef: &ResourceDef, origin_scope: &str) {
+    pub(crate) fn register_external(&mut self, rdef: &ResourceDef, origin_scope: &str) {
         let report = external_report_from_rdef(rdef, origin_scope);
 
         if let Some(name) = report.name.as_deref() {
@@ -365,12 +373,7 @@ impl IntrospectionCollector {
     }
 
     /// Registers details for a route pattern.
-    pub fn register_pattern_detail(
-        &mut self,
-        full_path: &str,
-        info: &RouteInfo,
-        is_resource: bool,
-    ) {
+    fn register_pattern_detail(&mut self, full_path: &str, info: &RouteInfo, is_resource: bool) {
         let full_path = normalize_path(full_path);
 
         self.details
@@ -398,7 +401,7 @@ impl IntrospectionCollector {
     }
 
     /// Produces the finalized introspection tree.
-    pub fn finalize(&mut self) -> IntrospectionTree {
+    pub(crate) fn finalize(&mut self) -> IntrospectionTree {
         let detail_registry = std::mem::take(&mut self.details);
         let registrations = std::mem::take(&mut self.registrations);
         let externals = std::mem::take(&mut self.externals);

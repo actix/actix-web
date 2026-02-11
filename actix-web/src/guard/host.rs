@@ -1,6 +1,6 @@
 use actix_http::{header, uri::Uri, RequestHead, Version};
 
-use super::{Guard, GuardContext, GuardDetail};
+use super::{Guard, GuardContext};
 
 /// Creates a guard that matches requests targeting a specific host.
 ///
@@ -118,39 +118,27 @@ impl Guard for HostGuard {
         true
     }
 
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
-        #[cfg(feature = "experimental-introspection")]
-        {
-            if let Some(ref scheme) = self.scheme {
-                format!("Host({}, scheme={})", self.host, scheme)
-            } else {
-                format!("Host({})", self.host)
-            }
-        }
-        #[cfg(not(feature = "experimental-introspection"))]
-        {
-            std::any::type_name::<Self>().to_string()
+        if let Some(ref scheme) = self.scheme {
+            format!("Host({}, scheme={})", self.host, scheme)
+        } else {
+            format!("Host({})", self.host)
         }
     }
 
-    fn details(&self) -> Option<Vec<GuardDetail>> {
-        #[cfg(feature = "experimental-introspection")]
-        {
-            let mut details = vec![GuardDetail::Headers(vec![(
-                "host".to_string(),
-                self.host.clone(),
-            )])];
+    #[cfg(feature = "experimental-introspection")]
+    fn details(&self) -> Option<Vec<super::GuardDetail>> {
+        let mut details = vec![super::GuardDetail::Headers(vec![(
+            "host".to_string(),
+            self.host.clone(),
+        )])];
 
-            if let Some(ref scheme) = self.scheme {
-                details.push(GuardDetail::Generic(format!("scheme={scheme}")));
-            }
+        if let Some(ref scheme) = self.scheme {
+            details.push(super::GuardDetail::Generic(format!("scheme={scheme}")));
+        }
 
-            Some(details)
-        }
-        #[cfg(not(feature = "experimental-introspection"))]
-        {
-            None
-        }
+        Some(details)
     }
 }
 
@@ -282,13 +270,13 @@ mod tests {
         let details = host.details().expect("missing guard details");
 
         assert!(details.iter().any(|detail| match detail {
-            GuardDetail::Headers(headers) => headers
+            crate::guard::GuardDetail::Headers(headers) => headers
                 .iter()
                 .any(|(name, value)| name == "host" && value == "example.com"),
             _ => false,
         }));
         assert!(details.iter().any(|detail| match detail {
-            GuardDetail::Generic(value) => value == "scheme=https",
+            crate::guard::GuardDetail::Generic(value) => value == "scheme=https",
             _ => false,
         }));
         assert_eq!(host.name(), "Host(example.com, scheme=https)");

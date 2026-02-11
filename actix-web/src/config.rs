@@ -165,10 +165,7 @@ impl AppService {
                     }
                 })
                 .collect::<Vec<_>>();
-            let guard_names = guard_list
-                .iter()
-                .map(|g| g.name().to_string())
-                .collect::<Vec<_>>();
+            let guard_names = guard_list.iter().map(|g| g.name()).collect::<Vec<_>>();
             let guard_details = crate::introspection::guard_reports_from_iter(guard_list.iter());
 
             let is_resource = nested.is_none();

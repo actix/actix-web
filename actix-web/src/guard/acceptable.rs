@@ -1,4 +1,4 @@
-use super::{Guard, GuardContext, GuardDetail};
+use super::{Guard, GuardContext};
 use crate::http::header::Accept;
 
 /// A guard that verifies that an `Accept` header is present and it contains a compatible MIME type.
@@ -64,35 +64,25 @@ impl Guard for Acceptable {
         false
     }
 
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
-        #[cfg(feature = "experimental-introspection")]
-        {
-            if self.match_star_star {
-                format!("Acceptable({}, match_star_star=true)", self.mime)
-            } else {
-                format!("Acceptable({})", self.mime)
-            }
-        }
-        #[cfg(not(feature = "experimental-introspection"))]
-        {
-            std::any::type_name::<Self>().to_string()
+        if self.match_star_star {
+            format!("Acceptable({}, match_star_star=true)", self.mime)
+        } else {
+            format!("Acceptable({})", self.mime)
         }
     }
 
-    fn details(&self) -> Option<Vec<GuardDetail>> {
-        #[cfg(feature = "experimental-introspection")]
-        {
-            let mut details = Vec::new();
-            details.push(GuardDetail::Generic(format!("mime={}", self.mime)));
-            if self.match_star_star {
-                details.push(GuardDetail::Generic("match_star_star=true".to_string()));
-            }
-            Some(details)
+    #[cfg(feature = "experimental-introspection")]
+    fn details(&self) -> Option<Vec<super::GuardDetail>> {
+        let mut details = Vec::new();
+        details.push(super::GuardDetail::Generic(format!("mime={}", self.mime)));
+        if self.match_star_star {
+            details.push(super::GuardDetail::Generic(
+                "match_star_star=true".to_string(),
+            ));
         }
-        #[cfg(not(feature = "experimental-introspection"))]
-        {
-            None
-        }
+        Some(details)
     }
 }
 
@@ -135,12 +125,12 @@ mod tests {
         let details = guard.details().expect("missing guard details");
 
         assert!(details.iter().any(|detail| match detail {
-            GuardDetail::Generic(value) => value == "match_star_star=true",
+            crate::guard::GuardDetail::Generic(value) => value == "match_star_star=true",
             _ => false,
         }));
         let expected = format!("mime={}", mime::APPLICATION_JSON);
         assert!(details.iter().any(|detail| match detail {
-            GuardDetail::Generic(value) => value == &expected,
+            crate::guard::GuardDetail::Generic(value) => value == &expected,
             _ => false,
         }));
         assert_eq!(

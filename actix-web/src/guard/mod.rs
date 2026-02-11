@@ -67,6 +67,8 @@ pub use self::{
 };
 
 /// Enum to encapsulate various introspection details of a guard.
+#[cfg(feature = "experimental-introspection")]
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum GuardDetail {
     /// Detail associated with explicit HTTP method guards.
@@ -137,6 +139,7 @@ pub trait Guard {
     fn check(&self, ctx: &GuardContext<'_>) -> bool;
 
     /// Returns a nominal representation of the guard.
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         std::any::type_name::<Self>().to_string()
     }
@@ -144,6 +147,7 @@ pub trait Guard {
     /// Returns detailed introspection information, when available.
     ///
     /// This is best-effort and may omit complex guard logic.
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         None
     }
@@ -153,9 +157,13 @@ impl Guard for Rc<dyn Guard> {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         (**self).check(ctx)
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         (**self).name()
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         (**self).details()
     }
@@ -248,6 +256,8 @@ impl Guard for AnyGuard {
 
         false
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         format!(
             "AnyGuard({})",
@@ -258,6 +268,8 @@ impl Guard for AnyGuard {
                 .join(", ")
         )
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         Some(
             self.guards
@@ -318,6 +330,8 @@ impl Guard for AllGuard {
 
         true
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         format!(
             "AllGuard({})",
@@ -328,6 +342,8 @@ impl Guard for AllGuard {
                 .join(", ")
         )
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         Some(
             self.guards
@@ -356,18 +372,15 @@ impl<G: Guard> Guard for Not<G> {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         format!("Not({})", self.0.name())
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
-        #[cfg(feature = "experimental-introspection")]
-        {
-            Some(vec![GuardDetail::Generic(self.name())])
-        }
-        #[cfg(not(feature = "experimental-introspection"))]
-        {
-            None
-        }
+        Some(vec![GuardDetail::Generic(self.name())])
     }
 }
 
@@ -398,9 +411,13 @@ impl Guard for MethodGuard {
 
         ctx.head().method == self.0
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         self.0.to_string()
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         Some(vec![GuardDetail::HttpMethods(vec![self.0.to_string()])])
     }
@@ -466,9 +483,13 @@ impl Guard for HeaderGuard {
 
         false
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
         format!("Header({}, {})", self.0, self.1.to_str().unwrap_or(""))
     }
+
+    #[cfg(feature = "experimental-introspection")]
     fn details(&self) -> Option<Vec<GuardDetail>> {
         Some(vec![GuardDetail::Headers(vec![(
             self.0.to_string(),
