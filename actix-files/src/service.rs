@@ -181,8 +181,8 @@ impl Service<ServiceRequest> for FilesService {
             for directory in &this.directories {
                 let path = directory.join(&path_on_disk);
                 match path.canonicalize() {
-                    Ok(canonical_path) => {
-                        found_path = Some(canonical_path);
+                    Ok(_) => {
+                        found_path = Some(path);
                         break;
                     }
                     Err(err) => {
