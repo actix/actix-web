@@ -202,7 +202,9 @@ async fn test_multiple_directories() {
 
     // Create test files
     std::fs::write("./tests/test1/test.txt", "File from test1").unwrap();
+    while !std::path::Path::new("./tests/test1/test.txt").exists() {}
     std::fs::write("./tests/test2/fallback.txt", "File from test2").unwrap();
+    while !std::path::Path::new("./tests/test2/fallback.txt").exists() {}
 
     // Test multiple directories with new_from_array
     let srv = test::init_service(App::new().service(Files::new_from_array(
@@ -243,6 +245,9 @@ async fn test_multiple_directories_iterator() {
 
     // Create test files
     std::fs::write("./tests/test1/test.txt", "File from test1").unwrap();
+    while !std::path::Path::new("./tests/test1/test.txt").exists() {}
+    std::fs::write("./tests/test2/fallback.txt", "File from test2").unwrap();
+    while !std::path::Path::new("./tests/test2/fallback.txt").exists() {}
 
     // Test multiple directories with new_multiple
     let srv = test::init_service(App::new().service(Files::new_multiple(
@@ -257,6 +262,18 @@ async fn test_multiple_directories_iterator() {
     assert_eq!(res.status(), StatusCode::OK);
     let body = test::read_body(res).await;
     assert_eq!(&body[..], b"File from test1");
+
+    // Test file from second directory
+    let req = TestRequest::with_uri("/fallback.txt").to_request();
+    let res = test::call_service(&srv, req).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = test::read_body(res).await;
+    assert_eq!(&body[..], b"File from test2");
+
+    // Test non-existent file
+    let req = TestRequest::with_uri("/non-existent.txt").to_request();
+    let res = test::call_service(&srv, req).await;
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
     // Clean up
     let _ = std::fs::remove_dir_all("./tests/test1");
