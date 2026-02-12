@@ -1,6 +1,7 @@
 //! For middleware documentation, see [`NormalizePath`].
 
 use actix_http::uri::{PathAndQuery, Uri};
+use actix_router::Url;
 use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
@@ -13,6 +14,28 @@ use crate::{
     service::{ServiceRequest, ServiceResponse},
     Error,
 };
+
+fn build_byte_index_map(old_path: &str, new_path: &str) -> Vec<u16> {
+    let old_path = old_path.as_bytes();
+    let new_path = new_path.as_bytes();
+
+    let mut map = Vec::with_capacity(old_path.len() + 1);
+    map.push(0);
+
+    let mut old_idx = 0usize;
+    let mut new_idx = 0usize;
+
+    while old_idx < old_path.len() {
+        if new_idx < new_path.len() && old_path[old_idx] == new_path[new_idx] {
+            new_idx += 1;
+        }
+
+        old_idx += 1;
+        map.push(new_idx.min(u16::MAX as usize) as u16);
+    }
+
+    map
+}
 
 /// Determines the behavior of the [`NormalizePath`] middleware.
 ///
@@ -183,6 +206,7 @@ where
             // Both of the paths have the same length,
             // so the change can not be deduced from the length comparison
             if path != original_path {
+                let reindex = build_byte_index_map(original_path, path);
                 let mut parts = head.uri.clone().into_parts();
                 let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
 
@@ -193,7 +217,11 @@ where
                 parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
 
                 let uri = Uri::from_parts(parts).unwrap();
-                req.match_info_mut().get_mut().update(&uri);
+                req.match_info_mut()
+                    .update_with_reindex(Url::new(uri.clone()), |idx| {
+                        let idx = usize::from(idx).min(reindex.len() - 1);
+                        reindex[idx]
+                    });
                 req.head_mut().uri = uri;
             }
         }
@@ -209,7 +237,7 @@ mod tests {
     use super::*;
     use crate::{
         guard::fn_guard,
-        test::{call_service, init_service, TestRequest},
+        test::{call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
     };
 
@@ -404,6 +432,45 @@ mod tests {
             let res = call_service(&app, req).await;
             assert_eq!(res.status().is_success(), success, "Failed uri: {}", uri);
         }
+    }
+
+    #[actix_rt::test]
+    async fn scope_dynamic_tail_path_is_reindexed() {
+        async fn handler(path: web::Path<String>) -> HttpResponse {
+            HttpResponse::Ok().body(path.into_inner())
+        }
+
+        let app = init_service(
+            App::new().service(
+                web::scope("{tail:.*}")
+                    .wrap(NormalizePath::trim())
+                    .default_service(web::to(handler)),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/uaie//iuaei").to_request();
+        let res = call_service(&app, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(read_body(res).await, Bytes::from_static(b"uaie/iuaei"));
+    }
+
+    #[actix_rt::test]
+    async fn scope_static_prefix_skip_is_reindexed() {
+        let app = init_service(
+            App::new().service(
+                web::scope("/api")
+                    .wrap(NormalizePath::trim())
+                    .service(web::resource("/v1").to(HttpResponse::Ok)),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/api//v1").to_request();
+        let res = call_service(&app, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]

@@ -15,6 +15,11 @@ crate::http::header::common_header! {
     /// can be used for cache validation even if there have been changes to
     /// the representation data.
     ///
+    /// # Note
+    /// This is a request header used for cache validation (and conditional requests). Servers
+    /// should not send `If-None-Match` in responses; use [`ETag`](super::ETag) to describe the
+    /// current representation instead.
+    ///
     /// # ABNF
     /// ```plain
     /// If-None-Match = "*" / 1#entity-tag
@@ -29,25 +34,25 @@ crate::http::header::common_header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfNoneMatch;
+    /// use actix_web::{http::header::IfNoneMatch, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(IfNoneMatch::Any);
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfNoneMatch::Any)
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{IfNoneMatch, EntityTag};
+    /// use actix_web::{http::header::{EntityTag, IfNoneMatch}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     IfNoneMatch::Items(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfNoneMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),
     ///         EntityTag::new(false, "foobar".to_owned()),
     ///         EntityTag::new(false, "bazquux".to_owned()),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (IfNoneMatch, IF_NONE_MATCH) => {Any / (EntityTag)+}
 
