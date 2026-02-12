@@ -240,19 +240,19 @@ async fn test_multiple_directories() {
 #[actix_web::test]
 async fn test_multiple_directories_iterator() {
     // Create test directories
-    std::fs::create_dir_all("./tests/test1").unwrap();
-    std::fs::create_dir_all("./tests/test2").unwrap();
+    std::fs::create_dir_all("./tests/test3").unwrap();
+    std::fs::create_dir_all("./tests/test4").unwrap();
 
     // Create test files
-    std::fs::write("./tests/test1/test.txt", "File from test1").unwrap();
-    while !std::path::Path::new("./tests/test1/test.txt").exists() {}
-    std::fs::write("./tests/test2/fallback.txt", "File from test2").unwrap();
-    while !std::path::Path::new("./tests/test2/fallback.txt").exists() {}
+    std::fs::write("./tests/test3/test.txt", "File from test3").unwrap();
+    while !std::path::Path::new("./tests/test3/test.txt").exists() {}
+    std::fs::write("./tests/test4/fallback.txt", "File from test4").unwrap();
+    while !std::path::Path::new("./tests/test4/fallback.txt").exists() {}
 
     // Test multiple directories with new_multiple
     let srv = test::init_service(App::new().service(Files::new_multiple(
         "/",
-        vec!["./tests/test1", "./tests/test2"],
+        vec!["./tests/test3", "./tests/test4"],
     )))
     .await;
 
@@ -261,14 +261,14 @@ async fn test_multiple_directories_iterator() {
     let res = test::call_service(&srv, req).await;
     assert_eq!(res.status(), StatusCode::OK);
     let body = test::read_body(res).await;
-    assert_eq!(&body[..], b"File from test1");
+    assert_eq!(&body[..], b"File from test3");
 
     // Test file from second directory
     let req = TestRequest::with_uri("/fallback.txt").to_request();
     let res = test::call_service(&srv, req).await;
     assert_eq!(res.status(), StatusCode::OK);
     let body = test::read_body(res).await;
-    assert_eq!(&body[..], b"File from test2");
+    assert_eq!(&body[..], b"File from test4");
 
     // Test non-existent file
     let req = TestRequest::with_uri("/non-existent.txt").to_request();
@@ -276,6 +276,6 @@ async fn test_multiple_directories_iterator() {
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
     // Clean up
-    let _ = std::fs::remove_dir_all("./tests/test1");
-    let _ = std::fs::remove_dir_all("./tests/test2");
+    let _ = std::fs::remove_dir_all("./tests/test3");
+    let _ = std::fs::remove_dir_all("./tests/test4");
 }
