@@ -202,9 +202,7 @@ async fn test_multiple_directories() {
 
     // Create test files
     std::fs::write("./tests/test1/test.txt", "File from test1").unwrap();
-    while !std::path::Path::new("./tests/test1/test.txt").exists() {}
     std::fs::write("./tests/test2/fallback.txt", "File from test2").unwrap();
-    while !std::path::Path::new("./tests/test2/fallback.txt").exists() {}
 
     // Test multiple directories with new_from_array
     let srv = test::init_service(App::new().service(Files::new_from_array(
@@ -245,9 +243,7 @@ async fn test_multiple_directories_iterator() {
 
     // Create test files
     std::fs::write("./tests/test3/test.txt", "File from test3").unwrap();
-    while !std::path::Path::new("./tests/test3/test.txt").exists() {}
     std::fs::write("./tests/test4/fallback.txt", "File from test4").unwrap();
-    while !std::path::Path::new("./tests/test4/fallback.txt").exists() {}
 
     // Test multiple directories with new_multiple
     let srv = test::init_service(App::new().service(Files::new_multiple(
