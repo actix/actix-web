@@ -33,7 +33,7 @@ impl Deref for FilesService {
 }
 
 pub struct FilesServiceInner {
-    pub(crate) directory: PathBuf,
+    pub(crate) directories: Vec<PathBuf>,
     pub(crate) index: Option<String>,
     pub(crate) show_index: bool,
     pub(crate) redirect_to_slash: bool,
@@ -113,8 +113,11 @@ impl FilesService {
         self.serve_named_file_with_encoding(req, named_file, header::ContentEncoding::Identity)
     }
 
+    /// Show index listing for a directory.
+    ///
+    /// Uses the directory where the path was found as the base directory for index listing.
     fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
-        let dir = Directory::new(self.directory.clone(), path);
+        let dir = Directory::new(path.clone(), path);
 
         let (req, _) = req.into_parts();
 
@@ -171,8 +174,34 @@ impl Service<ServiceRequest> for FilesService {
                 }
             }
 
-            // full file path
-            let path = this.directory.join(&path_on_disk);
+            // Try to find file in multiple directories
+            let mut found_path = None;
+            let mut last_err = None;
+
+            for directory in &this.directories {
+                let path = directory.join(&path_on_disk);
+                match path.canonicalize() {
+                    Ok(canonical_path) => {
+                        found_path = Some(canonical_path);
+                        break;
+                    }
+                    Err(err) => {
+                        // Keep track of the last error
+                        last_err = Some(err);
+                    }
+                }
+            }
+
+            let path = match found_path {
+                Some(path) => path,
+                None => {
+                    // If all directories failed, use the last error
+                    let err = last_err.unwrap_or_else(|| {
+                        io::Error::new(io::ErrorKind::NotFound, "File not found")
+                    });
+                    return this.handle_err(err, req).await;
+                }
+            };
 
             // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
             // Still handle directories (index/listing) through the normal branch below.
@@ -180,10 +209,6 @@ impl Service<ServiceRequest> for FilesService {
                 if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
                     return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
                 }
-            }
-
-            if let Err(err) = path.canonicalize() {
-                return this.handle_err(err, req).await;
             }
 
             if path.is_dir() {

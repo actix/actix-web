@@ -4,8 +4,10 @@
 
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`
+- Add `Files::new_from_array()` and `Files::new_multiple()` methods to support multiple directories from array and iterator, and implement multi-directory static file serving with priority order [#3402]
 
 [#2615]: https://github.com/actix/actix-web/pull/2615
+[#3402]: https://github.com/actix/actix-web/issues/3402
 
 ## 0.6.10
 
