@@ -93,6 +93,45 @@ impl<T: ResourcePath> Path<T> {
         self.segments.clear();
     }
 
+    /// Set new path while preserving and remapping existing captured segment indices.
+    ///
+    /// The `reindex` closure maps byte indices from the previous path to byte indices in the new
+    /// path.
+    #[doc(hidden)]
+    pub fn update_with_reindex<F>(&mut self, path: T, mut reindex: F)
+    where
+        F: FnMut(u16) -> u16,
+    {
+        self.skip = reindex(self.skip);
+
+        for (_, item) in &mut self.segments {
+            if let PathItem::Segment(start, end) = item {
+                *start = reindex(*start);
+                *end = reindex(*end);
+
+                if *start > *end {
+                    *start = *end;
+                }
+            }
+        }
+
+        self.path = path;
+        let path = self.path.path();
+
+        self.skip = clamp_to_char_boundary(path, self.skip);
+
+        for (_, item) in &mut self.segments {
+            if let PathItem::Segment(start, end) = item {
+                *start = clamp_to_char_boundary(path, *start);
+                *end = clamp_to_char_boundary(path, *end);
+
+                if *start > *end {
+                    *start = *end;
+                }
+            }
+        }
+    }
+
     /// Reset state.
     #[inline]
     pub fn reset(&mut self) {
@@ -177,6 +216,16 @@ impl<T: ResourcePath> Path<T> {
     pub fn load<'de, U: Deserialize<'de>>(&'de self) -> Result<U, de::value::Error> {
         Deserialize::deserialize(PathDeserializer::new(self))
     }
+}
+
+fn clamp_to_char_boundary(path: &str, idx: u16) -> u16 {
+    let mut idx = usize::from(idx).min(path.len());
+
+    while idx > 0 && !path.is_char_boundary(idx) {
+        idx -= 1;
+    }
+
+    idx as u16
 }
 
 #[derive(Debug)]
