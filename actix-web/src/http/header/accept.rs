@@ -26,49 +26,49 @@ common_header! {
     /// accept-ext = OWS ";" OWS token [ "=" ( token / quoted-string ) ]
     /// ```
     ///
+    /// # Note
+    /// This is a request header. Servers should not send `Accept` in responses; to describe the
+    /// response body media type, use [`ContentType`](super::ContentType) / the `Content-Type`
+    /// header instead.
+    ///
     /// # Example Values
     /// * `audio/*; q=0.2, audio/basic`
     /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem};
+    /// use actix_web::{http::header::{Accept, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
-    ///         QualityItem::max(mime::TEXT_HTML),
-    ///     ])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![QualityItem::max(mime::TEXT_HTML)]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem};
+    /// use actix_web::{http::header::{Accept, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
-    ///         QualityItem::max(mime::APPLICATION_JSON),
-    ///     ])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![QualityItem::max(mime::APPLICATION_JSON)]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem, q};
+    /// use actix_web::{http::header::{Accept, Header as _, QualityItem, q}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![
     ///         QualityItem::max(mime::TEXT_HTML),
     ///         QualityItem::max("application/xhtml+xml".parse().unwrap()),
     ///         QualityItem::new(mime::TEXT_XML, q(0.9)),
     ///         QualityItem::max("image/webp".parse().unwrap()),
     ///         QualityItem::new(mime::STAR_STAR, q(0.8)),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    ///
+    /// let accept = Accept::parse(&req).unwrap();
+    /// assert_eq!(accept.preference(), mime::TEXT_HTML);
     /// ```
     ///
     /// [RFC 7231 §5.3.2]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2

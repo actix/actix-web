@@ -16,6 +16,11 @@ common_header! {
     /// intends this precondition to prevent the method from being applied if
     /// there have been any changes to the representation data.
     ///
+    /// # Note
+    /// This is a request header used for conditional requests (typically to avoid lost updates).
+    /// Servers should not send `If-Match` in responses; use [`ETag`](super::ETag) to describe the
+    /// current representation instead.
+    ///
     /// # ABNF
     /// ```plain
     /// If-Match = "*" / 1#entity-tag
@@ -27,25 +32,25 @@ common_header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfMatch;
+    /// use actix_web::{http::header::IfMatch, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(IfMatch::Any);
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfMatch::Any)
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{IfMatch, EntityTag};
+    /// use actix_web::{http::header::{EntityTag, IfMatch}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     IfMatch::Items(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),
     ///         EntityTag::new(false, "foobar".to_owned()),
     ///         EntityTag::new(false, "bazquux".to_owned()),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (IfMatch, IF_MATCH) => {Any / (EntityTag)+}
 
