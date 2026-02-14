@@ -255,10 +255,14 @@ impl Files {
         self
     }
 
-    /// Set index file
+    /// Sets index file for directory requests.
     ///
-    /// Shows specific index file for directories instead of
-    /// showing files listing.
+    /// When a directory is requested, this value is appended to the directory's path on disk.
+    /// Therefore, the index file path is relative to the served directory (the `serve_from` path
+    /// passed to [`Files::new`]) and should not include the `serve_from` prefix.
+    ///
+    /// For example, to serve `./static/index.html` when mounting `Files::new("/", "./static")`,
+    /// configure it as `.index_file("index.html")` (not `.index_file("./static/index.html")`).
     ///
     /// If the index file is not found, files listing is shown as a fallback if
     /// [`Files::show_files_listing()`] is set.
