@@ -4,8 +4,10 @@
 
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`
+- Fix `NamedFile` panic when serving files with pre-UNIX epoch modification times. [#2748]
 
 [#2615]: https://github.com/actix/actix-web/pull/2615
+[#2748]: https://github.com/actix/actix-web/issues/2748
 
 ## 0.6.10
 
