@@ -14,7 +14,7 @@ use actix_web::{
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
-            ExtendedValue, HeaderValue,
+            ExtendedValue,
         },
         StatusCode,
     },
@@ -592,27 +592,6 @@ impl NamedFile {
                     ranged_req = true;
                     length = range.length;
                     offset = range.start;
-
-                    // When a Content-Encoding header is present in a 206 partial content response
-                    // for video content, it prevents browser video players from starting playback
-                    // before loading the whole video and also prevents seeking.
-                    //
-                    // See: https://github.com/actix/actix-web/issues/2815
-                    //
-                    // The assumption of this fix is that the video player knows to not send an
-                    // Accept-Encoding header for this request and that downstream middleware will
-                    // not attempt compression for requests without it.
-                    //
-                    // TODO: Solve question around what to do if self.encoding is set and partial
-                    // range is requested. Reject request? Ignoring self.encoding seems wrong, too.
-                    // In practice, it should not come up.
-                    if req.headers().contains_key(&header::ACCEPT_ENCODING) {
-                        // don't allow compression middleware to modify partial content
-                        res.insert_header((
-                            header::CONTENT_ENCODING,
-                            HeaderValue::from_static("identity"),
-                        ));
-                    }
 
                     res.insert_header((
                         header::CONTENT_RANGE,

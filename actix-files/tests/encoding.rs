@@ -181,15 +181,12 @@ async fn partial_range_response_encoding() {
     assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
     assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
 
-    // range request with accept-encoding returns a content-encoding header
+    // range request with accept-encoding still returns no content-encoding header
     let req = TestRequest::with_uri("/")
         .append_header((header::RANGE, "bytes=10-20"))
-        .append_header((header::ACCEPT_ENCODING, "identity"))
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
         .to_request();
     let res = test::call_service(&srv, req).await;
     assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-    assert_eq!(
-        res.headers().get(header::CONTENT_ENCODING).unwrap(),
-        "identity"
-    );
+    assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
 }
