@@ -405,7 +405,9 @@ impl NamedFile {
 
     /// Creates an `ETag` in a format is similar to Apache's.
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
-        self.modified.as_ref().map(|mtime| {
+        let mtime = self.modified?;
+
+        Some({
             let ino = {
                 #[cfg(unix)]
                 {
@@ -421,22 +423,50 @@ impl NamedFile {
                 }
             };
 
-            let dur = mtime
-                .duration_since(UNIX_EPOCH)
-                .expect("modification time must be after epoch");
+            // Don't panic for pre-epoch modification times. Encode the timestamp as seconds and
+            // sub-second nanoseconds relative to the UNIX epoch, allowing negative values.
+            let (secs, nanos) = match mtime.duration_since(UNIX_EPOCH) {
+                Ok(dur) => (dur.as_secs() as i64, dur.subsec_nanos()),
+                Err(err) => {
+                    let dur = err.duration();
+
+                    // For timestamps before the epoch, represent the time as a negative seconds
+                    // offset with positive nanoseconds (like POSIX timespec).
+                    if dur.subsec_nanos() == 0 {
+                        (-(dur.as_secs() as i64), 0)
+                    } else {
+                        (
+                            -(dur.as_secs() as i64) - 1,
+                            1_000_000_000 - dur.subsec_nanos(),
+                        )
+                    }
+                }
+            };
 
             header::EntityTag::new_strong(format!(
                 "{:x}:{:x}:{:x}:{:x}",
                 ino,
                 self.md.len(),
-                dur.as_secs(),
-                dur.subsec_nanos()
+                secs as u64,
+                nanos
             ))
         })
     }
 
     pub(crate) fn last_modified(&self) -> Option<header::HttpDate> {
-        self.modified.map(|mtime| mtime.into())
+        let mtime = self.modified?;
+
+        // avoid panic in `httpdate` crate when formatting as an HTTP date
+        // see: https://github.com/actix/actix-web/issues/2748
+        //
+        // httpdate supports dates in range [1970, 9999); see:
+        // https://github.com/seanmonstar/httpdate/blob/v1.0.3/src/date.rs
+        let dur = mtime.duration_since(UNIX_EPOCH).ok()?;
+        if dur.as_secs() >= 253_402_300_800 {
+            return None;
+        }
+
+        Some(mtime.into())
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
