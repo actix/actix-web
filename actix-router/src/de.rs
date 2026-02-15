@@ -697,13 +697,13 @@ mod tests {
         let rdef = ResourceDef::new("/{key}");
 
         let mut path = Path::new("/%25");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         let segment: String = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(segment, "%");
 
         let mut path = Path::new("/%2F");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         let segment: String = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(segment, "/")
@@ -714,7 +714,7 @@ mod tests {
         let rdef = ResourceDef::new("/{key}/{value}");
 
         let mut path = Path::new("/%30%25/%30%2F");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         let segment: (String, String) = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(segment.0, "0%");
@@ -732,7 +732,7 @@ mod tests {
         let rdef = ResourceDef::new("/{key}/{value}");
 
         let mut path = Path::new("/%25/%2F");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         let vals: Vals = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(vals.key, "%");
@@ -862,7 +862,7 @@ mod tests {
         let rdef = ResourceDef::new("/{val}");
 
         let mut path = Path::new("/X");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         let params: Params<'_> = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(params.val, "X");
@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(params, "X");
 
         let mut path = Path::new("/%2F");
-        rdef.capture_match_info(&mut path);
+        rdef.resolve_path_if_match(&mut path);
         let de = PathDeserializer::new(&path);
         assert!(<Params<'_> as serde::Deserialize>::deserialize(de).is_err());
         let de = PathDeserializer::new(&path);

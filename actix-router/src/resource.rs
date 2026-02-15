@@ -2,7 +2,6 @@ use std::{
     borrow::{Borrow, Cow},
     collections::HashMap,
     hash::{BuildHasher, Hash, Hasher},
-    mem,
 };
 
 use tracing::error;
@@ -10,7 +9,7 @@ use tracing::error;
 use crate::{
     path::PathItem,
     regex_set::{escape, Regex, RegexSet},
-    IntoPatterns, Patterns, Resource, ResourcePath,
+    IntoPatterns, Patterns, Resource,
 };
 
 const MAX_DYNAMIC_SEGMENTS: usize = 16;
@@ -80,8 +79,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// `/rust-is-hard`.
 ///
 /// For information on capturing segment values from paths or other custom resource types,
-/// see [`capture_match_info`][Self::capture_match_info]
-/// and [`capture_match_info_fn`][Self::capture_match_info_fn].
+/// see [`capture_match_info`][Self::capture_match_info].
 ///
 /// A resource definition can contain at most 16 dynamic segments.
 ///
@@ -96,7 +94,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(!resource.is_match("/user/"));
 ///
 /// let mut path = Path::new("/user/123");
-/// resource.capture_match_info(&mut path);
+/// resource.resolve_path_if_match(&mut path);
 /// assert_eq!(path.get("id").unwrap(), "123");
 /// ```
 ///
@@ -171,7 +169,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(resource.is_match("/blob/HEAD/README.md"));
 ///
 /// let mut path = Path::new("/blob/main/LICENSE");
-/// resource.capture_match_info(&mut path);
+/// resource.resolve_path_if_match(&mut path);
 /// assert_eq!(path.get("tail").unwrap(), "main/LICENSE");
 /// ```
 ///
@@ -247,6 +245,18 @@ enum PatternType {
 
     /// Regular expression set and list of component expressions plus dynamic segment names.
     DynamicSet(RegexSet, Vec<(Regex, Vec<&'static str>)>),
+}
+
+/// Holds metadata and parameters used during path resolution.
+pub enum ResourceMatchInfo<'a> {
+    Static {
+        matched_len: u16,
+    },
+    Dynamic {
+        matched_len: u16,
+        matched_vars: &'a [&'static str],
+        segments: [PathItem; MAX_DYNAMIC_SEGMENTS],
+    },
 }
 
 impl ResourceDef {
@@ -623,18 +633,24 @@ impl ResourceDef {
     ///
     /// let resource = ResourceDef::prefix("/user/{id}");
     /// let mut path = Path::new("/user/123/stars");
-    /// assert!(resource.capture_match_info(&mut path));
+    /// assert!(resource.resolve_path_if_match(&mut path));
     /// assert_eq!(path.get("id").unwrap(), "123");
     /// assert_eq!(path.unprocessed(), "/stars");
     ///
     /// let resource = ResourceDef::new("/blob/{path}*");
     /// let mut path = Path::new("/blob/HEAD/Cargo.toml");
-    /// assert!(resource.capture_match_info(&mut path));
+    /// assert!(resource.resolve_path_if_match(&mut path));
     /// assert_eq!(path.get("path").unwrap(), "HEAD/Cargo.toml");
     /// assert_eq!(path.unprocessed(), "");
     /// ```
-    pub fn capture_match_info<R: Resource>(&self, resource: &mut R) -> bool {
-        self.capture_match_info_fn(resource, |_| true)
+    pub fn resolve_path_if_match<R: Resource>(&self, resource: &mut R) -> bool {
+        match self.capture_match_info(resource) {
+            None => false,
+            Some(match_info) => {
+                resource.resource_path().resolve(match_info);
+                true
+            }
+        }
     }
 
     /// Collects dynamic segment values into `resource` after matching paths and executing
@@ -644,21 +660,22 @@ impl ResourceDef {
     /// This is useful if you want to conditionally match on some non-path related aspect of the
     /// resource type.
     ///
-    /// Returns `true` if resource path matches this resource definition _and_ satisfies the
-    /// given check function.
-    ///
+    /// Returns `ResourceMatchInfo` if the given resource path matches this resource definition,
+    /// containing the information required to perform path resolution.
     /// # Examples
     /// ```
-    /// use actix_router::{Path, ResourceDef};
+    /// use actix_router::{Path, Resource, ResourceDef};
     ///
     /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
-    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
     ///
-    ///     resource.capture_match_info_fn(
-    ///         path,
-    ///         // when env var is not set, reject when path contains "admin"
-    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
-    ///     )
+    ///     let match_info = resource.capture_match_info(path);
+    ///     match match_info{
+    ///         None => {false}
+    ///         Some(match_info) => {
+    ///             path.resource_path().resolve(match_info);
+    ///             true
+    ///         }
+    ///     }
     /// }
     ///
     /// let resource = ResourceDef::prefix("/user/{id}");
@@ -669,85 +686,72 @@ impl ResourceDef {
     /// assert_eq!(path.get("id").unwrap(), "james");
     /// assert_eq!(path.unprocessed(), "/stars");
     ///
-    /// // path matches but fails check function; no segments are collected
-    /// let mut path = Path::new("/user/admin/stars");
-    /// assert!(!try_match(&resource, &mut path));
-    /// assert_eq!(path.unprocessed(), "/user/admin/stars");
     /// ```
-    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
+    pub fn capture_match_info<R>(&self, resource: &mut R) -> Option<ResourceMatchInfo<'_>>
     where
         R: Resource,
-        F: FnOnce(&R) -> bool,
     {
-        let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
         let path = resource.resource_path();
         let path_str = path.unprocessed();
-
-        let (matched_len, matched_vars) = match &self.pat_type {
+        match &self.pat_type {
             PatternType::Static(pattern) => match self.static_match(pattern, path_str) {
-                Some(len) => (len, None),
-                None => return false,
+                Some(len) => Some(ResourceMatchInfo::Static {
+                    matched_len: len as u16,
+                }),
+                None => return None,
             },
 
             PatternType::Dynamic(re, names) => {
-                let captures = match re.captures(path.unprocessed()) {
+                let captures = match re.captures(path_str) {
                     Some(captures) => captures,
-                    _ => return false,
+                    _ => return None,
                 };
 
+                let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
                 for (no, name) in names.iter().enumerate() {
                     if let Some(m) = captures.name(name) {
                         segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                     } else {
                         error!("Dynamic path match but not all segments found: {}", name);
-                        return false;
+                        return None;
                     }
                 }
 
-                (captures[1].len(), Some(names))
+                Some(ResourceMatchInfo::Dynamic {
+                    matched_len: captures[1].len() as u16,
+                    matched_vars: names,
+                    segments,
+                })
             }
 
             PatternType::DynamicSet(re, params) => {
-                let path = path.unprocessed();
-                let (pattern, names) = match re.first_match_idx(path) {
+                let (pattern, names) = match re.first_match_idx(path_str) {
                     Some(idx) => &params[idx],
-                    _ => return false,
+                    _ => return None,
                 };
 
-                let captures = match pattern.captures(path.path()) {
+                let captures = match pattern.captures(path_str) {
                     Some(captures) => captures,
-                    _ => return false,
+                    _ => return None,
                 };
 
+                let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
                 for (no, name) in names.iter().enumerate() {
                     if let Some(m) = captures.name(name) {
                         segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                     } else {
                         error!("Dynamic path match but not all segments found: {}", name);
-                        return false;
+                        return None;
                     }
                 }
 
-                (captures[1].len(), Some(names))
-            }
-        };
-
-        if !check_fn(resource) {
-            return false;
-        }
-
-        // Modify `path` to skip matched part and store matched segments
-        let path = resource.resource_path();
-
-        if let Some(vars) = matched_vars {
-            for i in 0..vars.len() {
-                path.add(vars[i], mem::take(&mut segments[i]));
+                Some(ResourceMatchInfo::Dynamic {
+                    matched_len: captures[1].len() as u16,
+                    matched_vars: names,
+                    segments,
+                })
             }
         }
-
-        path.skip(matched_len as u16);
-
-        true
     }
 
     /// Assembles resource path using a closure that maps variable segment names to values.
@@ -1171,7 +1175,7 @@ mod tests {
         assert!(!re.is_match("/name~"));
 
         let mut path = Path::new("/name");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.unprocessed(), "");
 
         assert_eq!(re.find_match("/name"), Some(5));
@@ -1189,7 +1193,7 @@ mod tests {
         assert!(!re.is_match("/user/profile/profile"));
 
         let mut path = Path::new("/user/profile");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.unprocessed(), "");
     }
 
@@ -1202,12 +1206,12 @@ mod tests {
         assert!(!re.is_match("/user/2345/sdg"));
 
         let mut path = Path::new("/user/profile");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "profile");
         assert_eq!(path.unprocessed(), "");
 
         let mut path = Path::new("/user/1245125");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "1245125");
         assert_eq!(path.unprocessed(), "");
 
@@ -1217,7 +1221,7 @@ mod tests {
         assert!(!re.is_match("/resource"));
 
         let mut path = Path::new("/v151/resource/adage32");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("version").unwrap(), "151");
         assert_eq!(path.get("id").unwrap(), "adage32");
         assert_eq!(path.unprocessed(), "");
@@ -1229,7 +1233,7 @@ mod tests {
         assert!(!re.is_match("/XXXXXX"));
 
         let mut path = Path::new("/012345");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "012345");
         assert_eq!(path.unprocessed(), "");
     }
@@ -1249,12 +1253,12 @@ mod tests {
         assert!(!re.is_match("/user/2345/sdg"));
 
         let mut path = Path::new("/user/profile");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "profile");
         assert_eq!(path.unprocessed(), "");
 
         let mut path = Path::new("/user/1245125");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "1245125");
         assert_eq!(path.unprocessed(), "");
 
@@ -1263,7 +1267,7 @@ mod tests {
         assert!(!re.is_match("/resource"));
 
         let mut path = Path::new("/v151/resource/adage32");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("version").unwrap(), "151");
         assert_eq!(path.get("id").unwrap(), "adage32");
 
@@ -1277,7 +1281,7 @@ mod tests {
         assert!(!re.is_match("/static/a"));
 
         let mut path = Path::new("/012345");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "012345");
 
         let re = ResourceDef::new([
@@ -1314,7 +1318,7 @@ mod tests {
         assert_eq!(re.find_match("/12345"), None);
 
         let mut path = Path::new("/151/res");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "151");
         assert_eq!(path.unprocessed(), "/res");
     }
@@ -1324,19 +1328,19 @@ mod tests {
         let re = ResourceDef::new("/user/-{id}*");
 
         let mut path = Path::new("/user/-profile");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "profile");
 
         let mut path = Path::new("/user/-2345");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "2345");
 
         let mut path = Path::new("/user/-2345/");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "2345/");
 
         let mut path = Path::new("/user/-2345/sdg");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "2345/sdg");
     }
 
@@ -1364,7 +1368,7 @@ mod tests {
         let re = ResourceDef::new("/user/{id}/{tail}*");
         assert!(!re.is_match("/user/2345"));
         let mut path = Path::new("/user/2345/sdg");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "2345");
         assert_eq!(path.get("tail").unwrap(), "sdg");
         assert_eq!(path.unprocessed(), "");
@@ -1379,7 +1383,7 @@ mod tests {
 
         let re = ResourceDef::new("/a{x}b/test/a{y}b");
         let mut path = Path::new("/a\nb/test/a\nb");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("x").unwrap(), "\n");
         assert_eq!(path.get("y").unwrap(), "\n");
 
@@ -1388,12 +1392,12 @@ mod tests {
 
         let re = ResourceDef::new("/user/{id}*");
         let mut path = Path::new("/user/a\nb/a\nb");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "a\nb/a\nb");
 
         let re = ResourceDef::new("/user/{id:.*}");
         let mut path = Path::new("/user/a\nb/a\nb");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "a\nb/a\nb");
     }
 
@@ -1403,16 +1407,16 @@ mod tests {
         let re = ResourceDef::new("/user/{id}/test");
 
         let mut path = Path::new("/user/2345/test");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "2345");
 
         let mut path = Path::new("/user/qwe%25/test");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "qwe%25");
 
         let uri = http::Uri::try_from("/user/qwe%25/test").unwrap();
         let mut path = Path::new(uri);
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.get("id").unwrap(), "qwe%25");
     }
 
@@ -1429,11 +1433,11 @@ mod tests {
         assert!(!re.is_match("/name~"));
 
         let mut path = Path::new("/name");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.unprocessed(), "");
 
         let mut path = Path::new("/name/test");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.unprocessed(), "/test");
 
         assert_eq!(re.find_match("/name"), Some(5));
@@ -1449,10 +1453,10 @@ mod tests {
         assert!(!re.is_match("/name"));
 
         let mut path = Path::new("/name/gs");
-        assert!(!re.capture_match_info(&mut path));
+        assert!(!re.resolve_path_if_match(&mut path));
 
         let mut path = Path::new("/name//gs");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(path.unprocessed(), "/gs");
 
         let re = ResourceDef::root_prefix("name/");
@@ -1462,7 +1466,7 @@ mod tests {
         assert!(!re.is_match("/name"));
 
         let mut path = Path::new("/name/gs");
-        assert!(!re.capture_match_info(&mut path));
+        assert!(!re.resolve_path_if_match(&mut path));
     }
 
     #[test]
@@ -1481,13 +1485,13 @@ mod tests {
         assert_eq!(re.find_match(""), None);
 
         let mut path = Path::new("/test2/");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(&path["name"], "test2");
         assert_eq!(&path[0], "test2");
         assert_eq!(path.unprocessed(), "/");
 
         let mut path = Path::new("/test2/subpath1/subpath2/index.html");
-        assert!(re.capture_match_info(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         assert_eq!(&path["name"], "test2");
         assert_eq!(&path[0], "test2");
         assert_eq!(path.unprocessed(), "/subpath1/subpath2/index.html");
@@ -1543,7 +1547,7 @@ mod tests {
         assert!(resource.resource_path_from_iter(
             &mut s,
             #[allow(clippy::useless_vec)]
-            &mut vec!["item", "item2"].iter()
+            &mut vec!["item", "item2"].iter(),
         ));
         assert_eq!(s, "/user/item/item2/");
     }
@@ -1561,22 +1565,22 @@ mod tests {
         let resource = ResourceDef::new(["/user/{id}", "/profile/{id}"]);
 
         let mut path = Path::new("/user/123");
-        assert!(resource.capture_match_info(&mut path));
+        assert!(resource.resolve_path_if_match(&mut path));
         assert!(path.get("id").is_some());
 
         let mut path = Path::new("/profile/123");
-        assert!(resource.capture_match_info(&mut path));
+        assert!(resource.resolve_path_if_match(&mut path));
         assert!(path.get("id").is_some());
 
         let resource = ResourceDef::new(["/user/{id}", "/profile/{uid}"]);
 
         let mut path = Path::new("/user/123");
-        assert!(resource.capture_match_info(&mut path));
+        assert!(resource.resolve_path_if_match(&mut path));
         assert!(path.get("id").is_some());
         assert!(path.get("uid").is_none());
 
         let mut path = Path::new("/profile/123");
-        assert!(resource.capture_match_info(&mut path));
+        assert!(resource.resolve_path_if_match(&mut path));
         assert!(path.get("id").is_none());
         assert!(path.get("uid").is_some());
     }
