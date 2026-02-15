@@ -14,7 +14,7 @@ use serde::Serialize;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::ClientConfig,
+    client::{ClientConfig, ServerName},
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
@@ -48,6 +48,7 @@ pub struct ClientRequest {
     response_decompress: bool,
     timeout: Option<Duration>,
     config: ClientConfig,
+    sni_host: Option<ServerName>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -69,6 +70,7 @@ impl ClientRequest {
             cookies: None,
             timeout: None,
             response_decompress: true,
+            sni_host: None,
         }
         .method(method)
         .uri(uri)
@@ -302,6 +304,12 @@ impl ClientRequest {
         Ok(self)
     }
 
+    /// Set SNI (Server Name Indication) host for this request.
+    pub fn sni_host(mut self, host: impl Into<String>) -> Self {
+        self.sni_host = Some(ServerName::Owned(host.into()));
+        self
+    }
+
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
@@ -313,6 +321,10 @@ impl ClientRequest {
             response_decompress: slf.response_decompress,
             timeout: slf.timeout,
             config: slf.config,
+            sni_host: slf.sni_host.map(|v| match v {
+                ServerName::Borrowed(r) => ServerName::Borrowed(r),
+                ServerName::Owned(o) => ServerName::Borrowed(Rc::new(o)),
+            }),
         };
 
         Ok(request)
@@ -333,6 +345,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
             body,
         )
     }
@@ -349,6 +362,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
             value,
         )
     }
@@ -367,6 +381,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
             value,
         )
     }
@@ -387,6 +402,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
             stream,
         )
     }
@@ -403,6 +419,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
         )
     }
 
