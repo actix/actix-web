@@ -8,6 +8,16 @@ use bytes::BytesMut;
 
 use crate::{date::DateService, KeepAlive};
 
+/// Default HTTP/2 initial connection-level flow control window size.
+///
+/// Matches awc's defaults to avoid poor throughput on high-BDP links.
+pub(crate) const DEFAULT_H2_CONN_WINDOW_SIZE: u32 = 1024 * 1024 * 2; // 2MiB
+
+/// Default HTTP/2 initial stream-level flow control window size.
+///
+/// Matches awc's defaults to avoid poor throughput on high-BDP links.
+pub(crate) const DEFAULT_H2_STREAM_WINDOW_SIZE: u32 = 1024 * 1024; // 1MiB
+
 /// A builder for creating a [`ServiceConfig`]
 #[derive(Default, Debug)]
 pub struct ServiceConfigBuilder {
@@ -76,6 +86,28 @@ impl ServiceConfigBuilder {
         self
     }
 
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 1MiB.
+    pub fn h2_initial_window_size(mut self, size: u32) -> Self {
+        self.inner.h2_stream_window_size = size;
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 2MiB.
+    pub fn h2_initial_connection_window_size(mut self, size: u32) -> Self {
+        self.inner.h2_conn_window_size = size;
+        self
+    }
+
     /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
     pub fn build(self) -> ServiceConfig {
         ServiceConfig(Rc::new(self.inner))
@@ -96,6 +128,8 @@ struct Inner {
     tcp_nodelay: Option<bool>,
     date_service: DateService,
     h1_allow_half_closed: bool,
+    h2_conn_window_size: u32,
+    h2_stream_window_size: u32,
 }
 
 impl Default for Inner {
@@ -109,6 +143,8 @@ impl Default for Inner {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
         }
     }
 }
@@ -131,6 +167,8 @@ impl ServiceConfig {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
         }))
     }
 
@@ -193,6 +231,16 @@ impl ServiceConfig {
     /// Returns configured `TCP_NODELAY` setting for accepted TCP connections.
     pub fn tcp_nodelay(&self) -> Option<bool> {
         self.0.tcp_nodelay
+    }
+
+    /// HTTP/2 initial stream-level flow control window size (in bytes).
+    pub fn h2_initial_window_size(&self) -> u32 {
+        self.0.h2_stream_window_size
+    }
+
+    /// HTTP/2 initial connection-level flow control window size (in bytes).
+    pub fn h2_initial_connection_window_size(&self) -> u32 {
+        self.0.h2_conn_window_size
     }
 
     pub(crate) fn now(&self) -> Instant {

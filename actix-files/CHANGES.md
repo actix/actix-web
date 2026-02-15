@@ -9,9 +9,11 @@
 [#2615]: https://github.com/actix/actix-web/pull/2615
 [#3402]: https://github.com/actix/actix-web/issues/3402
 - Fix `NamedFile` panic when serving files with pre-UNIX epoch modification times. [#2748]
+- Fix invalid `Content-Encoding: identity` header in `NamedFile` range responses. [#3191]
 
 [#2615]: https://github.com/actix/actix-web/pull/2615
 [#2748]: https://github.com/actix/actix-web/issues/2748
+[#3191]: https://github.com/actix/actix-web/issues/3191
 
 ## 0.6.10
 

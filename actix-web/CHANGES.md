@@ -3,16 +3,21 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Improve HTTP/2 upload throughput by increasing default flow control window sizes. [#3638]
+- Add `HttpServer::{h2_initial_window_size, h2_initial_connection_window_size}` methods for tuning. [#3638]
 - Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#3895]
 - Ignore unparsable cookies in `Cookie` request header.
 - Add `experimental-introspection` feature to report configured routes [#3594]
 - Add config/method for `TCP_NODELAY`. [#3918]
 - Fix panic when `NormalizePath` rewrites a scoped dynamic path before extraction (e.g., `scope("{tail:.*}")` + `Path<String>`). [#3562]
+- Do not compress 206 Partial Content responses. [#3191]
 
 [#3895]: https://github.com/actix/actix-web/pull/3895
 [#3594]: https://github.com/actix/actix-web/pull/3594
 [#3918]: https://github.com/actix/actix-web/pull/3918
+[#3638]: https://github.com/actix/actix-web/issues/3638
 [#3562]: https://github.com/actix/actix-web/issues/3562
+[#3191]: https://github.com/actix/actix-web/issues/3191
 
 ## 4.12.1
 
