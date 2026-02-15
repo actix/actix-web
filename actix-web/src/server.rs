@@ -33,6 +33,8 @@ struct Config {
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     h1_allow_half_closed: bool,
+    h2_initial_window_size: Option<u32>,
+    h2_initial_connection_window_size: Option<u32>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -120,6 +122,8 @@ where
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
+                h2_initial_window_size: None,
+                h2_initial_connection_window_size: None,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -279,6 +283,33 @@ where
     /// The default behavior is to allow, i.e. `true`
     pub fn h1_allow_half_closed(self, allow: bool) -> Self {
         self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 1MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_window_size(self, size: u32) -> Self {
+        self.config.lock().unwrap().h2_initial_window_size = Some(size);
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 2MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_connection_window_size(self, size: u32) -> Self {
+        self.config
+            .lock()
+            .unwrap()
+            .h2_initial_connection_window_size = Some(size);
         self
     }
 
@@ -590,6 +621,14 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
                             svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
@@ -637,6 +676,14 @@ where
 
                     if let Some(enabled) = cfg.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -719,6 +766,14 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc = svc
                             .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
@@ -772,6 +827,14 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -844,6 +907,14 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc = svc
                             .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
@@ -912,6 +983,14 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -983,6 +1062,14 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
