@@ -5,6 +5,7 @@ use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
 use crate::{
     body::{BoxBody, MessageBody},
+    config::{DEFAULT_H2_CONN_WINDOW_SIZE, DEFAULT_H2_STREAM_WINDOW_SIZE},
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     service::HttpService,
     ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfigBuilder,
@@ -21,6 +22,8 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     h1_allow_half_closed: bool,
+    h2_conn_window_size: u32,
+    h2_stream_window_size: u32,
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -44,6 +47,8 @@ where
             secure: false,
             local_addr: None,
             h1_allow_half_closed: true,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
 
             // dispatcher parts
             expect: ExpectHandler,
@@ -146,6 +151,22 @@ where
         self
     }
 
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_initial_window_size`] for more details.
+    pub fn h2_initial_window_size(mut self, size: u32) -> Self {
+        self.h2_stream_window_size = size;
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_initial_connection_window_size`] for more details.
+    pub fn h2_initial_connection_window_size(mut self, size: u32) -> Self {
+        self.h2_conn_window_size = size;
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT` header.
@@ -166,6 +187,8 @@ where
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
+            h2_conn_window_size: self.h2_conn_window_size,
+            h2_stream_window_size: self.h2_stream_window_size,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
@@ -192,6 +215,8 @@ where
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
+            h2_conn_window_size: self.h2_conn_window_size,
+            h2_stream_window_size: self.h2_stream_window_size,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
@@ -229,6 +254,8 @@ where
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
             .build();
 
         H1Service::with_config(cfg, service.into_factory())
@@ -256,6 +283,8 @@ where
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
             .build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
@@ -280,6 +309,8 @@ where
             .secure(self.secure)
             .local_addr(self.local_addr)
             .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
             .build();
 
         HttpService::with_config(cfg, service.into_factory())

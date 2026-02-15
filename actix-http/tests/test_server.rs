@@ -10,7 +10,10 @@ use actix_http::{
     header, Error, HttpService, KeepAlive, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::{net::TcpStream, time::sleep};
+use actix_rt::{
+    net::TcpStream,
+    time::{sleep, timeout},
+};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
@@ -950,6 +953,65 @@ async fn h2c_auto() {
 
     assert!(head.status.is_success());
     assert_eq!(body, &b"h2"[..]);
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn h2_flow_control_window_sizes() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(KeepAlive::Disabled)
+            .finish(|_req: Request| ok::<_, Infallible>(Response::ok()))
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+
+    let mut builder = h2::client::Builder::new();
+    builder.max_send_buffer_size(4 * 1024 * 1024);
+
+    let (h2, connection) = builder.handshake(tcp).await.unwrap();
+    tokio::spawn(async move { connection.await.unwrap() });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let request = ::http::Request::builder()
+        .method("POST")
+        .uri("/")
+        .body(())
+        .unwrap();
+
+    let (response, mut send) = h2.send_request(request, false).unwrap();
+
+    // request more than the default 64KiB. if server is advertising larger flow control windows,
+    // we should get at least 1MiB assigned.
+    send.reserve_capacity(2 * 1024 * 1024);
+
+    let cap = timeout(Duration::from_secs(2), async {
+        loop {
+            let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
+                .await
+                .unwrap()
+                .unwrap();
+
+            if cap >= 1024 * 1024 {
+                break cap;
+            }
+        }
+    })
+    .await
+    .unwrap();
+
+    assert!(
+        cap >= 1024 * 1024,
+        "expected >= 1MiB send capacity, got {cap}"
+    );
+
+    send.send_data(Bytes::new(), true).unwrap();
+
+    let res = response.await.unwrap();
+    assert!(res.status().is_success());
 
     srv.stop().await;
 }
