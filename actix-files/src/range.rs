@@ -1,4 +1,5 @@
- use std::fmt;
+
+use std::fmt;
 
 use derive_more::Error;
 
