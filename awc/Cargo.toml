@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.8.1"
+version = "3.8.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -98,7 +98,7 @@ dangerous-h2c = []
 
 [dependencies]
 actix-codec = "0.5"
-actix-http = { version = "3.10", features = ["http2", "ws"] }
+actix-http = { version = "3.12.0", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-service = "2"
 actix-tls = { version = "3.4", features = ["connect", "uri"] }
@@ -134,13 +134,13 @@ tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, defau
 hickory-resolver = { version = "0.25", optional = true, features = ["system-config", "tokio"] }
 
 [dev-dependencies]
-actix-http = { version = "3.7", features = ["openssl"] }
+actix-http = { version = "3.12", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23"] }
 actix-utils = "3"
-actix-web = { version = "4", features = ["openssl"] }
+actix-web = { version = "4.13", features = ["openssl"] }
 
 brotli = "8"
 const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
