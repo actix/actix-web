@@ -327,16 +327,16 @@ impl Service<ServiceRequest> for AppRouting {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_fn(&mut req, |req, guards| {
+        let guards_check_fn = |req: &ServiceRequest, guards: &Vec<Box<dyn Guard>>| {
             let guard_ctx = req.guard_ctx();
             guards.iter().all(|guard| guard.check(&guard_ctx))
-        });
+        };
 
+        let res = self.router.recognize_fn(&mut req, guards_check_fn);
         if let Some((srv, _info)) = res {
-            srv.call(req)
-        } else {
-            self.default.call(req)
+            return srv.call(req);
         }
+        self.default.call(req)
     }
 }
 

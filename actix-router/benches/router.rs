@@ -180,6 +180,15 @@ fn compare_routers(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("actix_guard_failures", |b| {
+        b.iter(|| {
+            for route in call() {
+                let mut path = actix_router::Path::new(route);
+                black_box(actix.recognize_fn(&mut path, |_, _| false));
+            }
+        });
+    });
+
     let regex_set = regex::RegexSet::new(register!(regex)).unwrap();
     group.bench_function("regex", |b| {
         b.iter(|| {
