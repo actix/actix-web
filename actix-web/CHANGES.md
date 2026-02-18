@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.13.0
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Improve HTTP/2 upload throughput by increasing default flow control window sizes. [#3638]
 - Add `HttpServer::{h2_initial_window_size, h2_initial_connection_window_size}` methods for tuning. [#3638]
