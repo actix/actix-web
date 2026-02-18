@@ -1017,6 +1017,128 @@ async fn handler_drop_payload() {
     .await;
 }
 
+// Handler drops request payload without reading it. Server should keep reading and discarding the
+// rest of the request body so clients that do not read the response until they've finished
+// writing the request (like `requests` in Python) do not deadlock.
+// ref. https://github.com/actix/actix-web/issues/2972
+#[actix_rt::test]
+async fn handler_drop_payload_drains_body() {
+    let _ = env_logger::try_init();
+
+    let mut buf = TestSeqBuffer::new(http_msg(
+        r"
+        POST /drop-payload HTTP/1.1
+        Transfer-Encoding: chunked
+        
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        drop_payload_service(),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+
+    // stream a body larger than the dispatcher read buffer limit; it should still be drained
+    // (read + decoded + discarded) without stalling.
+    for _ in 0..32 {
+        let data = vec![b'a'; 8192];
+        let mut chunk = BytesMut::new();
+        chunk.extend_from_slice(format!("{:x}\r\n", data.len()).as_bytes());
+        chunk.extend_from_slice(&data);
+        chunk.extend_from_slice(b"\r\n");
+
+        buf.extend_read_buf(chunk);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+            assert!(buf.take_write_buf().is_empty());
+            assert!(buf.read_buf().is_empty());
+        })
+        .await;
+    }
+
+    // terminating chunk
+    buf.extend_read_buf(b"0\r\n\r\n");
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(buf.take_write_buf().is_empty());
+        assert!(buf.read_buf().is_empty());
+    })
+    .await;
+
+    // connection should be able to accept another request after draining the previous body
+    buf.extend_read_buf(http_msg("GET /drop-payload HTTP/1.1"));
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+}
+
 #[actix_rt::test]
 async fn allow_half_closed() {
     let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
