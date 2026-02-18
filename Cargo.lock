@@ -3,29 +3,6 @@
 version = 4
 
 [[package]]
-name = "actix"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de7fa236829ba0841304542f7614c42b80fca007455315c45c785ccfa873a85b"
-dependencies = [
- "actix-rt",
- "bitflags 2.10.0",
- "bytes",
- "crossbeam-channel",
- "futures-core",
- "futures-sink",
- "futures-task",
- "futures-util",
- "log",
- "once_cell",
- "parking_lot",
- "pin-project-lite",
- "smallvec",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -402,28 +379,6 @@ dependencies = [
  "tracing",
  "url",
  "zstd",
-]
-
-[[package]]
-name = "actix-web-actors"
-version = "4.3.1+deprecated"
-dependencies = [
- "actix",
- "actix-codec",
- "actix-http",
- "actix-rt",
- "actix-test",
- "actix-web",
- "awc",
- "bytes",
- "bytestring",
- "env_logger",
- "futures-core",
- "futures-util",
- "mime",
- "pin-project-lite",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]
