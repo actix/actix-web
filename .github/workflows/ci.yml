@@ -79,7 +79,7 @@ jobs:
         run: just check-default
 
       - name: tests
-        timeout-minutes: 60
+        timeout-minutes: 30
         run: just test
 
       - name: CI cache clean
@@ -101,7 +101,7 @@ jobs:
           toolchain: nightly
 
       - name: tests (io-uring)
-        timeout-minutes: 60
+        timeout-minutes: 30
         run: >
           sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
 
