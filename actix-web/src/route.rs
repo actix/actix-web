@@ -23,6 +23,7 @@ use crate::{
 pub struct Route {
     service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,
+    wrapped: bool,
 }
 
 impl Route {
@@ -34,6 +35,7 @@ impl Route {
                 Ok(req.into_response(HttpResponse::NotFound()))
             })),
             guards: Rc::new(Vec::new()),
+            wrapped: false,
         }
     }
 
@@ -41,6 +43,18 @@ impl Route {
     ///
     /// `mw` is a middleware component (type), that can modify the requests and responses handled by
     /// this `Route`.
+    ///
+    /// **Important:** `.wrap()` must be called **after** `.to()` or `.service()`, not before.
+    /// Calling `.to()` or `.service()` after `.wrap()` will panic, because `.to()` replaces the
+    /// service and any previously applied middleware would be silently lost.
+    ///
+    /// # Correct Usage
+    /// ```
+    /// # use actix_web::{web, HttpResponse, middleware};
+    /// web::get()
+    ///     .to(|| async { HttpResponse::Ok() })
+    ///     .wrap(middleware::Logger::default());
+    /// ```
     ///
     /// See [`App::wrap`](crate::App::wrap) for more details.
     #[doc(alias = "middleware")]
@@ -59,6 +73,7 @@ impl Route {
         Route {
             service: boxed::factory(apply(Compat::new(mw), self.service)),
             guards: self.guards,
+            wrapped: true,
         }
     }
 
@@ -218,6 +233,13 @@ impl Route {
         Args: FromRequest + 'static,
         F::Output: Responder + 'static,
     {
+        if self.wrapped {
+            panic!(
+                "Calling `.to()` after `.wrap()` will silently discard the middleware. \
+                 Call `.to()` before `.wrap()` instead: `web::get().to(handler).wrap(mw)`"
+            );
+        }
+
         self.service = handler_service(handler);
         self
     }
@@ -265,6 +287,14 @@ impl Route {
             > + 'static,
         E: Into<Error> + 'static,
     {
+        if self.wrapped {
+            panic!(
+                "Calling `.service()` after `.wrap()` will silently discard the middleware. \
+                 Call `.service()` before `.wrap()` instead: \
+                 `web::get().service(factory).wrap(mw)`"
+            );
+        }
+
         self.service = boxed::factory(service_factory.map_err(Into::into));
         self
     }
@@ -458,5 +488,26 @@ mod tests {
             body,
             Bytes::from_static(b"Goodbye, and thanks for all the fish!")
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "Calling `.to()` after `.wrap()`")]
+    fn wrap_before_to_panics() {
+        web::get()
+            .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
+            .to(HttpResponse::Ok);
+    }
+
+    #[test]
+    #[should_panic(expected = "Calling `.service()` after `.wrap()`")]
+    fn wrap_before_service_panics() {
+        web::get()
+            .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
+            .service(fn_factory(|| async {
+                Ok::<_, ()>(fn_service(|req: ServiceRequest| async {
+                    let (req, _) = req.into_parts();
+                    Ok::<_, Infallible>(ServiceResponse::new(req, HttpResponse::Ok().finish()))
+                }))
+            }));
     }
 }
