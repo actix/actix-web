@@ -321,6 +321,21 @@ impl ServiceRequest {
             .push(extensions);
     }
 
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        self.req.push_resource_id(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        self.req.mark_resource_path(is_matched);
+    }
+
+    #[inline]
+    pub(crate) fn resource_id_path(&self) -> &[u16] {
+        self.req.resource_path()
+    }
+
     /// Creates a context object for use with a routing [guard](crate::guard).
     #[inline]
     pub fn guard_ctx(&self) -> GuardContext<'_> {
