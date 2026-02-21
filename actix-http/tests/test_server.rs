@@ -962,7 +962,13 @@ async fn h2_flow_control_window_sizes() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .finish(|_req: Request| ok::<_, Infallible>(Response::ok()))
+            .finish(|mut req: Request| async move {
+                while let Some(item) = req.take_payload().next().await {
+                    item?;
+                }
+
+                Ok::<_, Error>(Response::ok())
+            })
             .tcp_auto_h2c()
     })
     .await;
@@ -992,8 +998,8 @@ async fn h2_flow_control_window_sizes() {
         loop {
             let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
                 .await
-                .unwrap()
-                .unwrap();
+                .expect("request stream closed before flow control capacity became available")
+                .expect("failed polling flow control capacity");
 
             if cap >= 1024 * 1024 {
                 break cap;
@@ -1001,7 +1007,7 @@ async fn h2_flow_control_window_sizes() {
         }
     })
     .await
-    .unwrap();
+    .expect("timed out waiting for flow control capacity");
 
     assert!(
         cap >= 1024 * 1024,
