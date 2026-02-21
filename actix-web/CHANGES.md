@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
+
+[#3944]: https://github.com/actix/actix-web/pull/3944
+
 ## 4.13.0
 
 - Minimum supported Rust version (MSRV) is now 1.88.

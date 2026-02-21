@@ -44,11 +44,10 @@ impl Route {
     /// `mw` is a middleware component (type), that can modify the requests and responses handled by
     /// this `Route`.
     ///
-    /// **Important:** `.wrap()` must be called **after** `.to()` or `.service()`, not before.
-    /// Calling `.to()` or `.service()` after `.wrap()` will panic, because `.to()` replaces the
-    /// service and any previously applied middleware would be silently lost.
+    /// This middleware wraps the currently configured route service. Call this method after
+    /// [`Route::to`] or [`Route::service`] so the middleware is applied to the final handler.
     ///
-    /// # Correct Usage
+    /// # Examples
     /// ```
     /// # use actix_web::{web, HttpResponse, middleware};
     /// web::get()
@@ -79,6 +78,17 @@ impl Route {
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         mem::take(Rc::get_mut(&mut self.guards).unwrap())
+    }
+
+    #[cold]
+    #[inline(never)]
+    #[track_caller]
+    fn panic_after_wrap(replaced: &str, example: &str) -> ! {
+        panic!(
+            "Route middleware was already registered with `.wrap()`. \
+             Calling `.{replaced}()` now would replace the wrapped service and silently drop middleware. \
+             Call `.{replaced}()` before `.wrap()` (for example: `{example}`)."
+        );
     }
 }
 
@@ -227,6 +237,11 @@ impl Route {
     ///         .route(web::get().to(index))
     /// );
     /// ```
+    ///
+    /// # Panics
+    /// Panics if called after [`Route::wrap`], since this would replace the wrapped service and
+    /// silently discard middleware.
+    #[track_caller]
     pub fn to<F, Args>(mut self, handler: F) -> Self
     where
         F: Handler<Args>,
@@ -234,10 +249,7 @@ impl Route {
         F::Output: Responder + 'static,
     {
         if self.wrapped {
-            panic!(
-                "Calling `.to()` after `.wrap()` will silently discard the middleware. \
-                 Call `.to()` before `.wrap()` instead: `web::get().to(handler).wrap(mw)`"
-            );
+            Self::panic_after_wrap("to", "web::get().to(handler).wrap(mw)");
         }
 
         self.service = handler_service(handler);
@@ -276,6 +288,11 @@ impl Route {
     ///     web::get().service(fn_factory(|| async { Ok(HelloWorld) })),
     /// );
     /// ```
+    ///
+    /// # Panics
+    /// Panics if called after [`Route::wrap`], since this would replace the wrapped service and
+    /// silently discard middleware.
+    #[track_caller]
     pub fn service<S, E>(mut self, service_factory: S) -> Self
     where
         S: ServiceFactory<
@@ -288,11 +305,7 @@ impl Route {
         E: Into<Error> + 'static,
     {
         if self.wrapped {
-            panic!(
-                "Calling `.service()` after `.wrap()` will silently discard the middleware. \
-                 Call `.service()` before `.wrap()` instead: \
-                 `web::get().service(factory).wrap(mw)`"
-            );
+            Self::panic_after_wrap("service", "web::get().service(factory).wrap(mw)");
         }
 
         self.service = boxed::factory(service_factory.map_err(Into::into));
@@ -491,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Calling `.to()` after `.wrap()`")]
+    #[should_panic(expected = "Route middleware was already registered with `.wrap()`")]
     fn wrap_before_to_panics() {
         web::get()
             .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
@@ -499,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Calling `.service()` after `.wrap()`")]
+    #[should_panic(expected = "Route middleware was already registered with `.wrap()`")]
     fn wrap_before_service_panics() {
         web::get()
             .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
