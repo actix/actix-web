@@ -23,6 +23,7 @@ use crate::{
 pub struct Route {
     service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,
+    wrapped: bool,
 }
 
 impl Route {
@@ -34,6 +35,7 @@ impl Route {
                 Ok(req.into_response(HttpResponse::NotFound()))
             })),
             guards: Rc::new(Vec::new()),
+            wrapped: false,
         }
     }
 
@@ -41,6 +43,17 @@ impl Route {
     ///
     /// `mw` is a middleware component (type), that can modify the requests and responses handled by
     /// this `Route`.
+    ///
+    /// This middleware wraps the currently configured route service. Call this method after
+    /// [`Route::to`] or [`Route::service`] so the middleware is applied to the final handler.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_web::{web, HttpResponse, middleware};
+    /// web::get()
+    ///     .to(|| async { HttpResponse::Ok() })
+    ///     .wrap(middleware::Logger::default());
+    /// ```
     ///
     /// See [`App::wrap`](crate::App::wrap) for more details.
     #[doc(alias = "middleware")]
@@ -59,11 +72,23 @@ impl Route {
         Route {
             service: boxed::factory(apply(Compat::new(mw), self.service)),
             guards: self.guards,
+            wrapped: true,
         }
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         mem::take(Rc::get_mut(&mut self.guards).unwrap())
+    }
+
+    #[cold]
+    #[inline(never)]
+    #[track_caller]
+    fn panic_after_wrap(replaced: &str, example: &str) -> ! {
+        panic!(
+            "Route middleware was already registered with `.wrap()`. \
+             Calling `.{replaced}()` now would replace the wrapped service and silently drop middleware. \
+             Call `.{replaced}()` before `.wrap()` (for example: `{example}`)."
+        );
     }
 }
 
@@ -212,12 +237,21 @@ impl Route {
     ///         .route(web::get().to(index))
     /// );
     /// ```
+    ///
+    /// # Panics
+    /// Panics if called after [`Route::wrap`], since this would replace the wrapped service and
+    /// silently discard middleware.
+    #[track_caller]
     pub fn to<F, Args>(mut self, handler: F) -> Self
     where
         F: Handler<Args>,
         Args: FromRequest + 'static,
         F::Output: Responder + 'static,
     {
+        if self.wrapped {
+            Self::panic_after_wrap("to", "web::get().to(handler).wrap(mw)");
+        }
+
         self.service = handler_service(handler);
         self
     }
@@ -254,6 +288,11 @@ impl Route {
     ///     web::get().service(fn_factory(|| async { Ok(HelloWorld) })),
     /// );
     /// ```
+    ///
+    /// # Panics
+    /// Panics if called after [`Route::wrap`], since this would replace the wrapped service and
+    /// silently discard middleware.
+    #[track_caller]
     pub fn service<S, E>(mut self, service_factory: S) -> Self
     where
         S: ServiceFactory<
@@ -265,6 +304,10 @@ impl Route {
             > + 'static,
         E: Into<Error> + 'static,
     {
+        if self.wrapped {
+            Self::panic_after_wrap("service", "web::get().service(factory).wrap(mw)");
+        }
+
         self.service = boxed::factory(service_factory.map_err(Into::into));
         self
     }
@@ -458,5 +501,26 @@ mod tests {
             body,
             Bytes::from_static(b"Goodbye, and thanks for all the fish!")
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "Route middleware was already registered with `.wrap()`")]
+    fn wrap_before_to_panics() {
+        web::get()
+            .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
+            .to(HttpResponse::Ok);
+    }
+
+    #[test]
+    #[should_panic(expected = "Route middleware was already registered with `.wrap()`")]
+    fn wrap_before_service_panics() {
+        web::get()
+            .wrap(DefaultHeaders::new().add(("x-test", "x-value")))
+            .service(fn_factory(|| async {
+                Ok::<_, ()>(fn_service(|req: ServiceRequest| async {
+                    let (req, _) = req.into_parts();
+                    Ok::<_, Infallible>(ServiceResponse::new(req, HttpResponse::Ok().finish()))
+                }))
+            }));
     }
 }
