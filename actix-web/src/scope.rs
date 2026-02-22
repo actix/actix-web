@@ -533,7 +533,15 @@ impl Service<ServiceRequest> for ScopeService {
             guards.iter().all(|guard| guard.check(&guard_ctx))
         });
 
-        if let Some((srv, _info)) = res {
+        if let Some((srv, info)) = res {
+            req.push_resource_id(info.0);
+
+            let matched = req
+                .resource_map()
+                .is_resource_path_match(req.resource_id_path());
+
+            req.mark_resource_path(matched);
+
             srv.call(req)
         } else {
             self.default.call(req)

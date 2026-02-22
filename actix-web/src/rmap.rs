@@ -240,8 +240,38 @@ impl ResourceMap {
         )
     }
 
+    pub(crate) fn is_resource_path_match(&self, resource_path: &[u16]) -> bool {
+        self.find_node_by_resource_path(resource_path)
+            .is_some_and(|node| node.nodes.is_none())
+    }
+
+    pub(crate) fn match_name_by_resource_path(&self, resource_path: &[u16]) -> Option<&str> {
+        self.find_node_by_resource_path(resource_path)?
+            .pattern
+            .name()
+    }
+
+    pub(crate) fn match_pattern_by_resource_path(&self, resource_path: &[u16]) -> Option<String> {
+        self.find_node_by_resource_path(resource_path)?
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
+                let pattern = node.pattern.pattern()?;
+                acc.push_str(pattern);
+                Some(acc)
+            })
+    }
+
     fn find_matching_node(&self, path: &str) -> Option<&ResourceMap> {
         self._find_matching_node(path).flatten()
+    }
+
+    fn find_node_by_resource_path(&self, resource_path: &[u16]) -> Option<&ResourceMap> {
+        let mut node = self;
+
+        for id in resource_path {
+            node = node.nodes.as_ref()?.get(*id as usize)?;
+        }
+
+        Some(node)
     }
 
     /// Returns `None` if root pattern doesn't match;
