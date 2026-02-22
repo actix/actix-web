@@ -15,7 +15,10 @@
 //! - Access external services (e.g., [sessions](https://docs.rs/actix-session), etc.)
 //!
 //! Middleware is registered for each [`App`], [`Scope`](crate::Scope), or
-//! [`Resource`](crate::Resource) and executed in opposite order as registration.
+//! [`Resource`](crate::Resource) and executed in opposite order as registration. Note that this
+//! reverse ordering applies _within_ a single level (`App`, `Scope`, or `Resource`). When
+//! middleware exists at multiple levels, App-level middleware always runs first. See
+//! [Cross-Level Middleware Ordering](#cross-level-middleware-ordering) for details.
 //!
 //! # Simple Middleware
 //!
@@ -119,6 +122,62 @@
 //! Ordering is less obvious when wrapped services also have middleware applied. In this case,
 //! middleware are run in reverse order for [`App`] _and then_ in reverse order for the wrapped
 //! service.
+//!
+//! # Cross-Level Middleware Ordering
+//!
+//! When middleware is registered on _both_ an [`App`] and a [`Scope`](crate::Scope) (or
+//! [`Resource`](crate::Resource)), the App-level middleware **always** runs before the
+//! Scope/Resource-level middleware. This is because App-level middleware wraps the entire request
+//! router, and routing to a specific scope or resource happens _inside_ that middleware chain.
+//!
+//! ```plain
+//!                     Request
+//!                        ⭣
+//! ╭──────────────────────┼──────╮
+//! │ App Middleware       │      │
+//! │ ╭────────────────────┼─────╮│
+//! │ │ Router             │     ││
+//! │ │      ╭─────────────┼────╮││
+//! │ │      │ Scope MW    │    │││
+//! │ │      │ ╭───────────┼───╮│││
+//! │ │      │ │ Resource  │   ││││
+//! │ │      │ │ MW        │   ││││
+//! │ │      │ │ ╭─────────┼──╮││││
+//! │ │      │ │ │ Handler │  │││││
+//! │ │      │ │ ╰─────────┼──╯││││
+//! │ │      │ ╰───────────┼───╯│││
+//! │ │      ╰─────────────┼────╯││
+//! │ ╰────────────────────┼─────╯│
+//! ╰──────────────────────┼──────╯
+//!                        ⭣
+//!                     Response
+//! ```
+//!
+//! This means that a middleware applied to a [`Scope`](crate::Scope) **cannot** bypass or run
+//! before middleware applied to the enclosing [`App`]. For example, if authentication middleware
+//! is registered on `App`, a "bypass auth" middleware on a scope will not work because the App
+//! auth middleware has already executed by the time routing reaches that scope.
+//!
+//! If you need different middleware behavior for different groups of routes, apply middleware at
+//! the scope level rather than the app level:
+//!
+//! ```
+//! use actix_web::{web, middleware, App};
+//!
+//! // Instead of applying auth middleware at the App level and trying
+//! // to bypass it on certain scopes, apply it per-scope:
+//! let app = App::new()
+//!     .service(
+//!         web::scope("/api")
+//!             .wrap(middleware::DefaultHeaders::new()) // e.g., auth middleware
+//!             // ... api routes
+//!     )
+//!     .service(
+//!         web::scope("/public")
+//!             // no auth middleware here
+//!             // ... public routes
+//!     );
+//! ```
 //!
 //! # Middleware Traits
 //!
