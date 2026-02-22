@@ -14,7 +14,7 @@ use serde::Serialize;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::ClientConfig,
+    client::{ClientConfig, ConnectConfig, ServerName},
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
@@ -48,6 +48,8 @@ pub struct ClientRequest {
     response_decompress: bool,
     timeout: Option<Duration>,
     config: ClientConfig,
+    sni_host: Option<ServerName>,
+    connect_config: Option<ConnectConfig>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -69,6 +71,8 @@ impl ClientRequest {
             cookies: None,
             timeout: None,
             response_decompress: true,
+            sni_host: None,
+            connect_config: None,
         }
         .method(method)
         .uri(uri)
@@ -275,6 +279,15 @@ impl ClientRequest {
         self
     }
 
+    /// Set specific connector configuration for this request.
+    ///
+    /// Not all config may be applied to the request, it depends on the connector and also
+    /// if there is already a connection established.
+    pub fn connect_config(mut self, config: ConnectConfig) -> Self {
+        self.connect_config = Some(config);
+        self
+    }
+
     /// Set request timeout. Overrides client wide timeout setting.
     ///
     /// Request timeout is the total time before a response must be received.
@@ -302,6 +315,12 @@ impl ClientRequest {
         Ok(self)
     }
 
+    /// Set SNI (Server Name Indication) host for this request.
+    pub fn sni_host(mut self, host: impl Into<String>) -> Self {
+        self.sni_host = Some(ServerName::Owned(host.into()));
+        self
+    }
+
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
@@ -313,6 +332,11 @@ impl ClientRequest {
             response_decompress: slf.response_decompress,
             timeout: slf.timeout,
             config: slf.config,
+            sni_host: slf.sni_host.map(|v| match v {
+                ServerName::Borrowed(r) => ServerName::Borrowed(r),
+                ServerName::Owned(o) => ServerName::Borrowed(Rc::new(o)),
+            }),
+            connect_config: slf.connect_config.map(Rc::new),
         };
 
         Ok(request)
@@ -333,6 +357,8 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
+            slf.connect_config.map(Rc::new),
             body,
         )
     }
@@ -349,6 +375,8 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
+            slf.connect_config.map(Rc::new),
             value,
         )
     }
@@ -367,6 +395,8 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
+            slf.connect_config.map(Rc::new),
             value,
         )
     }
@@ -387,6 +417,8 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
+            slf.connect_config.map(Rc::new),
             stream,
         )
     }
@@ -403,6 +435,8 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.sni_host,
+            slf.connect_config.map(Rc::new),
         )
     }
 
