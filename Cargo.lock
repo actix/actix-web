@@ -60,6 +60,7 @@ dependencies = [
  "actix-utils",
  "actix-web",
  "async-stream",
+ "awc",
  "base64 0.22.1",
  "bitflags 2.10.0",
  "brotli",

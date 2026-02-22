@@ -139,6 +139,7 @@ actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23-webpki-roots"] }
 actix-web = "4"
+awc = { version = "3", default-features = false, features = ["openssl"] }
 
 async-stream = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }
