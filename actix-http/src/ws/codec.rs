@@ -71,6 +71,10 @@ pub enum Item {
 pub struct Codec {
     flags: Flags,
     max_size: usize,
+    /// When the read buffer is fully drained and its capacity exceeds this
+    /// threshold, it is replaced with a fresh allocation to reclaim memory.
+    /// Defaults to 128 KiB.
+    max_buffer_size: usize,
 }
 
 bitflags! {
@@ -87,6 +91,7 @@ impl Codec {
     pub const fn new() -> Codec {
         Codec {
             max_size: 65_536,
+            max_buffer_size: 128 * 1024,
             flags: Flags::SERVER,
         }
     }
@@ -97,6 +102,20 @@ impl Codec {
     #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
+        self
+    }
+
+    /// Set the max buffer capacity threshold for read buffer reclamation.
+    ///
+    /// When the read buffer is fully drained (empty) and its allocated capacity
+    /// exceeds this threshold, it is replaced with a fresh, smaller allocation.
+    /// This prevents long-lived connections from permanently holding memory
+    /// allocated for occasional large messages.
+    ///
+    /// By default this is set to 128 KiB.
+    #[must_use = "This returns the a new Codec, without modifying the original."]
+    pub fn max_buffer_size(mut self, size: usize) -> Self {
+        self.max_buffer_size = size;
         self
     }
 
@@ -220,6 +239,14 @@ impl Decoder for Codec {
     type Error = ProtocolError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        // Reclaim memory: if the buffer has been fully drained and its capacity
+        // exceeds the threshold, replace it with a fresh allocation. This prevents
+        // peak memory usage from becoming permanent on long-lived connections
+        // (e.g., WebSockets that occasionally receive large payloads).
+        if src.is_empty() && src.capacity() > self.max_buffer_size {
+            *src = BytesMut::new();
+        }
+
         match Parser::parse(src, self.flags.contains(Flags::SERVER), self.max_size) {
             Ok(Some((finished, opcode, payload))) => {
                 // continuation is not supported
