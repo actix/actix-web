@@ -111,7 +111,13 @@ pub(crate) trait MessageType: Sized {
 
         // Connection
         match conn_type {
-            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
+            ConnectionType::Upgrade => {
+                if camel_case {
+                    dst.put_slice(b"Connection: upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: upgrade\r\n")
+                }
+            },
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: keep-alive\r\n")
