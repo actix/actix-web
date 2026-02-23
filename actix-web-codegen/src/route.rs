@@ -240,6 +240,12 @@ impl Args {
 
         let is_route_macro = method.is_none();
         if let Some(method) = method {
+            // Per RFC 7231 Section 4.3.2, a server that supports GET must also
+            // support HEAD. Automatically register a HEAD guard alongside GET
+            // so that `#[get(...)]` handlers respond to HEAD requests.
+            if method == MethodType::Get {
+                methods.insert(MethodTypeExt::Standard(MethodType::Head));
+            }
             methods.insert(MethodTypeExt::Standard(method));
         }
 

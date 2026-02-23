@@ -384,3 +384,23 @@ async fn test_wrap() {
     let body = String::from_utf8(body.to_vec()).unwrap();
     assert!(body.contains("wrong number of parameters"));
 }
+
+#[get("/head-from-get")]
+async fn get_head_implicit() -> impl Responder {
+    HttpResponse::Ok().body("hello")
+}
+
+#[actix_web::test]
+async fn test_get_implies_head() {
+    let srv = actix_test::start(|| App::new().service(get_head_implicit));
+
+    // GET should work as usual
+    let request = srv.request(http::Method::GET, srv.url("/head-from-get"));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // HEAD should also work on a #[get] endpoint per RFC 7231
+    let request = srv.request(http::Method::HEAD, srv.url("/head-from-get"));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
