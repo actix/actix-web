@@ -245,6 +245,19 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
+    /// Is to uppercase headers with Camel-Case.
+    /// Default is `false`
+    #[inline]
+    pub fn camel_case_headers(&self) -> bool {
+        self.head.camel_case_headers()
+    }
+
+    /// Set `true` to send headers which are formatted as Camel-Case.
+    #[inline]
+    pub fn set_camel_case_headers(&mut self, val: bool) {
+        self.head.set_camel_case_headers(val)
+    }
+
     /// Complete request construction and connect to a WebSocket server.
     pub async fn connect(
         mut self,
