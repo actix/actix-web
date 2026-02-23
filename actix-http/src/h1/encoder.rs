@@ -113,7 +113,7 @@ pub(crate) trait MessageType: Sized {
         match conn_type {
             ConnectionType::Upgrade => {
                 if camel_case {
-                    dst.put_slice(b"Connection: upgrade\r\n")
+                    dst.put_slice(b"Connection: Upgrade\r\n")
                 } else {
                     dst.put_slice(b"connection: upgrade\r\n")
                 }
