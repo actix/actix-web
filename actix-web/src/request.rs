@@ -42,6 +42,8 @@ pub struct HttpRequest {
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    pub(crate) resource_path: SmallVec<[u16; 4]>,
+    pub(crate) resource_path_matched: bool,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
     pub(crate) extensions: Rc<RefCell<Extensions>>,
@@ -65,6 +67,8 @@ impl HttpRequest {
             inner: Rc::new(HttpRequestInner {
                 head,
                 path,
+                resource_path: SmallVec::new(),
+                resource_path_matched: false,
                 app_state,
                 app_data: data,
                 conn_data,
@@ -180,6 +184,26 @@ impl HttpRequest {
         &mut Rc::get_mut(&mut self.inner).unwrap().path
     }
 
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path.push(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path_matched = is_matched;
+    }
+
+    #[inline]
+    pub(crate) fn resource_path(&self) -> &[u16] {
+        &self.inner.resource_path
+    }
+
+    #[inline]
+    pub(crate) fn is_resource_path_matched(&self) -> bool {
+        self.inner.resource_path_matched
+    }
+
     /// The resource definition pattern that matched the path. Useful for logging and metrics.
     ///
     /// For example, when a resource with pattern `/user/{id}/profile` is defined and a call is made
@@ -188,6 +212,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
+        if self.is_resource_path_matched() {
+            if let Some(pattern) = self
+                .resource_map()
+                .match_pattern_by_resource_path(self.resource_path())
+            {
+                return Some(pattern);
+            }
+        }
+
         self.resource_map().match_pattern(self.path())
     }
 
@@ -196,6 +229,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
+        if self.is_resource_path_matched() {
+            if let Some(name) = self
+                .resource_map()
+                .match_name_by_resource_path(self.resource_path())
+            {
+                return Some(name);
+            }
+        }
+
         self.resource_map().match_name(self.path())
     }
 
@@ -633,6 +675,7 @@ mod tests {
     use super::*;
     use crate::{
         dev::{ResourceDef, Service},
+        guard,
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
@@ -1015,6 +1058,44 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
 
         let req = TestRequest::get().uri("/user/22/not-exist").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn extract_path_pattern_with_guards() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/widgets")
+                    .service(
+                        web::resource("/{id}")
+                            .name("get_widget")
+                            .guard(guard::Get())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/{id}".to_owned()));
+                                assert_eq!(req.match_name(), Some("get_widget"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    )
+                    .service(
+                        web::resource("/action")
+                            .name("widget_action")
+                            .guard(guard::Post())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/action".to_owned()));
+                                assert_eq!(req.match_name(), Some("widget_action"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/widgets/42").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::post().uri("/widgets/action").to_request();
         let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
