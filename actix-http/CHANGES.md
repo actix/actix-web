@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
+
+[#3953]: https://github.com/actix/actix-web/pull/3953
+
 ## 3.12.0
 
 - Minimum supported Rust version (MSRV) is now 1.88.
