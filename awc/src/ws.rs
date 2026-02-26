@@ -245,6 +245,21 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
+    /// Returns whether headers should be sent in Camel-Case.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn camel_case_headers(&self) -> bool {
+        self.head.camel_case_headers()
+    }
+
+    /// Sets whether to send headers formatted as Camel-Case.
+    #[inline]
+    pub fn set_camel_case_headers(mut self, val: bool) -> Self {
+        self.head.set_camel_case_headers(val);
+        self
+    }
+
     /// Complete request construction and connect to a WebSocket server.
     pub async fn connect(
         mut self,
@@ -527,6 +542,12 @@ mod tests {
 
         #[allow(clippy::let_underscore_future)]
         let _ = req.connect();
+    }
+
+    #[actix_rt::test]
+    async fn camel_case_headers() {
+        let req = Client::new().ws("/").set_camel_case_headers(true);
+        assert!(req.camel_case_headers());
     }
 
     #[actix_rt::test]
