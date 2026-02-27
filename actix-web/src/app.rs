@@ -326,6 +326,20 @@ where
     /// Middleware can be applied similarly to individual `Scope`s and `Resource`s.
     /// See [`Scope::wrap`](crate::Scope::wrap) and [`Resource::wrap`].
     ///
+    /// # Middleware Ordering
+    ///
+    /// App-level middleware wraps the entire request router and **always executes before** any
+    /// [`Scope`](crate::Scope)-level or [`Resource`]-level middleware, regardless of the order in
+    /// which services are registered on the builder. Scope middleware cannot bypass or run before
+    /// App middleware.
+    ///
+    /// If you need certain routes to skip a middleware, apply that middleware at the
+    /// [`Scope`](crate::Scope) level instead of the `App` level.
+    ///
+    /// For more info on middleware ordering, see the
+    /// [Cross-Level Middleware Ordering](crate::middleware#cross-level-middleware-ordering)
+    /// section.
+    ///
     /// For more info on middleware take a look at the [`middleware` module][crate::middleware].
     ///
     /// # Examples
