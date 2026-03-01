@@ -151,6 +151,7 @@ impl Files {
                     Ok(canon_dir) => canon_dir,
                     Err(_) => {
                         log::error!("Specified path is not a directory: {:?}", orig_dir);
+                        // Preserve original path so requests don't fall back to CWD.
                         orig_dir
                     }
                 }

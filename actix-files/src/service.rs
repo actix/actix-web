@@ -115,9 +115,9 @@ impl FilesService {
 
     /// Show index listing for a directory.
     ///
-    /// Uses the directory where the path was found as the base directory for index listing.
-    fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
-        let dir = Directory::new(path.clone(), path);
+    /// Uses the provided base directory for calculating relative paths in the index listing.
+    fn show_index(&self, req: ServiceRequest, base: PathBuf, path: PathBuf) -> ServiceResponse {
+        let dir = Directory::new(base, path);
 
         let (req, _) = req.into_parts();
 
@@ -175,91 +175,93 @@ impl Service<ServiceRequest> for FilesService {
             }
 
             // Try to find file in multiple directories
-            let mut found_path = None;
             let mut last_err = None;
 
             for directory in &this.directories {
                 let path = directory.join(&path_on_disk);
-                match path.canonicalize() {
-                    Ok(_) => {
-                        found_path = Some(path);
-                        break;
-                    }
-                    Err(err) => {
-                        // Keep track of the last error
-                        last_err = Some(err);
-                    }
-                }
-            }
 
-            let path = match found_path {
-                Some(path) => path,
-                None => {
-                    // If all directories failed, use the last error
-                    let err = last_err.unwrap_or_else(|| {
-                        io::Error::new(io::ErrorKind::NotFound, "File not found")
-                    });
-                    return this.handle_err(err, req).await;
-                }
-            };
-
-            // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
-            // Still handle directories (index/listing) through the normal branch below.
-            if this.try_compressed && !path.is_dir() {
-                if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
-                    return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
-                }
-            }
-
-            if path.is_dir() {
-                if this.redirect_to_slash
-                    && !req.path().ends_with('/')
-                    && (this.index.is_some() || this.show_index)
-                {
-                    let redirect_to = format!("{}/", req.path());
-
-                    let response = if this.with_permanent_redirect {
-                        HttpResponse::PermanentRedirect()
-                    } else {
-                        HttpResponse::TemporaryRedirect()
-                    }
-                    .insert_header((header::LOCATION, redirect_to))
-                    .finish();
-
-                    return Ok(req.into_response(response));
-                }
-
-                match this.index {
-                    Some(ref index) => {
-                        let named_path = path.join(index);
-                        if this.try_compressed {
-                            if let Some((named_file, encoding)) =
-                                find_compressed(&req, &named_path).await
+                // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
+                // Still handle directories (index/listing) through the normal branch below.
+                if this.try_compressed {
+                    if let Ok(metadata) = path.metadata() {
+                        if !metadata.is_dir() {
+                            if let Some((named_file, encoding)) = find_compressed(&req, &path).await
                             {
                                 return Ok(
                                     this.serve_named_file_with_encoding(req, named_file, encoding)
                                 );
                             }
                         }
-                        // fallback to the uncompressed version
-                        match NamedFile::open_async(named_path).await {
-                            Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                            Err(_) if this.show_index => Ok(this.show_index(req, path)),
-                            Err(err) => this.handle_err(err, req).await,
+                    }
+                }
+
+                // Check if path is a directory
+                if path.is_dir() {
+                    // Handle directory logic inline to avoid multiple iterations
+                    if this.redirect_to_slash
+                        && !req.path().ends_with('/')
+                        && (this.index.is_some() || this.show_index)
+                    {
+                        let redirect_to = format!("{}/", req.path());
+
+                        let response = if this.with_permanent_redirect {
+                            HttpResponse::PermanentRedirect()
+                        } else {
+                            HttpResponse::TemporaryRedirect()
+                        }
+                        .insert_header((header::LOCATION, redirect_to))
+                        .finish();
+
+                        return Ok(req.into_response(response));
+                    }
+
+                    match this.index {
+                        Some(ref index) => {
+                            let named_path = path.join(index);
+                            if this.try_compressed {
+                                if let Some((named_file, encoding)) =
+                                    find_compressed(&req, &named_path).await
+                                {
+                                    return Ok(this.serve_named_file_with_encoding(
+                                        req, named_file, encoding,
+                                    ));
+                                }
+                            }
+                            // fallback to the uncompressed version
+                            match NamedFile::open_async(named_path).await {
+                                Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
+                                Err(_) if this.show_index => {
+                                    return Ok(this.show_index(req, directory.clone(), path))
+                                }
+                                Err(err) => last_err = Some(err),
+                            }
+                        }
+                        None => {
+                            // No index file configured, check if we should show directory listing
+                            if this.show_index {
+                                return Ok(this.show_index(req, directory.clone(), path));
+                            }
+                            return Ok(ServiceResponse::from_err(
+                                FilesError::IsDirectory,
+                                req.into_parts().0,
+                            ));
                         }
                     }
-                    None if this.show_index => Ok(this.show_index(req, path)),
-                    None => Ok(ServiceResponse::from_err(
-                        FilesError::IsDirectory,
-                        req.into_parts().0,
-                    )),
-                }
-            } else {
-                match NamedFile::open_async(&path).await {
-                    Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                    Err(err) => this.handle_err(err, req).await,
+                } else {
+                    // Try to open the file
+                    match NamedFile::open_async(&path).await {
+                        Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
+                        Err(err) => {
+                            last_err = Some(err);
+                        }
+                    }
                 }
             }
+
+            // If all directories failed, use the last error
+            let err = last_err
+                .unwrap_or_else(|| io::Error::new(io::ErrorKind::NotFound, "File not found"));
+            return this.handle_err(err, req).await;
         })
     }
 }
