@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.12.1)](https://docs.rs/actix-web/4.12.1)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.13.0)](https://docs.rs/actix-web/4.13.0)
 ![MSRV](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.12.1/status.svg)](https://deps.rs/crate/actix-web/4.12.1)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.13.0/status.svg)](https://deps.rs/crate/actix-web/4.13.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/graph/badge.svg?token=dSwOnp9QCv)](https://codecov.io/gh/actix/actix-web)
@@ -44,6 +44,10 @@
 To enable faster release iterations, we mark some features as experimental.
 These features are prefixed with `experimental` and a breaking change may happen at any release.
 Please use them in a production environment at your own risk.
+
+- `experimental-introspection`: exposes route and method reporting helpers for local diagnostics
+  and tooling. See [`examples/introspection.rs`](examples/introspection.rs) and
+  [`examples/introspection_multi_servers.rs`](examples/introspection_multi_servers.rs).
 
 ## Documentation
 

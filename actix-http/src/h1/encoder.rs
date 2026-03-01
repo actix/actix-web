@@ -111,7 +111,13 @@ pub(crate) trait MessageType: Sized {
 
         // Connection
         match conn_type {
-            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
+            ConnectionType::Upgrade => {
+                if camel_case {
+                    dst.put_slice(b"Connection: Upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: upgrade\r\n")
+                }
+            }
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: keep-alive\r\n")
@@ -579,6 +585,16 @@ mod tests {
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
         assert!(data.contains("Upgrade-Insecure-Requests: 1\r\n"));
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::None,
+            ConnectionType::Upgrade,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("Connection: Upgrade\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,

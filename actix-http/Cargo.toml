@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.11.2"
+version = "3.12.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -139,6 +139,7 @@ actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23-webpki-roots"] }
 actix-web = "4"
+awc = { version = "3", default-features = false, features = ["openssl"] }
 
 async-stream = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }

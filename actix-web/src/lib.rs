@@ -74,6 +74,9 @@
 //! To enable faster release iterations, we mark some features as experimental.
 //! These features are prefixed with `experimental` and a breaking change may happen at any release.
 //! Please use them in a production environment at your own risk.
+//!
+//! - `experimental-introspection` - route and method reporting utilities for local diagnostics
+//!   and tooling. See `examples/introspection.rs` and `examples/introspection_multi_servers.rs`.
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]

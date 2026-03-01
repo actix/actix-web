@@ -133,6 +133,11 @@ impl PayloadSender {
             PayloadStatus::Dropped
         }
     }
+
+    #[inline]
+    pub fn is_dropped(&self) -> bool {
+        self.inner.strong_count() == 0
+    }
 }
 
 #[derive(Debug)]

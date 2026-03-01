@@ -2,17 +2,25 @@
 
 ## Unreleased
 
+- Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
+
+[#3953]: https://github.com/actix/actix-web/pull/3953
+
+## 3.12.0
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Increase default HTTP/2 flow control window sizes. [#3638]
 - Expose configuration methods to improve upload throughput. [#3638]
 - Fix truncated body ending without error when connection closed abnormally. [#3067]
 - Add config/method for `TCP_NODELAY`. [#3918]
 - Do not compress 206 Partial Content responses. [#3191]
+- Fix lingering sockets and client stalls when responding early to dropped chunked request payloads. [#2972]
 
 [#3638]: https://github.com/actix/actix-web/issues/3638
 [#3067]: https://github.com/actix/actix-web/pull/3067
 [#3918]: https://github.com/actix/actix-web/pull/3918
 [#3191]: https://github.com/actix/actix-web/issues/3191
+[#2972]: https://github.com/actix/actix-web/issues/2972
 
 ## 3.11.2
 

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
+- Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
+
+[#3944]: https://github.com/actix/actix-web/pull/3944
+[#3346]: https://github.com/actix/actix-web/issues/3346
+
+## 4.13.0
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Improve HTTP/2 upload throughput by increasing default flow control window sizes. [#3638]
 - Add `HttpServer::{h2_initial_window_size, h2_initial_connection_window_size}` methods for tuning. [#3638]

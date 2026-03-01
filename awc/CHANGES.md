@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`. [#3953]
+
+[#3953]: https://github.com/actix/actix-web/pull/3953
+
+## 3.8.2
+
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Fix empty streaming request bodies being sent with chunked transfer encoding.
 

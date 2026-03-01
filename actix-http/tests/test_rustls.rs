@@ -1,5 +1,6 @@
 #![cfg(feature = "rustls-0_23")]
 
+extern crate tls_openssl as openssl;
 extern crate tls_rustls_023 as rustls;
 
 use std::{
@@ -22,6 +23,7 @@ use actix_rt::{net::TcpStream as RtTcpStream, pin};
 use actix_service::{fn_factory_with_config, fn_service};
 use actix_tls::{accept::rustls_0_23::TlsStream, connect::rustls_0_23::webpki_roots_cert_store};
 use actix_utils::future::{err, ok, poll_fn};
+use awc::{Client, Connector};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::{ready, Stream};
@@ -79,6 +81,21 @@ fn tls_config_h2() -> RustlsServerConfig {
     tls_config_with_alpn(&[H2_ALPN_PROTOCOL])
 }
 
+fn h1_client() -> Client {
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    builder.set_alpn_protos(b"\x08http/1.1").unwrap();
+
+    let connector = Connector::new()
+        .conn_lifetime(Duration::from_secs(0))
+        .timeout(Duration::from_millis(30_000))
+        .openssl(builder.build());
+
+    Client::builder().connector(connector).finish()
+}
+
 pub fn get_negotiated_alpn_protocol(
     addr: SocketAddr,
     client_alpn_protocol: &[u8],
@@ -106,21 +123,22 @@ pub fn get_negotiated_alpn_protocol(
 
 #[actix_rt::test]
 async fn h1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h1(|_| ok::<_, Error>(Response::ok()))
             .rustls_0_23(tls_config_h1())
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h2() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::ok()))
             .rustls_0_23(tls_config_h2())
@@ -129,12 +147,13 @@ async fn h2() -> io::Result<()> {
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h1_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
@@ -145,14 +164,15 @@ async fn h1_1() -> io::Result<()> {
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h2_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
@@ -168,12 +188,13 @@ async fn h2_1() -> io::Result<()> {
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .tcp_nodelay(true)
             .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
@@ -189,12 +210,13 @@ async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .tcp_nodelay(false)
             .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
@@ -210,6 +232,7 @@ async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
@@ -231,12 +254,13 @@ async fn h2_body1() -> io::Result<()> {
 
     let body = srv.load_body(response).await.unwrap();
     assert_eq!(&body, data.as_bytes());
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn h2_content_length() {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
                 let indx: usize = req.uri().path()[1..].parse().unwrap();
@@ -294,6 +318,8 @@ async fn h2_content_length() {
             assert_eq!(response.headers().get(&header), Some(&value));
         }
     }
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -336,6 +362,7 @@ async fn h2_headers() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from(data2));
+    srv.stop().await;
 }
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -375,6 +402,7 @@ async fn h2_body2() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -401,6 +429,7 @@ async fn h2_head_empty() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert!(bytes.is_empty());
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -426,11 +455,12 @@ async fn h2_head_binary() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert!(bytes.is_empty());
+    srv.stop().await;
 }
 
 #[actix_rt::test]
 async fn h2_head_binary2() {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .rustls_0_23(tls_config_h2())
@@ -447,6 +477,8 @@ async fn h2_head_binary2() {
             .unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -469,6 +501,7 @@ async fn h2_body_length() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -496,6 +529,7 @@ async fn h2_body_chunked_explicit() {
 
     // decode
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -525,6 +559,7 @@ async fn h2_response_http_error_handling() {
         bytes,
         Bytes::from_static(b"error processing HTTP: failed to parse header value")
     );
+    srv.stop().await;
 }
 
 #[derive(Debug, Display, Error)]
@@ -552,6 +587,7 @@ async fn h2_service_error() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -563,12 +599,13 @@ async fn h1_service_error() {
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
+    srv.stop().await;
 }
 
 const H2_ALPN_PROTOCOL: &[u8] = b"h2";
@@ -577,7 +614,7 @@ const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
 
 #[actix_rt::test]
 async fn alpn_h1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         let mut config = tls_config_h1();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
@@ -591,15 +628,16 @@ async fn alpn_h1() -> io::Result<()> {
         Some(CUSTOM_ALPN_PROTOCOL.to_vec())
     );
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn alpn_h2() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         let mut config = tls_config_h2();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
@@ -620,12 +658,13 @@ async fn alpn_h2() -> io::Result<()> {
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }
 
 #[actix_rt::test]
 async fn alpn_h2_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         let mut config = tls_config();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
@@ -650,5 +689,6 @@ async fn alpn_h2_1() -> io::Result<()> {
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }
