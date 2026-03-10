@@ -1160,6 +1160,40 @@ mod tests {
         assert!(vals.next().is_none());
     }
 
+    #[test]
+    fn iter_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        assert_eq!(map.iter().count(), 3);
+        assert_eq!(map.iter().len(), 3);
+    }
+
+    #[test]
+    fn into_iter_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        assert_eq!(map.clone().into_iter().count(), 3);
+        assert_eq!(map.into_iter().len(), 3);
+    }
+
+    #[test]
+    fn drain_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        let mut drained = map.clone();
+        assert_eq!(map.drain().count(), 3);
+        assert_eq!(drained.drain().len(), 3);
+    }
+
     fn owned_pair<'a>((name, val): (&'a HeaderName, &'a HeaderValue)) -> (HeaderName, HeaderValue) {
         (name.clone(), val.clone())
     }
