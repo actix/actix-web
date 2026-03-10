@@ -32,8 +32,7 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    ConnectionType, Error, Extensions, HttpMessage, OnConnectData, Request, Response,
-    StatusCode,
+    ConnectionType, Error, Extensions, HttpMessage, OnConnectData, Request, Response, StatusCode,
 };
 
 const LW_BUFFER_SIZE: usize = 1024;
@@ -383,7 +382,10 @@ where
         }
     }
 
-    fn poll_linger(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<Poll<()>, DispatchError> {
+    fn poll_linger(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<Poll<()>, DispatchError> {
         if self.as_mut().poll_flush(cx)?.is_pending() {
             return Ok(Poll::Pending);
         }
@@ -459,7 +461,11 @@ where
 
                 self.as_mut().project().state.set(State::None);
             }
-            _ => self.as_mut().project().state.set(State::SendPayload { body }),
+            _ => self
+                .as_mut()
+                .project()
+                .state
+                .set(State::SendPayload { body }),
         }
 
         Ok(())
@@ -598,10 +604,8 @@ where
                                 // this.payload was the payload for the request we just finished
                                 // responding to. We can check to see if we finished reading it
                                 // yet, and if not, shutdown the connection.
-                                let linger = should_linger(
-                                    this.payload.as_ref(),
-                                    *this.payload_drainable,
-                                );
+                                let linger =
+                                    should_linger(this.payload.as_ref(), *this.payload_drainable);
                                 let not_pipelined = this.messages.is_empty();
 
                                 // payload stream finished.
@@ -652,10 +656,8 @@ where
                                 // this.payload was the payload for the request we just finished
                                 // responding to. We can check to see if we finished reading it
                                 // yet, and if not, shutdown the connection.
-                                let linger = should_linger(
-                                    this.payload.as_ref(),
-                                    *this.payload_drainable,
-                                );
+                                let linger =
+                                    should_linger(this.payload.as_ref(), *this.payload_drainable);
                                 let not_pipelined = this.messages.is_empty();
 
                                 // payload stream finished.

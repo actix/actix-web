@@ -87,8 +87,8 @@ fn drop_payload_service() -> impl Service<Request, Response = Response<&'static 
     })
 }
 
-fn ignore_payload_service() -> impl Service<Request, Response = Response<&'static str>, Error = Error>
-{
+fn ignore_payload_service(
+) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
     fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
 }
 
