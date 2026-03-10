@@ -4,6 +4,7 @@
 
 - Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
 - Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
+- Fix `Readlines` handling of lines split across payload chunks so combined line limits are enforced and complete lines are yielded.
 
 [#3944]: https://github.com/actix/actix-web/pull/3944
 [#3346]: https://github.com/actix/actix-web/issues/3346
