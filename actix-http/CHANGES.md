@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
+- Fix `HeaderMap` iterators' `len()` and `size_hint()` implementations for multi-value headers.
 
 [#3953]: https://github.com/actix/actix-web/pull/3953
 

@@ -65,6 +65,23 @@ where
             err: Some(err),
         }
     }
+
+    /// Decodes one complete logical line using the request's configured encoding.
+    ///
+    /// Callers are expected to pass only the bytes that belong to the line being yielded,
+    /// whether they came from the internal buffer, the current payload chunk, or both.
+    fn decode(encoding: &'static Encoding, bytes: &[u8]) -> Result<String, ReadlinesError> {
+        if encoding == UTF_8 {
+            str::from_utf8(bytes)
+                .map_err(|_| ReadlinesError::EncodingError)
+                .map(str::to_owned)
+        } else {
+            encoding
+                .decode_without_bom_handling_and_without_replacement(bytes)
+                .map(Cow::into_owned)
+                .ok_or(ReadlinesError::EncodingError)
+        }
+    }
 }
 
 impl<T> Stream for Readlines<T>
@@ -95,18 +112,7 @@ where
                 if ind + 1 > this.limit {
                     return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
-                let line = if this.encoding == UTF_8 {
-                    str::from_utf8(&this.buf.split_to(ind + 1))
-                        .map_err(|_| ReadlinesError::EncodingError)?
-                        .to_owned()
-                } else {
-                    this.encoding
-                        .decode_without_bom_handling_and_without_replacement(
-                            &this.buf.split_to(ind + 1),
-                        )
-                        .map(Cow::into_owned)
-                        .ok_or(ReadlinesError::EncodingError)?
-                };
+                let line = Self::decode(this.encoding, &this.buf.split_to(ind + 1))?;
                 return Poll::Ready(Some(Ok(line)));
             }
             this.checked_buff = true;
@@ -125,24 +131,17 @@ where
                 }
                 if let Some(ind) = found {
                     // check if line is longer than limit
-                    if ind + 1 > this.limit {
+                    if this.buf.len() + ind + 1 > this.limit {
                         return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                     }
-                    let line = if this.encoding == UTF_8 {
-                        str::from_utf8(&bytes.split_to(ind + 1))
-                            .map_err(|_| ReadlinesError::EncodingError)?
-                            .to_owned()
-                    } else {
-                        this.encoding
-                            .decode_without_bom_handling_and_without_replacement(
-                                &bytes.split_to(ind + 1),
-                            )
-                            .map(Cow::into_owned)
-                            .ok_or(ReadlinesError::EncodingError)?
-                    };
-                    // extend buffer with rest of the bytes;
+
+                    this.buf.extend_from_slice(&bytes.split_to(ind + 1));
+                    let line = Self::decode(this.encoding, &this.buf)?;
+                    this.buf.clear();
+
+                    // buffer bytes following the returned line
                     this.buf.extend_from_slice(&bytes);
-                    this.checked_buff = false;
+                    this.checked_buff = this.buf.is_empty();
                     return Poll::Ready(Some(Ok(line)));
                 }
                 this.buf.extend_from_slice(&bytes);
@@ -156,16 +155,7 @@ where
                 if this.buf.len() > this.limit {
                     return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
-                let line = if this.encoding == UTF_8 {
-                    str::from_utf8(&this.buf)
-                        .map_err(|_| ReadlinesError::EncodingError)?
-                        .to_owned()
-                } else {
-                    this.encoding
-                        .decode_without_bom_handling_and_without_replacement(&this.buf)
-                        .map(Cow::into_owned)
-                        .ok_or(ReadlinesError::EncodingError)?
-                };
+                let line = Self::decode(this.encoding, &this.buf)?;
                 this.buf.clear();
                 Poll::Ready(Some(Ok(line)))
             }
@@ -177,10 +167,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures_util::StreamExt as _;
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
+
+    use actix_http::{h1, Request};
+    use futures_util::{task::noop_waker_ref, StreamExt as _};
 
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{error::ReadlinesError, test::TestRequest};
 
     #[actix_rt::test]
     async fn test_readlines() {
@@ -207,5 +203,47 @@ mod tests {
             stream.next().await.unwrap().unwrap(),
             "Contrary to popular belief, Lorem Ipsum is not simply random text."
         );
+    }
+
+    #[test]
+    fn test_readlines_limit_across_chunks() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let payload: actix_http::Payload = payload.into();
+        let mut req = Request::with_payload(payload);
+        let mut stream = Readlines::new(&mut req).limit(10);
+        let mut cx = Context::from_waker(noop_waker_ref());
+
+        sender.feed_data(Bytes::from_static(b"AAAAAAAAAA"));
+        assert!(matches!(
+            Pin::new(&mut stream).poll_next(&mut cx),
+            Poll::Pending
+        ));
+
+        sender.feed_data(Bytes::from_static(b"A\n"));
+        assert!(matches!(
+            Pin::new(&mut stream).poll_next(&mut cx),
+            Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)))
+        ));
+    }
+
+    #[test]
+    fn test_readlines_returns_full_line_across_chunks() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let payload: actix_http::Payload = payload.into();
+        let mut req = Request::with_payload(payload);
+        let mut stream = Readlines::new(&mut req);
+        let mut cx = Context::from_waker(noop_waker_ref());
+
+        sender.feed_data(Bytes::from_static(b"hello "));
+        assert!(matches!(
+            Pin::new(&mut stream).poll_next(&mut cx),
+            Poll::Pending
+        ));
+
+        sender.feed_data(Bytes::from_static(b"world\nnext"));
+        assert!(matches!(
+            Pin::new(&mut stream).poll_next(&mut cx),
+            Poll::Ready(Some(Ok(ref line))) if line == "hello world\n"
+        ));
     }
 }

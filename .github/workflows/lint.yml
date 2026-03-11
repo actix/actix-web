@@ -77,12 +77,12 @@ jobs:
           toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@68675c5a5f1a6950c3975d33f3ae0ef155e5bf3d # v2.68.15
+        uses: taiki-e/install-action@a37010ded18ff788be4440302bd6830b1ae50d8b # v2.68.25
         with:
           tool: just
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@2bfc3cedaf2ee5e7fa5d0ae034ccd5fb50cf8e1f # v3.0.2
+        uses: taiki-e/cache-cargo-install-action@59027ebf20a9617c4e819eb53ccd2673cb162b89 # v3.0.3
         with:
           tool: cargo-check-external-types
 
