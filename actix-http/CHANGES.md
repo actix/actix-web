@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
+
+[#3967]: https://github.com/actix/actix-web/issues/3967
+
 ## 3.12.1
 
 **Notice: This release contains a security fix. Users are encouraged to update to this version ASAP.**
