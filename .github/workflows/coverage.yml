@@ -24,7 +24,7 @@ jobs:
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@f916cfac5d8efd040e250d0cd6b967616504b3a4 # v2.68.32
+        uses: taiki-e/install-action@06203676c62f0d3c765be3f2fcfbebbcb02d09f5 # v2.69.6
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 
@@ -32,7 +32,7 @@ jobs:
         run: just test-coverage-codecov
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
         with:
           files: codecov.json
           fail_ci_if_error: true
