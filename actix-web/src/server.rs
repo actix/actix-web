@@ -33,6 +33,7 @@ struct Config {
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     h1_allow_half_closed: bool,
+    h1_write_buffer_size: Option<usize>,
     h2_initial_window_size: Option<u32>,
     h2_initial_connection_window_size: Option<u32>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
@@ -122,6 +123,7 @@ where
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
+                h1_write_buffer_size: None,
                 h2_initial_window_size: None,
                 h2_initial_connection_window_size: None,
                 tls_handshake_timeout: None,
@@ -283,6 +285,25 @@ where
     /// The default behavior is to allow, i.e. `true`
     pub fn h1_allow_half_closed(self, allow: bool) -> Self {
         self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.config.lock().unwrap().h1_write_buffer_size = Some(size);
         self
     }
 
@@ -621,6 +642,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
                     if let Some(val) = cfg.h2_initial_window_size {
                         svc = svc.h2_initial_window_size(val);
                     }
@@ -676,6 +701,10 @@ where
 
                     if let Some(enabled) = cfg.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
                     }
 
                     if let Some(val) = cfg.h2_initial_window_size {
@@ -766,6 +795,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
                     if let Some(val) = c.h2_initial_window_size {
                         svc = svc.h2_initial_window_size(val);
                     }
@@ -827,6 +860,10 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
                     }
 
                     if let Some(val) = c.h2_initial_window_size {
@@ -907,6 +944,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
                     if let Some(val) = c.h2_initial_window_size {
                         svc = svc.h2_initial_window_size(val);
                     }
@@ -983,6 +1024,10 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
                     }
 
                     if let Some(val) = c.h2_initial_window_size {
@@ -1064,6 +1109,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
                     if let Some(val) = c.h2_initial_window_size {
                         svc = svc.h2_initial_window_size(val);
                     }
@@ -1132,14 +1181,19 @@ where
                     .into_factory()
                     .map_err(|err| err.into().error_response());
 
-                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
-                    HttpService::build()
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .h1_allow_half_closed(c.h1_allow_half_closed)
-                        .finish(map_config(fac, move |_| config.clone())),
-                )
+                        .h1_allow_half_closed(c.h1_allow_half_closed);
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    svc.finish(map_config(fac, move |_| config.clone()))
+                })
             },
         )?;
 
@@ -1184,6 +1238,10 @@ where
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
+                }
+
+                if let Some(size) = c.h1_write_buffer_size {
+                    svc = svc.h1_write_buffer_size(size);
                 }
 
                 let fac = factory()
