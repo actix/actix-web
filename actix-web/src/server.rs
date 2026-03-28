@@ -176,7 +176,7 @@ where
     /// results in the client getting an error when attempting to connect. It should only affect
     /// servers under significant load.
     ///
-    /// Generally set in the 64–2048 range. Default value is 2048.
+    /// Generally set in the 64–2048 range. Default value is 1024.
     ///
     /// This method will have no effect if called after a `bind()`.
     pub fn backlog(mut self, backlog: u32) -> Self {
