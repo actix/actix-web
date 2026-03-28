@@ -447,10 +447,11 @@ where
     ///
     /// # Dual-Stack IPv6
     ///
-    /// On Windows, binding to an IPv6 address (e.g., `[::]:8080`) automatically enables dual-stack
-    /// mode, allowing the socket to accept both IPv4 and IPv6 connections. On Linux and macOS,
-    /// dual-stack is typically already the OS default. If you need IPv6-only behavior on Windows,
-    /// create the listener manually and pass it to [`listen()`](Self::listen()).
+    /// On Windows, when this method creates an IPv6 listener (e.g., for `[::]:8080`), this
+    /// attempts to enable dual-stack mode so the socket can accept both IPv4 and IPv6
+    /// connections. On Linux and macOS, dual-stack is typically already the OS default. If you
+    /// need IPv6-only behavior on Windows, create the listener manually and pass it to
+    /// [`listen()`](Self::listen()).
     ///
     /// # Typical Usage
     ///

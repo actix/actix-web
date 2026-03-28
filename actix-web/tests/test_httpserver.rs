@@ -217,3 +217,48 @@ async fn test_tcp_nodelay_enabled() {
 async fn test_tcp_nodelay_disabled() {
     assert_tcp_nodelay_config(false).await;
 }
+
+#[actix_rt::test]
+#[cfg(windows)]
+async fn test_dual_stack_ipv6_on_windows() {
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        actix_rt::System::new()
+            .block_on(async {
+                let srv = HttpServer::new(|| {
+                    App::new().service(
+                        web::resource("/")
+                            .route(web::to(|| async { HttpResponse::Ok().body("test") })),
+                    )
+                })
+                .workers(1)
+                .disable_signals()
+                .bind("[::]:0")
+                .unwrap();
+
+                let port = srv.addrs()[0].port();
+                let srv = srv.run();
+
+                tx.send((srv.handle(), port)).unwrap();
+                srv.await
+            })
+            .unwrap();
+    });
+
+    let (srv, port) = rx.recv().unwrap();
+
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().timeout(Duration::from_secs(1)))
+        .finish();
+
+    let response = client
+        .get(format!("http://127.0.0.1:{port}"))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+
+    srv.stop(false).await;
+}
