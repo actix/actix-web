@@ -18,6 +18,9 @@ pub(crate) const DEFAULT_H2_CONN_WINDOW_SIZE: u32 = 1024 * 1024 * 2; // 2MiB
 /// Matches awc's defaults to avoid poor throughput on high-BDP links.
 pub(crate) const DEFAULT_H2_STREAM_WINDOW_SIZE: u32 = 1024 * 1024; // 1MiB
 
+/// Default HTTP/1 response write buffer size.
+pub(crate) const DEFAULT_H1_WRITE_BUFFER_SIZE: usize = 32_768;
+
 /// A builder for creating a [`ServiceConfig`]
 #[derive(Default, Debug)]
 pub struct ServiceConfigBuilder {
@@ -86,6 +89,25 @@ impl ServiceConfigBuilder {
         self
     }
 
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(mut self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.inner.h1_write_buffer_size = size;
+        self
+    }
+
     /// Sets initial stream-level flow control window size for HTTP/2 connections.
     ///
     /// Higher values can improve upload performance on high-latency links at the cost of higher
@@ -128,6 +150,7 @@ struct Inner {
     tcp_nodelay: Option<bool>,
     date_service: DateService,
     h1_allow_half_closed: bool,
+    h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
 }
@@ -143,6 +166,7 @@ impl Default for Inner {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
         }
@@ -167,6 +191,7 @@ impl ServiceConfig {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
         }))
@@ -226,6 +251,11 @@ impl ServiceConfig {
     /// server will abort the connection handling as soon as it detects an EOF from the client
     pub fn h1_allow_half_closed(&self) -> bool {
         self.0.h1_allow_half_closed
+    }
+
+    /// HTTP/1 response write buffer size (in bytes).
+    pub fn h1_write_buffer_size(&self) -> usize {
+        self.0.h1_write_buffer_size
     }
 
     /// Returns configured `TCP_NODELAY` setting for accepted TCP connections.
