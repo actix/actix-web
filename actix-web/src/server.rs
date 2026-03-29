@@ -445,6 +445,14 @@ where
     /// Using a bind address of `0.0.0.0`, which signals to use all interfaces, may also multiple
     /// the number of instantiations in a similar way.
     ///
+    /// # Dual-Stack IPv6
+    ///
+    /// On Windows, when this method creates an IPv6 listener (e.g., for `[::]:8080`), this
+    /// attempts to enable dual-stack mode so the socket can accept both IPv4 and IPv6
+    /// connections. On Linux and macOS, dual-stack is typically already the OS default. If you
+    /// need IPv6-only behavior on Windows, create the listener manually and pass it to
+    /// [`listen()`](Self::listen()).
+    ///
     /// # Typical Usage
     ///
     /// In general, use `127.0.0.1:<port>` when testing locally and `0.0.0.0:<port>` when deploying
@@ -1258,6 +1266,14 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     #[cfg(not(windows))]
     {
         socket.set_reuse_address(true)?;
+    }
+    // On Windows, IPV6_V6ONLY defaults to true, preventing IPv6 sockets from accepting IPv4
+    // connections. Set it to false so that binding to [::] also accepts IPv4 traffic.
+    #[cfg(windows)]
+    if addr.is_ipv6() {
+        if let Err(err) = socket.set_only_v6(false) {
+            log::warn!("failed to set IPV6_V6ONLY=false: {err}");
+        }
     }
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
