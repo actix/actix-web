@@ -214,7 +214,11 @@ mod tests {
         assert_parse_eq::<ContentLength, _, _>([" 0"], ContentLength(0));
         assert_parse_eq::<ContentLength, _, _>(["0 "], ContentLength(0));
         assert_parse_eq::<ContentLength, _, _>([" 0 "], ContentLength(0));
+    }
 
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn good_header_max_usize() {
         // large value (2^64 - 1)
         assert_parse_eq::<ContentLength, _, _>(
             ["18446744073709551615"],
