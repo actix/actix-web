@@ -1,5 +1,7 @@
 //! Multipart testing utilities.
 
+use std::borrow::Cow;
+
 use actix_web::{
     http::header::{self, HeaderMap},
     web::{BufMut as _, Bytes, BytesMut},
@@ -11,6 +13,38 @@ const CRLF: &[u8] = b"\r\n";
 const CRLF_CRLF: &[u8] = b"\r\n\r\n";
 const HYPHENS: &[u8] = b"--";
 const BOUNDARY_PREFIX: &str = "------------------------";
+
+/// Multipart form field for test payload generation.
+pub struct TestFormField<'a> {
+    name: Cow<'a, str>,
+    filename: Option<Cow<'a, str>>,
+    content_type: Option<Mime>,
+    data: Bytes,
+}
+
+impl<'a> TestFormField<'a> {
+    /// Creates a multipart form field from bytes.
+    pub fn new(name: impl Into<Cow<'a, str>>, data: impl Into<Bytes>) -> Self {
+        Self {
+            name: name.into(),
+            filename: None,
+            content_type: None,
+            data: data.into(),
+        }
+    }
+
+    /// Sets the field's file name metadata.
+    pub fn filename(mut self, filename: impl Into<Cow<'a, str>>) -> Self {
+        self.filename = Some(filename.into());
+        self
+    }
+
+    /// Sets the field's content type metadata.
+    pub fn content_type(mut self, content_type: Mime) -> Self {
+        self.content_type = Some(content_type);
+        self
+    }
+}
 
 /// Constructs a `multipart/form-data` payload from bytes and metadata.
 ///
@@ -61,15 +95,17 @@ pub fn create_form_data_payload_and_headers(
     content_type: Option<Mime>,
     file: Bytes,
 ) -> (Bytes, HeaderMap) {
-    let boundary = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    let mut field = TestFormField::new(name, file);
 
-    create_form_data_payload_and_headers_with_boundary(
-        &boundary,
-        name,
-        filename,
-        content_type,
-        file,
-    )
+    if let Some(filename) = filename {
+        field = field.filename(filename);
+    }
+
+    if let Some(content_type) = content_type {
+        field = field.content_type(content_type);
+    }
+
+    create_form_data_payload_and_headers_from_fields([field])
 }
 
 /// Constructs a `multipart/form-data` payload from bytes and metadata with a fixed boundary.
@@ -82,31 +118,100 @@ pub fn create_form_data_payload_and_headers_with_boundary(
     content_type: Option<Mime>,
     file: Bytes,
 ) -> (Bytes, HeaderMap) {
-    let mut buf = BytesMut::with_capacity(file.len() + 128);
+    let mut field = TestFormField::new(name, file);
+
+    if let Some(filename) = filename {
+        field = field.filename(filename);
+    }
+
+    if let Some(content_type) = content_type {
+        field = field.content_type(content_type);
+    }
+
+    create_form_data_payload_and_headers_from_fields_with_boundary(boundary, [field])
+}
+
+/// Constructs a `multipart/form-data` payload from multiple fields.
+///
+/// Returned header map can be extended or merged with existing headers.
+///
+/// Multipart boundary used is a random alphanumeric string.
+///
+/// # Examples
+///
+/// ```
+/// use actix_multipart::test::{
+///     create_form_data_payload_and_headers_from_fields, TestFormField,
+/// };
+/// use actix_web::{test::TestRequest, web::Bytes};
+/// use memchr::memmem::find_iter;
+///
+/// let (body, headers) = create_form_data_payload_and_headers_from_fields([
+///     TestFormField::new("title", Bytes::from_static(b"Multipart support")),
+///     TestFormField::new("tags", Bytes::from_static(b"tests")),
+///     TestFormField::new("tags", Bytes::from_static(b"actix")),
+/// ]);
+///
+/// assert_eq!(find_iter(&body, b"name=\"tags\"").count(), 2);
+///
+/// let req = headers
+///     .into_iter()
+///     .fold(TestRequest::post(), |req, hdr| req.insert_header(hdr))
+///     .set_payload(body)
+///     .to_http_request();
+///
+/// assert!(req.headers().contains_key("content-type"));
+/// ```
+pub fn create_form_data_payload_and_headers_from_fields<'a>(
+    fields: impl IntoIterator<Item = TestFormField<'a>>,
+) -> (Bytes, HeaderMap) {
+    let boundary = Alphanumeric.sample_string(&mut rand::rng(), 32);
+
+    create_form_data_payload_and_headers_from_fields_with_boundary(&boundary, fields)
+}
+
+/// Constructs a `multipart/form-data` payload from multiple fields with a fixed boundary.
+// FIXME: terrible naming, but this is needed for compat with the current naming.
+// Maybe we can rename the func here in a next major version.
+pub fn create_form_data_payload_and_headers_from_fields_with_boundary<'a>(
+    boundary: &str,
+    fields: impl IntoIterator<Item = TestFormField<'a>>,
+) -> (Bytes, HeaderMap) {
+    let fields = fields.into_iter().collect::<Vec<_>>();
+    let mut buf = BytesMut::with_capacity(fields.iter().map(|field| field.data.len() + 128).sum());
 
     let boundary_str = [BOUNDARY_PREFIX, boundary].concat();
     let boundary = boundary_str.as_bytes();
 
-    buf.put(HYPHENS);
-    buf.put(boundary);
-    buf.put(CRLF);
+    for field in fields {
+        let TestFormField {
+            name,
+            filename,
+            content_type,
+            data,
+        } = field;
 
-    buf.put(format!("Content-Disposition: form-data; name=\"{name}\"").as_bytes());
-    if let Some(filename) = filename {
-        buf.put(format!("; filename=\"{filename}\"").as_bytes());
-    }
-    buf.put(CRLF);
+        buf.put(HYPHENS);
+        buf.put(boundary);
+        buf.put(CRLF);
 
-    if let Some(ct) = content_type {
-        buf.put(format!("Content-Type: {ct}").as_bytes());
+        buf.put(format!("Content-Disposition: form-data; name=\"{name}\"").as_bytes());
+        if let Some(filename) = filename {
+            buf.put(format!("; filename=\"{filename}\"").as_bytes());
+        }
+        buf.put(CRLF);
+
+        if let Some(ct) = content_type {
+            buf.put(format!("Content-Type: {ct}").as_bytes());
+            buf.put(CRLF);
+        }
+
+        buf.put(format!("Content-Length: {}", data.len()).as_bytes());
+        buf.put(CRLF_CRLF);
+
+        buf.put(data);
         buf.put(CRLF);
     }
-
-    buf.put(format!("Content-Length: {}", file.len()).as_bytes());
-    buf.put(CRLF_CRLF);
-
-    buf.put(file);
-    buf.put(CRLF);
 
     buf.put(HYPHENS);
     buf.put(boundary);
@@ -128,9 +233,15 @@ pub fn create_form_data_payload_and_headers_with_boundary(
 mod tests {
     use std::convert::Infallible;
 
+    use actix_web::{
+        http::StatusCode,
+        test::{call_service, init_service, TestRequest},
+        web, App, HttpResponse, Responder,
+    };
     use futures_util::stream;
 
     use super::*;
+    use crate::form::{text::Text, MultipartForm};
 
     fn find_boundary(headers: &HeaderMap) -> String {
         headers
@@ -191,6 +302,30 @@ mod tests {
             sit ame.\r\n\
             --------------------------qWeRtYuIoP--\r\n",
         );
+
+        let (pl, _headers) = create_form_data_payload_and_headers_from_fields_with_boundary(
+            "qWeRtYuIoP",
+            [
+                TestFormField::new("foo", Bytes::from_static(b"Lorem ipsum dolor\nsit ame.")),
+                TestFormField::new("bar", Bytes::from_static(b"dolor sit")),
+            ],
+        );
+
+        assert_eq!(
+            std::str::from_utf8(&pl).unwrap(),
+            "--------------------------qWeRtYuIoP\r\n\
+            Content-Disposition: form-data; name=\"foo\"\r\n\
+            Content-Length: 26\r\n\
+            \r\n\
+            Lorem ipsum dolor\n\
+            sit ame.\r\n\
+            --------------------------qWeRtYuIoP\r\n\
+            Content-Disposition: form-data; name=\"bar\"\r\n\
+            Content-Length: 9\r\n\
+            \r\n\
+            dolor sit\r\n\
+            --------------------------qWeRtYuIoP--\r\n",
+        );
     }
 
     /// Test using an external library to prevent the two-wrongs-make-a-right class of errors.
@@ -213,5 +348,51 @@ mod tests {
         assert_eq!(field.file_name(), None);
         assert_eq!(field.content_type(), None);
         assert!(field.bytes().await.unwrap().starts_with(b"Lorem"));
+    }
+
+    #[derive(MultipartForm)]
+    struct TestMultipartRequestForm {
+        title: Text<String>,
+        tags: Vec<Text<String>>,
+    }
+
+    async fn multipart_test_request_route(
+        form: MultipartForm<TestMultipartRequestForm>,
+    ) -> impl Responder {
+        let form = form.into_inner();
+
+        assert_eq!(form.title.into_inner(), "Multipart support");
+        assert_eq!(
+            form.tags
+                .into_iter()
+                .map(Text::into_inner)
+                .collect::<Vec<_>>(),
+            vec!["tests", "actix"],
+        );
+
+        HttpResponse::Ok().finish()
+    }
+
+    #[actix_web::test]
+    async fn test_request_compat() {
+        let app =
+            init_service(App::new().route("/", web::post().to(multipart_test_request_route))).await;
+
+        let (body, headers) = create_form_data_payload_and_headers_from_fields([
+            TestFormField::new("title", Bytes::from_static(b"Multipart support")),
+            TestFormField::new("tags", Bytes::from_static(b"tests")),
+            TestFormField::new("tags", Bytes::from_static(b"actix")),
+        ]);
+
+        let req = headers
+            .into_iter()
+            .fold(TestRequest::post().uri("/"), |req, header| {
+                req.insert_header(header)
+            })
+            .set_payload(body)
+            .to_request();
+
+        let res = call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
     }
 }
