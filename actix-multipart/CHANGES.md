@@ -2,10 +2,12 @@
 
 ## Unreleased
 
+- Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]
 - Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
 - Minimum supported Rust version (MSRV) is now 1.88.
 
 [#3577]: https://github.com/actix/actix-web/pull/3577
+[#3575]: https://github.com/actix/actix-web/issues/3575
 
 ## 0.7.2
 
