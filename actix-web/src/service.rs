@@ -297,11 +297,25 @@ impl ServiceRequest {
         self.req.cookies()
     }
 
+    /// Return request cookies **without** percent-decoding their names and values.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        self.req.cookies_raw()
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        self.req.cookie_raw(name)
     }
 
     /// Set request payload.

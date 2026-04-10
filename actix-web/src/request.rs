@@ -29,6 +29,9 @@ use crate::{
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+#[cfg(feature = "cookies")]
+struct RawCookies(Vec<Cookie<'static>>);
+
 /// An incoming request.
 #[derive(Clone)]
 pub struct HttpRequest {
@@ -457,6 +460,8 @@ impl HttpRequest {
 
     /// Load request cookies.
     ///
+    /// The names and values of cookies are percent-decoded.
+    ///
     /// Any cookie that cannot be parsed is omitted from the result.
     /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
     #[cfg(feature = "cookies")]
@@ -481,16 +486,49 @@ impl HttpRequest {
         }))
     }
 
+    /// Load request cookies **without** percent-decoding their names and values.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
+    #[cfg(feature = "cookies")]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::header::COOKIE;
+
+        if self.extensions().get::<RawCookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse(cookie_str) {
+                        cookies.push(cookie.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(RawCookies(cookies));
+        }
+
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<RawCookies>().unwrap().0
+        }))
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
-            for cookie in cookies.iter() {
-                if cookie.name() == name {
-                    return Some(cookie.to_owned());
-                }
-            }
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
         }
+
+        None
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies_raw() {
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
+        }
+
         None
     }
 }
@@ -721,6 +759,49 @@ mod tests {
 
         let cookie = req.cookie("cookie-unknown");
         assert!(cookie.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=hello%20world"))
+            .append_header((header::COOKIE, "cookie2=%db"))
+            .to_http_request();
+        {
+            let cookies = req.cookies_raw().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "hello%20world");
+            assert_eq!(cookies[1].name(), "cookie2");
+            assert_eq!(cookies[1].value(), "%db");
+        }
+
+        let cookie = req.cookie_raw("cookie1");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie1");
+        assert_eq!(cookie.value(), "hello%20world");
+
+        let cookie = req.cookie_raw("cookie2");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie2");
+        assert_eq!(cookie.value(), "%db");
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw_is_independent_from_encoded_cookies() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie=%20"))
+            .to_http_request();
+
+        let cookie = req.cookie("cookie").unwrap();
+        assert_eq!(cookie.value(), " ");
+
+        let raw_cookie = req.cookie_raw("cookie").unwrap();
+        assert_eq!(raw_cookie.value(), "%20");
     }
 
     #[test]
