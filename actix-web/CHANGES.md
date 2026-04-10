@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]
 - Enable dual-stack IPv6 sockets on Windows when possible so that Actix-created listeners bound to `[::]` also accept IPv4 connections.
 - Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
 - Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
@@ -9,6 +10,7 @@
 
 [#3944]: https://github.com/actix/actix-web/pull/3944
 [#3346]: https://github.com/actix/actix-web/issues/3346
+[#3542]: https://github.com/actix/actix-web/issues/3542
 
 ## 4.13.0
 
