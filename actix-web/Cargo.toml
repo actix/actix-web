@@ -152,6 +152,7 @@ futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
 impl-more = "0.1.4"
 itoa = "1"
+jiff = "0.2"
 language-tags = "0.3"
 log = "0.4"
 mime = "0.3"
@@ -164,7 +165,6 @@ serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
 socket2 = "0.6"
-time = { version = "0.3", default-features = false, features = ["formatting"] }
 tracing = "0.1.30"
 url = "2.5.4"
 

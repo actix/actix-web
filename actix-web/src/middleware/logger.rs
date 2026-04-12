@@ -16,13 +16,13 @@ use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
+use jiff::Timestamp;
 use log::{debug, warn, Level};
 use pin_project_lite::pin_project;
 #[cfg(feature = "unicode")]
 use regex::Regex;
 #[cfg(not(feature = "unicode"))]
 use regex_lite::Regex;
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     body::{BodySize, MessageBody},
@@ -330,13 +330,13 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
-                time: OffsetDateTime::now_utc(),
+                time: Timestamp::now(),
                 log_target: Cow::Borrowed(""),
                 log_level: self.inner.log_level,
                 _phantom: PhantomData,
             }
         } else {
-            let now = OffsetDateTime::now_utc();
+            let now = Timestamp::now();
             let mut format = self.inner.format.clone();
 
             for unit in &mut format.0 {
@@ -363,7 +363,7 @@ pin_project! {
     {
         #[pin]
         fut: S::Future,
-        time: OffsetDateTime,
+        time: Timestamp,
         format: Option<Format>,
         log_target: Cow<'static, str>,
         log_level: Level,
@@ -432,7 +432,7 @@ pin_project! {
         body: B,
         format: Option<Format>,
         size: usize,
-        time: OffsetDateTime,
+        time: Timestamp,
         log_target: Cow<'static, str>,
         log_level: Level
     }
@@ -614,20 +614,18 @@ impl FormatText {
         &self,
         fmt: &mut fmt::Formatter<'_>,
         size: usize,
-        entry_time: OffsetDateTime,
+        entry_time: Timestamp,
     ) -> Result<(), fmt::Error> {
         match self {
             FormatText::Str(ref string) => fmt.write_str(string),
             FormatText::Percent => "%".fmt(fmt),
             FormatText::ResponseSize => size.fmt(fmt),
             FormatText::Time => {
-                let rt = OffsetDateTime::now_utc() - entry_time;
-                let rt = rt.as_seconds_f64();
+                let rt = entry_time.duration_until(Timestamp::now()).as_secs_f64();
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
             FormatText::TimeMillis => {
-                let rt = OffsetDateTime::now_utc() - entry_time;
-                let rt = (rt.whole_nanoseconds() as f64) / 1_000_000.0;
+                let rt = entry_time.duration_until(Timestamp::now()).as_millis_f64();
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
             FormatText::EnvironHeader(ref name) => {
@@ -669,7 +667,7 @@ impl FormatText {
         }
     }
 
-    fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
+    fn render_request(&mut self, now: Timestamp, req: &ServiceRequest) {
         match self {
             FormatText::RequestLine => {
                 *self = if req.query_string().is_empty() {
@@ -690,7 +688,7 @@ impl FormatText {
                 };
             }
             FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
-            FormatText::RequestTime => *self = FormatText::Str(now.format(&Rfc3339).unwrap()),
+            FormatText::RequestTime => *self = FormatText::Str(now.to_string()),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
                     String::from_utf8_lossy(val.as_bytes()).into_owned()
@@ -805,7 +803,7 @@ mod tests {
             ))
             .to_srv_request();
 
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -816,7 +814,7 @@ mod tests {
             unit.render_response(&res);
         }
 
-        let entry_time = OffsetDateTime::now_utc();
+        let entry_time = Timestamp::now();
         let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
@@ -838,7 +836,7 @@ mod tests {
             .uri("/test/route/yeah")
             .to_srv_request();
 
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -871,7 +869,7 @@ mod tests {
             .peer_addr("127.0.0.1:8081".parse().unwrap())
             .to_srv_request();
 
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -882,7 +880,7 @@ mod tests {
             unit.render_response(&res);
         }
 
-        let entry_time = OffsetDateTime::now_utc();
+        let entry_time = Timestamp::now();
         let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
@@ -901,7 +899,7 @@ mod tests {
         let mut format = Format::new("%t");
         let req = TestRequest::default().to_srv_request();
 
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -919,7 +917,7 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        assert!(s.contains(&now.format(&Rfc3339).unwrap()));
+        assert!(s.contains(&now.to_string()));
     }
 
     #[actix_rt::test]
@@ -933,7 +931,7 @@ mod tests {
             ))
             .to_srv_request();
 
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -944,7 +942,7 @@ mod tests {
             unit.render_response(&res);
         }
 
-        let entry_time = OffsetDateTime::now_utc();
+        let entry_time = Timestamp::now();
         let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
@@ -971,7 +969,7 @@ mod tests {
         assert_eq!(label, "CUSTOM");
 
         let req = TestRequest::default().to_srv_request();
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
 
         unit.render_request(now, &req);
 
@@ -1004,7 +1002,7 @@ mod tests {
 
         let req = TestRequest::default().to_http_request();
         let resp_ok = ServiceResponse::new(req, HttpResponse::Ok().finish());
-        let now = OffsetDateTime::now_utc();
+        let now = Timestamp::now();
         unit.render_response(&resp_ok);
 
         let render = |fmt: &mut fmt::Formatter<'_>| unit.render(fmt, 1024, now);
