@@ -123,7 +123,7 @@ h2 = { version = "0.3.27", optional = true }
 # websockets
 base64 = { version = "0.22", optional = true }
 local-channel = { version = "0.1", optional = true }
-rand = { version = "0.9", optional = true }
+rand = { version = "0.10.1", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
