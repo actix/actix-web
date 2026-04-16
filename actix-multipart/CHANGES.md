@@ -4,6 +4,7 @@
 
 - Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]
 - Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
+- Fix user-triggerable panic when parsing multipart boundaries.
 - Minimum supported Rust version (MSRV) is now 1.88.
 - Update `rand` dependency to `0.10`.
 
