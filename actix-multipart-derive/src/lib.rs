@@ -53,7 +53,7 @@ struct ParsedField<'t> {
 ///
 /// Each field type should implement the `FieldReader` trait:
 ///
-/// ```
+/// ```ignore
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
@@ -71,7 +71,7 @@ struct ParsedField<'t> {
 /// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
 /// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
 ///
-/// ```
+/// ```ignore
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
@@ -85,7 +85,7 @@ struct ParsedField<'t> {
 ///
 /// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
 ///
-/// ```
+/// ```ignore
 /// use actix_multipart::form::{tempfile::TempFile, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
@@ -102,7 +102,7 @@ struct ParsedField<'t> {
 ///
 /// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 ///
-/// ```
+/// ```ignore
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
@@ -120,7 +120,7 @@ struct ParsedField<'t> {
 /// By default fields with an unknown name are ignored. They can be rejected using the
 /// `#[multipart(deny_unknown_fields)]` attribute:
 ///
-/// ```
+/// ```ignore
 /// # use actix_multipart::form::MultipartForm;
 /// #[derive(MultipartForm)]
 /// #[multipart(deny_unknown_fields)]
@@ -138,7 +138,7 @@ struct ParsedField<'t> {
 ///
 /// Note that `Vec` fields will ignore this option.
 ///
-/// ```
+/// ```ignore
 /// # use actix_multipart::form::MultipartForm;
 /// #[derive(MultipartForm)]
 /// #[multipart(duplicate_field = "deny")]
