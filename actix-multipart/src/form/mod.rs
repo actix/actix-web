@@ -82,7 +82,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -159,7 +161,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -310,6 +314,16 @@ impl Limits {
 
         Ok(())
     }
+}
+
+/// Drain a field that will not be retained while still accounting for form limits.
+#[doc(hidden)]
+pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), MultipartError> {
+    while let Some(chunk) = field.try_next().await? {
+        limits.try_consume_limits(chunk.len(), false)?;
+    }
+
+    Ok(())
 }
 
 /// Typed `multipart/form-data` extractor.
@@ -708,6 +722,32 @@ mod tests {
         form.add_text("field", "second_value");
         let response = send_form(&srv, form, "/ignore").await;
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_discarded_fields_count_towards_total_limit() {
+        let srv = actix_test::start(|| {
+            App::new()
+                .route("/unknown", web::post().to(test_upload_limits_memory))
+                .route("/duplicate", web::post().to(test_duplicate_ignore_route))
+                .app_data(
+                    MultipartFormConfig::default()
+                        .memory_limit(usize::MAX)
+                        .total_limit(20),
+                )
+        });
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "7 bytes");
+        form.add_text("unknown", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/unknown").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "first_value");
+        form.add_text("field", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/duplicate").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
     /// Test the Limits.
