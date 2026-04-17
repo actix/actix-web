@@ -23,11 +23,5 @@ proc-macro2 = "1"
 quote = "1"
 syn = "2"
 
-[dev-dependencies]
-actix-multipart = "0.8"
-actix-web = "4"
-rustversion-msrv = "0.100"
-trybuild = "1"
-
 [lints]
 workspace = true
