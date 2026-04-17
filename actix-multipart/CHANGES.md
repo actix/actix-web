@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0
+
 - Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]
 - Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
 - Bound internal multipart parser buffering to prevent unbounded memory growth on malformed bodies.
