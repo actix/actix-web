@@ -82,5 +82,5 @@ pub mod test;
 pub use self::{
     error::Error as MultipartError,
     field::{Field, LimitExceeded},
-    multipart::Multipart,
+    multipart::{Multipart, MultipartConfig},
 };

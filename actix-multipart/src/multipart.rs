@@ -11,7 +11,7 @@ use actix_web::{
     dev,
     error::{ParseError, PayloadError},
     http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
-    web::Bytes,
+    web::{self, Bytes},
     HttpRequest,
 };
 use futures_core::stream::Stream;
@@ -20,7 +20,7 @@ use mime::Mime;
 use crate::{
     error::Error,
     field::InnerField,
-    payload::{PayloadBuffer, PayloadRef},
+    payload::{PayloadBuffer, PayloadRef, DEFAULT_BUFFER_LIMIT},
     safety::Safety,
     Field,
 };
@@ -44,6 +44,46 @@ enum Flow {
     Error(Option<Error>),
 }
 
+/// [`Multipart`] extractor configuration.
+///
+/// Add to your app data to have it picked up by [`Multipart`] extractors.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct MultipartConfig {
+    buffer_limit: usize,
+}
+
+impl MultipartConfig {
+    /// Creates a default multipart extractor configuration.
+    pub fn new() -> Self {
+        DEFAULT_CONFIG
+    }
+
+    /// Sets maximum internal parser buffer size. By default this limit is 64 KiB.
+    pub fn buffer_limit(mut self, buffer_limit: usize) -> Self {
+        self.buffer_limit = buffer_limit;
+        self
+    }
+
+    /// Extracts multipart config from app data. Check both `T` and `Data<T>`, in that order, and
+    /// fall back to the default multipart config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
+}
+
+static DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
+    buffer_limit: DEFAULT_BUFFER_LIMIT,
+};
+
+impl Default for MultipartConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Multipart {
     /// Creates multipart instance from parts.
     pub fn new<S>(headers: &HeaderMap, stream: S) -> Self
@@ -58,8 +98,15 @@ impl Multipart {
 
     /// Creates multipart instance from parts.
     pub(crate) fn from_req(req: &HttpRequest, payload: &mut dev::Payload) -> Self {
+        let config = MultipartConfig::from_req(req);
+
         match Self::find_ct_and_boundary(req.headers()) {
-            Ok((ct, boundary)) => Self::from_ct_and_boundary(ct, boundary, payload.take()),
+            Ok((ct, boundary)) => Self::from_ct_and_boundary_with_buffer_limit(
+                ct,
+                boundary,
+                payload.take(),
+                config.buffer_limit,
+            ),
             Err(err) => Self::from_error(err),
         }
     }
@@ -96,10 +143,27 @@ impl Multipart {
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
+        Self::from_ct_and_boundary_with_buffer_limit(
+            ct,
+            boundary,
+            stream,
+            DEFAULT_CONFIG.buffer_limit,
+        )
+    }
+
+    fn from_ct_and_boundary_with_buffer_limit<S>(
+        ct: Mime,
+        boundary: String,
+        stream: S,
+        buffer_limit: usize,
+    ) -> Multipart
+    where
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+    {
         Multipart {
             safety: Safety::new(),
             flow: Flow::InFlight(Inner {
-                payload: PayloadRef::new(PayloadBuffer::new(stream)),
+                payload: PayloadRef::new(PayloadBuffer::new_with_limit(stream, buffer_limit)),
                 content_type: ct,
                 boundary,
                 state: State::FirstBoundary,
@@ -596,6 +660,18 @@ mod tests {
         headers
     }
 
+    fn create_multipart_with_buffer_limit(
+        body: impl Stream<Item = Result<Bytes, PayloadError>> + 'static,
+        buffer_limit: usize,
+    ) -> Multipart {
+        Multipart::from_ct_and_boundary_with_buffer_limit(
+            "multipart/mixed; boundary=\"a\"".parse().unwrap(),
+            "a".to_owned(),
+            body,
+            buffer_limit,
+        )
+    }
+
     #[actix_rt::test]
     async fn empty_boundary_does_not_panic() {
         let payload = stream::once(async { Ok(Bytes::from_static(b"\n")) });
@@ -724,6 +800,69 @@ mod tests {
         let payload = stream::once(async { Ok(bytes) });
 
         let mut multipart = Multipart::new(&headers, payload);
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn malformed_preamble_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [b"aaaaaaaa", b"bbbbbbbb", b"cccccccc"].map(|chunk| Ok(Bytes::from_static(chunk))),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 16);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn malformed_headers_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [
+                Bytes::from_static(b"--a\r\n"),
+                Bytes::from_static(b"X-Long: 12345678"),
+                Bytes::from_static(b"9012345678901234"),
+                Bytes::from_static(b"5678901234567890"),
+            ]
+            .map(Ok),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 24);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn raw_extractor_uses_configured_buffer_limit() {
+        let (req, mut payload) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "multipart/mixed; boundary=\"a\""))
+            .app_data(MultipartConfig::default().buffer_limit(16))
+            .set_payload(Bytes::from_static(b"aaaaaaaabbbbbbbbcccccccc"))
+            .to_http_parts();
+
+        let mut multipart = Multipart::from_request(&req, &mut payload).await.unwrap();
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn valid_large_field_streams_through_small_parser_buffer() {
+        let mut bytes = BytesMut::new();
+        bytes.put(&b"--a\r\nContent-Length: 100\r\n\r\n"[..]);
+        bytes.put(&[b'x'; 100][..]);
+        bytes.put(&b"\r\n--a--\r\n"[..]);
+        let body = stream::once(async { Ok(bytes.freeze()) });
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 32);
+        let mut field = multipart.next().await.unwrap().unwrap();
+
+        assert_eq!(
+            get_whole_field(&mut field).await,
+            Bytes::from(vec![b'x'; 100])
+        );
+        drop(field);
         assert!(multipart.next().await.is_none());
     }
 
