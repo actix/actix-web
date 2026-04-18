@@ -2,6 +2,79 @@
 
 ## Unreleased
 
+- Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]
+- Enable dual-stack IPv6 sockets on Windows when possible so that Actix-created listeners bound to `[::]` also accept IPv4 connections.
+- Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
+- Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
+- Fix `Readlines` handling of lines split across payload chunks so combined line limits are enforced and complete lines are yielded.
+- Update `rand` dependency to `0.10`.
+- Add `HttpServer::h1_write_buffer_size()`.
+
+[#3944]: https://github.com/actix/actix-web/pull/3944
+[#3346]: https://github.com/actix/actix-web/issues/3346
+[#3542]: https://github.com/actix/actix-web/issues/3542
+
+## 4.13.0
+
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Improve HTTP/2 upload throughput by increasing default flow control window sizes. [#3638]
+- Add `HttpServer::{h2_initial_window_size, h2_initial_connection_window_size}` methods for tuning. [#3638]
+- Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#3895]
+- Ignore unparsable cookies in `Cookie` request header.
+- Add `experimental-introspection` feature to report configured routes [#3594]
+- Add config/method for `TCP_NODELAY`. [#3918]
+- Fix panic when `NormalizePath` rewrites a scoped dynamic path before extraction (e.g., `scope("{tail:.*}")` + `Path<String>`). [#3562]
+- Do not compress 206 Partial Content responses. [#3191]
+
+[#3895]: https://github.com/actix/actix-web/pull/3895
+[#3594]: https://github.com/actix/actix-web/pull/3594
+[#3918]: https://github.com/actix/actix-web/pull/3918
+[#3638]: https://github.com/actix/actix-web/issues/3638
+[#3562]: https://github.com/actix/actix-web/issues/3562
+[#3191]: https://github.com/actix/actix-web/issues/3191
+
+## 4.12.1
+
+- Correct `actix-http` dependency requirement.
+
+## 4.12.0
+
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now calls `actix_web::response::builder::HttpResponseBuilder::no_chunking()` and returns `SizedStream` if `Content-Length` is set by user.
+- Add `ws` crate feature (on-by-default) which forwards to `actix-http` and guards some of its `ResponseError` impls.
+- Add public export for `EitherExtractError` in `error` module.
+
+## 4.11.0
+
+- Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
+- Allow SVG images to be compressed by the `Compress` middleware.
+- Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
+- Re-export `mime` dependency.
+- Update `brotli` dependency to `8`.
+
+## 4.10.2
+
+- No significant changes since `4.10.1`.
+
+## 4.10.1
+
+- No significant changes since `4.10.0`.
+
+## 4.10.0
+
+### Added
+
+- Implement `Responder` for `Result<(), E: Into<Error>>`. Returning `Ok(())` responds with HTTP 204 No Content.
+
+### Changed
+
+- On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
+- Update `brotli` dependency to `7`.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
 ## 4.9.0
 
 ### Added

@@ -297,11 +297,25 @@ impl ServiceRequest {
         self.req.cookies()
     }
 
+    /// Return request cookies **without** percent-decoding their names and values.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        self.req.cookies_raw()
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        self.req.cookie_raw(name)
     }
 
     /// Set request payload.
@@ -319,6 +333,21 @@ impl ServiceRequest {
             .unwrap()
             .app_data
             .push(extensions);
+    }
+
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        self.req.push_resource_id(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        self.req.mark_resource_path(is_matched);
+    }
+
+    #[inline]
+    pub(crate) fn resource_id_path(&self) -> &[u16] {
+        self.req.resource_path()
     }
 
     /// Creates a context object for use with a routing [guard](crate::guard).
@@ -662,6 +691,7 @@ where
 /// ```
 #[macro_export]
 macro_rules! services {
+    () => {()};
     ($($x:expr),+ $(,)?) => {
         ($($x,)+)
     }
@@ -869,5 +899,41 @@ mod tests {
 
         let req = test::TestRequest::default().to_request();
         let _res = test::call_service(&app, req).await;
+    }
+
+    #[test]
+    fn define_services_macro_with_multiple_arguments() {
+        let result = services!(1, 2, 3);
+        assert_eq!(result, (1, 2, 3));
+    }
+
+    #[test]
+    fn define_services_macro_with_single_argument() {
+        let result = services!(1);
+        assert_eq!(result, (1,));
+    }
+
+    #[test]
+    fn define_services_macro_with_no_arguments() {
+        let result = services!();
+        let () = result;
+    }
+
+    #[test]
+    fn define_services_macro_with_trailing_comma() {
+        let result = services!(1, 2, 3,);
+        assert_eq!(result, (1, 2, 3));
+    }
+
+    #[test]
+    fn define_services_macro_with_comments_in_arguments() {
+        let result = services!(
+            1, // First comment
+            2, // Second comment
+            3  // Third comment
+        );
+
+        // Assert that comments are ignored and it correctly returns a tuple.
+        assert_eq!(result, (1, 2, 3));
     }
 }

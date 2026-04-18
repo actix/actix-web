@@ -111,7 +111,13 @@ pub(crate) trait MessageType: Sized {
 
         // Connection
         match conn_type {
-            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
+            ConnectionType::Upgrade => {
+                if camel_case {
+                    dst.put_slice(b"Connection: Upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: upgrade\r\n")
+                }
+            }
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: keep-alive\r\n")
@@ -310,10 +316,10 @@ impl MessageType for RequestHeadType {
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
                 Version::HTTP_3 => "HTTP/3.0",
-                _ => return Err(io::Error::new(io::ErrorKind::Other, "unsupported version")),
+                _ => return Err(io::Error::other("Unsupported version")),
             }
         )
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        .map_err(io::Error::other)
     }
 }
 
@@ -433,7 +439,7 @@ impl TransferEncoding {
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
                     writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                        .map_err(io::Error::other)?;
 
                     buf.reserve(msg.len() + 2);
                     buf.extend_from_slice(msg);
@@ -579,6 +585,16 @@ mod tests {
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
         assert!(data.contains("Upgrade-Insecure-Requests: 1\r\n"));
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::None,
+            ConnectionType::Upgrade,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("Connection: Upgrade\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,

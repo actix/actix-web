@@ -10,7 +10,7 @@ use bytes::BufMut;
 /// perform a remaining length check before writing.
 pub(crate) struct MutWriter<'a, B>(pub(crate) &'a mut B);
 
-impl<'a, B> io::Write for MutWriter<'a, B>
+impl<B> io::Write for MutWriter<'_, B>
 where
     B: BufMut,
 {

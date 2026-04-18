@@ -94,11 +94,21 @@ impl Parser {
             Some(res) => res,
         };
 
+        let frame_len = match idx.checked_add(length) {
+            Some(len) => len,
+            None => return Err(ProtocolError::Overflow),
+        };
+
         // not enough data
-        if src.len() < idx + length {
+        if src.len() < frame_len {
             let min_length = min(length, max_size);
-            if src.capacity() < idx + min_length {
-                src.reserve(idx + min_length - src.capacity());
+            let required_cap = match idx.checked_add(min_length) {
+                Some(cap) => cap,
+                None => return Err(ProtocolError::Overflow),
+            };
+
+            if src.capacity() < required_cap {
+                src.reserve(required_cap - src.capacity());
             }
             return Ok(None);
         }
@@ -401,5 +411,15 @@ mod tests {
         let mut buf = BytesMut::new();
         Parser::write_close(&mut buf, None, false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
+    }
+
+    #[test]
+    fn test_parse_length_overflow() {
+        let buf: [u8; 14] = [
+            0x0a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xeb, 0x0e, 0x8f,
+        ];
+        let mut buf = BytesMut::from(&buf[..]);
+        let result = Parser::parse(&mut buf, true, 65536);
+        assert!(matches!(result, Err(ProtocolError::Overflow)));
     }
 }

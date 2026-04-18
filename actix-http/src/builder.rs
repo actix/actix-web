@@ -5,9 +5,12 @@ use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
 use crate::{
     body::{BoxBody, MessageBody},
+    config::{
+        DEFAULT_H1_WRITE_BUFFER_SIZE, DEFAULT_H2_CONN_WINDOW_SIZE, DEFAULT_H2_STREAM_WINDOW_SIZE,
+    },
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     service::HttpService,
-    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfig,
+    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfigBuilder,
 };
 
 /// An HTTP service builder.
@@ -17,8 +20,13 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    tcp_nodelay: Option<bool>,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
+    h1_allow_half_closed: bool,
+    h1_write_buffer_size: usize,
+    h2_conn_window_size: u32,
+    h2_stream_window_size: u32,
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -38,8 +46,13 @@ where
             keep_alive: KeepAlive::default(),
             client_request_timeout: Duration::from_secs(5),
             client_disconnect_timeout: Duration::ZERO,
+            tcp_nodelay: None,
             secure: false,
             local_addr: None,
+            h1_allow_half_closed: true,
+            h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
 
             // dispatcher parts
             expect: ExpectHandler,
@@ -118,10 +131,63 @@ where
         self
     }
 
+    /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    pub fn tcp_nodelay(mut self, nodelay: bool) -> Self {
+        self.tcp_nodelay = Some(nodelay);
+        self
+    }
+
     #[doc(hidden)]
     #[deprecated(since = "3.0.0", note = "Renamed to `client_disconnect_timeout`.")]
     pub fn client_disconnect(self, dur: Duration) -> Self {
         self.client_disconnect_timeout(dur)
+    }
+
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(mut self, allow: bool) -> Self {
+        self.h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(mut self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.h1_write_buffer_size = size;
+        self
+    }
+
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_initial_window_size`] for more details.
+    pub fn h2_initial_window_size(mut self, size: u32) -> Self {
+        self.h2_stream_window_size = size;
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_initial_connection_window_size`] for more details.
+    pub fn h2_initial_connection_window_size(mut self, size: u32) -> Self {
+        self.h2_conn_window_size = size;
+        self
     }
 
     /// Provide service for `EXPECT: 100-Continue` support.
@@ -140,8 +206,13 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            tcp_nodelay: self.tcp_nodelay,
             secure: self.secure,
             local_addr: self.local_addr,
+            h1_allow_half_closed: self.h1_allow_half_closed,
+            h1_write_buffer_size: self.h1_write_buffer_size,
+            h2_conn_window_size: self.h2_conn_window_size,
+            h2_stream_window_size: self.h2_stream_window_size,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
@@ -164,8 +235,13 @@ where
             keep_alive: self.keep_alive,
             client_request_timeout: self.client_request_timeout,
             client_disconnect_timeout: self.client_disconnect_timeout,
+            tcp_nodelay: self.tcp_nodelay,
             secure: self.secure,
             local_addr: self.local_addr,
+            h1_allow_half_closed: self.h1_allow_half_closed,
+            h1_write_buffer_size: self.h1_write_buffer_size,
+            h2_conn_window_size: self.h2_conn_window_size,
+            h2_stream_window_size: self.h2_stream_window_size,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
@@ -195,13 +271,18 @@ where
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h1_write_buffer_size(self.h1_write_buffer_size)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .build();
 
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
@@ -220,13 +301,18 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h1_write_buffer_size(self.h1_write_buffer_size)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
             .on_connect_ext(self.on_connect_ext)
@@ -242,13 +328,18 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .tcp_nodelay(self.tcp_nodelay)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
+            .h1_write_buffer_size(self.h1_write_buffer_size)
+            .h2_initial_window_size(self.h2_stream_window_size)
+            .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .build();
 
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)

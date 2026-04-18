@@ -27,7 +27,7 @@
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use http::{uri, uri::Uri, Method, StatusCode, Version};
 
@@ -63,7 +63,7 @@ pub use self::payload::PayloadStream;
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,
-    config::ServiceConfig,
+    config::{ServiceConfig, ServiceConfigBuilder},
     error::Error,
     extensions::Extensions,
     header::ContentEncoding,

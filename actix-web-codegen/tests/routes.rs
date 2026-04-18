@@ -136,7 +136,7 @@ async fn routes_overlapping_inaccessible_test(req: HttpRequest) -> impl Responde
 }
 
 #[get("/custom_resource_name", name = "custom")]
-async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
+async fn custom_resource_name_test(req: HttpRequest) -> impl Responder {
     assert!(req.url_for_static("custom").is_ok());
     assert!(req.url_for_static("custom_resource_name_test").is_err());
     HttpResponse::Ok()

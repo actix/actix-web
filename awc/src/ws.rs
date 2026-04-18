@@ -125,13 +125,9 @@ impl WebsocketsRequest {
     /// Set a cookie
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies
+            .get_or_insert_with(CookieJar::new)
+            .add(cookie.into_owned());
         self
     }
 
@@ -249,6 +245,21 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
+    /// Returns whether headers should be sent in Camel-Case.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn camel_case_headers(&self) -> bool {
+        self.head.camel_case_headers()
+    }
+
+    /// Sets whether to send headers formatted as Camel-Case.
+    #[inline]
+    pub fn set_camel_case_headers(mut self, val: bool) -> Self {
+        self.head.set_camel_case_headers(val);
+        self
+    }
+
     /// Complete request construction and connect to a WebSocket server.
     pub async fn connect(
         mut self,
@@ -326,7 +337,7 @@ impl WebsocketsRequest {
 
         // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
         // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
-        let sec_key: [u8; 16] = rand::random();
+        let sec_key = rand::random::<[u8; 16]>();
         let key = BASE64_STANDARD.encode(sec_key);
 
         self.head.headers.insert(
@@ -444,7 +455,7 @@ struct Host<'a> {
     port: Option<http::uri::Port<&'a str>>,
 }
 
-impl<'a> fmt::Display for Host<'a> {
+impl fmt::Display for Host<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.hostname)?;
 
@@ -531,6 +542,12 @@ mod tests {
 
         #[allow(clippy::let_underscore_future)]
         let _ = req.connect();
+    }
+
+    #[actix_rt::test]
+    async fn camel_case_headers() {
+        let req = Client::new().ws("/").set_camel_case_headers(true);
+        assert!(req.camel_case_headers());
     }
 
     #[actix_rt::test]

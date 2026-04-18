@@ -25,6 +25,16 @@ use crate::{
     ConnectCallback, OnConnectData, Request, Response,
 };
 
+#[inline]
+fn desired_nodelay(tcp_nodelay: Option<bool>) -> Option<bool> {
+    tcp_nodelay
+}
+
+#[inline]
+fn set_nodelay(stream: &TcpStream, nodelay: bool) {
+    let _ = stream.set_nodelay(nodelay);
+}
+
 /// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {
     srv: S,
@@ -82,8 +92,13 @@ where
         Error = DispatchError,
         InitError = S::InitError,
     > {
-        fn_factory(|| {
-            ready(Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
+        let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
+
+        fn_factory(move || {
+            ready(Ok::<_, S::InitError>(fn_service(move |io: TcpStream| {
+                if let Some(nodelay) = tcp_nodelay {
+                    set_nodelay(&io, nodelay);
+                }
                 let peer_addr = io.peer_addr().ok();
                 ready(Ok::<_, DispatchError>((io, peer_addr)))
             })))
@@ -126,12 +141,17 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
+
             Acceptor::new(acceptor)
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref(), nodelay);
+                    }
                     let peer_addr = io.get_ref().peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -173,6 +193,7 @@ mod rustls_0_20 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -182,7 +203,10 @@ mod rustls_0_20 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -224,6 +248,7 @@ mod rustls_0_21 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -233,7 +258,10 @@ mod rustls_0_21 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -275,6 +303,7 @@ mod rustls_0_22 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -284,7 +313,10 @@ mod rustls_0_22 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -326,6 +358,7 @@ mod rustls_0_23 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -335,7 +368,10 @@ mod rustls_0_23 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })

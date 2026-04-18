@@ -41,13 +41,31 @@ pin_project! {
 }
 
 impl<S> From<crate::h1::Payload> for Payload<S> {
+    #[inline]
     fn from(payload: crate::h1::Payload) -> Self {
         Payload::H1 { payload }
     }
 }
 
+impl<S> From<Bytes> for Payload<S> {
+    #[inline]
+    fn from(bytes: Bytes) -> Self {
+        let (_, mut pl) = crate::h1::Payload::create(true);
+        pl.unread_data(bytes);
+        self::Payload::from(pl)
+    }
+}
+
+impl<S> From<Vec<u8>> for Payload<S> {
+    #[inline]
+    fn from(vec: Vec<u8>) -> Self {
+        Payload::from(Bytes::from(vec))
+    }
+}
+
 #[cfg(feature = "http2")]
 impl<S> From<crate::h2::Payload> for Payload<S> {
+    #[inline]
     fn from(payload: crate::h2::Payload) -> Self {
         Payload::H2 { payload }
     }
@@ -55,6 +73,7 @@ impl<S> From<crate::h2::Payload> for Payload<S> {
 
 #[cfg(feature = "http2")]
 impl<S> From<::h2::RecvStream> for Payload<S> {
+    #[inline]
     fn from(stream: ::h2::RecvStream) -> Self {
         Payload::H2 {
             payload: crate::h2::Payload::new(stream),
@@ -63,13 +82,15 @@ impl<S> From<::h2::RecvStream> for Payload<S> {
 }
 
 impl From<BoxedPayloadStream> for Payload {
+    #[inline]
     fn from(payload: BoxedPayloadStream) -> Self {
         Payload::Stream { payload }
     }
 }
 
 impl<S> Payload<S> {
-    /// Takes current payload and replaces it with `None` value
+    /// Takes current payload and replaces it with `None` value.
+    #[must_use]
     pub fn take(&mut self) -> Payload<S> {
         mem::replace(self, Payload::None)
     }

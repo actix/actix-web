@@ -12,32 +12,32 @@ rust-version.workspace = true
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix::*",
-    "actix_http::*",
-    "actix_web::*",
-    "bytes::*",
-    "bytestring::*",
-    "futures_core::*",
+  "actix::*",
+  "actix_http::*",
+  "actix_web::*",
+  "bytes::*",
+  "bytestring::*",
+  "futures_core::*",
 ]
 
 [dependencies]
 actix = { version = ">=0.12, <0.14", default-features = false }
 actix-codec = "0.5"
 actix-http = "3"
-actix-web = { version = "4", default-features = false }
+actix-web = { version = "4", default-features = false, features = ["ws"] }
 
 bytes = "1"
 bytestring = "1"
 futures-core = { version = "0.3.17", default-features = false }
 pin-project-lite = "0.2"
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
 actix-test = "0.1"
-awc = { version = "3", default-features = false }
 actix-web = { version = "4", features = ["macros"] }
+awc = { version = "3", default-features = false }
 
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }

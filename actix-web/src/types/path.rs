@@ -179,7 +179,7 @@ mod tests {
     use crate::{error, http, test::TestRequest, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
-    #[display(fmt = "MyStruct({}, {})", key, value)]
+    #[display("MyStruct({}, {})", key, value)]
     struct MyStruct {
         key: String,
         value: String,

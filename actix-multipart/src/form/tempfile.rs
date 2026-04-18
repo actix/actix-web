@@ -82,7 +82,7 @@ impl<'t> FieldReader<'t> for TempFile {
 #[non_exhaustive]
 pub enum TempFileError {
     /// File I/O Error
-    #[display(fmt = "File I/O error: {}", _0)]
+    #[display("File I/O error: {}", _0)]
     FileIo(std::io::Error),
 }
 

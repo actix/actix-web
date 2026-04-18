@@ -76,7 +76,9 @@ where
     fn close(&self, conn: ConnectionInnerType<Io>) {
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionInnerType::H1(io) = conn {
-                actix_rt::spawn(CloseConnection::new(io, timeout));
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    actix_rt::spawn(CloseConnection::new(io, timeout));
+                }
             }
         }
     }
@@ -177,9 +179,8 @@ where
                 .acquire_owned()
                 .await
                 .map_err(|_| {
-                    ConnectError::Io(io::Error::new(
-                        io::ErrorKind::Other,
-                        "failed to acquire semaphore on client connection pool",
+                    ConnectError::Io(io::Error::other(
+                        "Failed to acquire semaphore on client connection pool",
                     ))
                 })?;
 

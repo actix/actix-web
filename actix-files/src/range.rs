@@ -45,7 +45,7 @@ pub struct HttpRange {
 impl HttpRange {
     /// Parses Range HTTP header string as per RFC 2616.
     ///
-    /// `header` is HTTP Range header (e.g. `bytes=bytes=0-9`).
+    /// `header` is HTTP Range header (e.g. `bytes=0-9`).
     /// `size` is full size of response (file).
     pub fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ParseRangeErr> {
         let ranges =
@@ -294,16 +294,11 @@ mod tests {
 
             let res = HttpRange::parse(header, size);
 
-            if res.is_err() {
+            if let Err(err) = res {
                 if expected.is_empty() {
                     continue;
                 } else {
-                    panic!(
-                        "parse({}, {}) returned error {:?}",
-                        header,
-                        size,
-                        res.unwrap_err()
-                    );
+                    panic!("parse({header}, {size}) returned error {err:?}");
                 }
             }
 

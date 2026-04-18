@@ -1,6 +1,8 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp, fmt,
+    future::Future,
+    io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -27,8 +29,13 @@ struct Socket {
 struct Config {
     host: Option<String>,
     keep_alive: KeepAlive,
+    tcp_nodelay: Option<bool>,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    h1_allow_half_closed: bool,
+    h1_write_buffer_size: Option<usize>,
+    h2_initial_window_size: Option<u32>,
+    h2_initial_connection_window_size: Option<u32>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -64,6 +71,7 @@ struct Config {
 ///     .await
 /// }
 /// ```
+#[must_use]
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
@@ -111,8 +119,13 @@ where
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
+                tcp_nodelay: None,
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                h1_allow_half_closed: true,
+                h1_write_buffer_size: None,
+                h2_initial_window_size: None,
+                h2_initial_connection_window_size: None,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -150,13 +163,22 @@ where
         self
     }
 
+    /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    ///
+    /// By default, accepted TCP connections keep the OS default.
+    /// This method overrides that behavior for all accepted TCP connections.
+    pub fn tcp_nodelay(self, enabled: bool) -> Self {
+        self.config.lock().unwrap().tcp_nodelay = Some(enabled);
+        self
+    }
+
     /// Sets the maximum number of pending connections.
     ///
     /// This refers to the number of clients that can be waiting to be served. Exceeding this number
     /// results in the client getting an error when attempting to connect. It should only affect
     /// servers under significant load.
     ///
-    /// Generally set in the 64–2048 range. Default value is 2048.
+    /// Generally set in the 64–2048 range. Default value is 1024.
     ///
     /// This method will have no effect if called after a `bind()`.
     pub fn backlog(mut self, backlog: u32) -> Self {
@@ -193,7 +215,7 @@ where
     ///
     /// One thread pool is set up **per worker**; not shared across workers.
     ///
-    /// By default set to 512 divided by the number of workers.
+    /// By default, set to 512 divided by [available parallelism](std::thread::available_parallelism()).
     pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
         self.builder = self.builder.worker_max_blocking_threads(num);
         self
@@ -225,7 +247,7 @@ where
     ///
     /// To disable timeout set value to 0.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
+    /// By default client timeout is set to 1000 milliseconds.
     pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
         self.config.lock().unwrap().client_disconnect_timeout = dur;
         self
@@ -254,6 +276,64 @@ where
         self.client_disconnect_timeout(Duration::from_millis(dur))
     }
 
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(self, allow: bool) -> Self {
+        self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.config.lock().unwrap().h1_write_buffer_size = Some(size);
+        self
+    }
+
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 1MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_window_size(self, size: u32) -> Self {
+        self.config.lock().unwrap().h2_initial_window_size = Some(size);
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 2MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_connection_window_size(self, size: u32) -> Self {
+        self.config
+            .lock()
+            .unwrap()
+            .h2_initial_connection_window_size = Some(size);
+        self
+    }
+
     /// Sets function that will be called once before each connection is handled.
     ///
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
@@ -272,19 +352,12 @@ where
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    pub fn on_connect<CB>(mut self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
-        HttpServer {
-            factory: self.factory,
-            config: self.config,
-            backlog: self.backlog,
-            sockets: self.sockets,
-            builder: self.builder,
-            on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
-        }
+        self.on_connect_fn = Some(Arc::new(f));
+        self
     }
 
     /// Sets server host name.
@@ -309,6 +382,37 @@ where
     /// Disables signal handling.
     pub fn disable_signals(mut self) -> Self {
         self.builder = self.builder.disable_signals();
+        self
+    }
+
+    /// Specify shutdown signal from a future.
+    ///
+    /// Using this method will prevent OS signal handlers being set up.
+    ///
+    /// Typically, a `CancellationToken` will be used, but any future _can_ be.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use actix_web::{App, HttpServer};
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// # #[actix_web::main]
+    /// # async fn main() -> std::io::Result<()> {
+    /// let stop_signal = CancellationToken::new();
+    ///
+    /// HttpServer::new(move || App::new())
+    ///     .shutdown_signal(stop_signal.cancelled_owned())
+    ///     .bind(("127.0.0.1", 8080))?
+    ///     .run()
+    ///     .await
+    /// # }
+    /// ```
+    pub fn shutdown_signal<Fut>(mut self, shutdown_signal: Fut) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.builder = self.builder.shutdown_signal(shutdown_signal);
         self
     }
 
@@ -361,6 +465,14 @@ where
     ///
     /// Using a bind address of `0.0.0.0`, which signals to use all interfaces, may also multiple
     /// the number of instantiations in a similar way.
+    ///
+    /// # Dual-Stack IPv6
+    ///
+    /// On Windows, when this method creates an IPv6 listener (e.g., for `[::]:8080`), this
+    /// attempts to enable dual-stack mode so the socket can accept both IPv4 and IPv6
+    /// connections. On Linux and macOS, dual-stack is typically already the OS default. If you
+    /// need IPv6-only behavior on Windows, create the listener manually and pass it to
+    /// [`listen()`](Self::listen()).
     ///
     /// # Typical Usage
     ///
@@ -531,7 +643,24 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
+
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
@@ -575,7 +704,24 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
+
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
@@ -647,15 +793,31 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -698,15 +860,31 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -764,15 +942,31 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -830,15 +1024,31 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -882,6 +1092,7 @@ where
         let factory = self.factory.clone();
         let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
+
         self.sockets.push(Socket {
             addr,
             scheme: "https",
@@ -895,16 +1106,32 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -962,13 +1189,19 @@ where
                     .into_factory()
                     .map_err(|err| err.into().error_response());
 
-                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
-                    HttpService::build()
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .finish(map_config(fac, move |_| config.clone())),
-                )
+                        .h1_allow_half_closed(c.h1_allow_half_closed);
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    svc.finish(map_config(fac, move |_| config.clone()))
+                })
             },
         )?;
 
@@ -986,6 +1219,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -1007,10 +1241,15 @@ where
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_request_timeout(c.client_request_timeout)
+                    .h1_allow_half_closed(c.h1_allow_half_closed)
                     .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
+                }
+
+                if let Some(size) = c.h1_write_buffer_size {
+                    svc = svc.h1_write_buffer_size(size);
                 }
 
                 let fac = factory()
@@ -1073,10 +1312,7 @@ fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<ne
     } else if let Some(err) = err.take() {
         Err(err)
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Can not bind to address.",
-        ))
+        Err(io::Error::other("Could not bind to address"))
     }
 }
 
@@ -1085,7 +1321,18 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = Domain::for_address(addr);
     let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
-    socket.set_reuse_address(true)?;
+    #[cfg(not(windows))]
+    {
+        socket.set_reuse_address(true)?;
+    }
+    // On Windows, IPV6_V6ONLY defaults to true, preventing IPv6 sockets from accepting IPv4
+    // connections. Set it to false so that binding to [::] also accepts IPv4 traffic.
+    #[cfg(windows)]
+    if addr.is_ipv6() {
+        if let Err(err) = socket.set_only_v6(false) {
+            log::warn!("failed to set IPV6_V6ONLY=false: {err}");
+        }
+    }
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;

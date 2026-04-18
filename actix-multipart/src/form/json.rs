@@ -66,11 +66,11 @@ where
 #[non_exhaustive]
 pub enum JsonFieldError {
     /// Deserialize error.
-    #[display(fmt = "Json deserialize error: {}", _0)]
+    #[display("Json deserialize error: {}", _0)]
     Deserialize(serde_json::Error),
 
     /// Content type error.
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
 }
 

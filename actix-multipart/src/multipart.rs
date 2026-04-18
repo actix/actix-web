@@ -11,7 +11,7 @@ use actix_web::{
     dev,
     error::{ParseError, PayloadError},
     http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
-    web::Bytes,
+    web::{self, Bytes},
     HttpRequest,
 };
 use futures_core::stream::Stream;
@@ -20,7 +20,7 @@ use mime::Mime;
 use crate::{
     error::Error,
     field::InnerField,
-    payload::{PayloadBuffer, PayloadRef},
+    payload::{PayloadBuffer, PayloadRef, DEFAULT_BUFFER_LIMIT},
     safety::Safety,
     Field,
 };
@@ -44,6 +44,46 @@ enum Flow {
     Error(Option<Error>),
 }
 
+/// [`Multipart`] extractor configuration.
+///
+/// Add to your app data to have it picked up by [`Multipart`] extractors.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct MultipartConfig {
+    buffer_limit: usize,
+}
+
+impl MultipartConfig {
+    /// Creates a default multipart extractor configuration.
+    pub fn new() -> Self {
+        DEFAULT_CONFIG
+    }
+
+    /// Sets maximum internal parser buffer size. By default this limit is 64 KiB.
+    pub fn buffer_limit(mut self, buffer_limit: usize) -> Self {
+        self.buffer_limit = buffer_limit;
+        self
+    }
+
+    /// Extracts multipart config from app data. Check both `T` and `Data<T>`, in that order, and
+    /// fall back to the default multipart config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
+}
+
+static DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
+    buffer_limit: DEFAULT_BUFFER_LIMIT,
+};
+
+impl Default for MultipartConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Multipart {
     /// Creates multipart instance from parts.
     pub fn new<S>(headers: &HeaderMap, stream: S) -> Self
@@ -58,8 +98,15 @@ impl Multipart {
 
     /// Creates multipart instance from parts.
     pub(crate) fn from_req(req: &HttpRequest, payload: &mut dev::Payload) -> Self {
+        let config = MultipartConfig::from_req(req);
+
         match Self::find_ct_and_boundary(req.headers()) {
-            Ok((ct, boundary)) => Self::from_ct_and_boundary(ct, boundary, payload.take()),
+            Ok((ct, boundary)) => Self::from_ct_and_boundary_with_buffer_limit(
+                ct,
+                boundary,
+                payload.take(),
+                config.buffer_limit,
+            ),
             Err(err) => Self::from_error(err),
         }
     }
@@ -84,6 +131,10 @@ impl Multipart {
             .as_str()
             .to_owned();
 
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         Ok((content_type, boundary))
     }
 
@@ -92,10 +143,27 @@ impl Multipart {
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
+        Self::from_ct_and_boundary_with_buffer_limit(
+            ct,
+            boundary,
+            stream,
+            DEFAULT_CONFIG.buffer_limit,
+        )
+    }
+
+    fn from_ct_and_boundary_with_buffer_limit<S>(
+        ct: Mime,
+        boundary: String,
+        stream: S,
+        buffer_limit: usize,
+    ) -> Multipart
+    where
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+    {
         Multipart {
             safety: Safety::new(),
             flow: Flow::InFlight(Inner {
-                payload: PayloadRef::new(PayloadBuffer::new(stream)),
+                payload: PayloadRef::new(PayloadBuffer::new_with_limit(stream, buffer_limit)),
                 content_type: ct,
                 boundary,
                 state: State::FirstBoundary,
@@ -239,6 +307,10 @@ impl Inner {
     /// - `Ok(None)` - boundary not found, more data needs reading
     /// - `Err(BoundaryMissing)` - multipart boundary is missing
     fn read_boundary(payload: &mut PayloadBuffer, boundary: &str) -> Result<Option<bool>, Error> {
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         // TODO: need to read epilogue
         let chunk = match payload.readline_or_eof()? {
             // TODO: this might be okay as a let Some() else return Ok(None)
@@ -249,34 +321,21 @@ impl Inner {
         const BOUNDARY_MARKER: &[u8] = b"--";
         const LINE_BREAK: &[u8] = b"\r\n";
 
-        let boundary_len = boundary.len();
-
-        if chunk.len() < boundary_len + 2 + 2
-            || !chunk.starts_with(BOUNDARY_MARKER)
-            || &chunk[2..boundary_len + 2] != boundary.as_bytes()
-        {
+        let Some(chunk) = chunk.as_ref().strip_prefix(BOUNDARY_MARKER) else {
             return Err(Error::BoundaryMissing);
-        }
+        };
 
-        // chunk facts:
-        // - long enough to contain boundary + 2 markers or 1 marker and line-break
-        // - starts with boundary marker
-        // - chunk contains correct boundary
+        let Some(chunk) = chunk.strip_prefix(boundary.as_bytes()) else {
+            return Err(Error::BoundaryMissing);
+        };
 
-        if &chunk[boundary_len + 2..] == LINE_BREAK {
+        if chunk == LINE_BREAK {
             // boundary is followed by line-break, indicating more fields to come
             return Ok(Some(false));
         }
 
         // boundary is followed by marker
-        if &chunk[boundary_len + 2..boundary_len + 4] == BOUNDARY_MARKER
-            && (
-                // chunk is exactly boundary len + 2 markers
-                chunk.len() == boundary_len + 2 + 2
-                // final boundary is allowed to end with a line-break
-                || &chunk[boundary_len + 4..] == LINE_BREAK
-            )
-        {
+        if chunk == BOUNDARY_MARKER || chunk == b"--\r\n" {
             return Ok(Some(true));
         }
 
@@ -287,7 +346,12 @@ impl Inner {
         payload: &mut PayloadBuffer,
         boundary: &str,
     ) -> Result<Option<bool>, Error> {
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         let mut eof = false;
+        let boundary = boundary.as_bytes();
 
         loop {
             match payload.readline()? {
@@ -295,19 +359,17 @@ impl Inner {
                     if chunk.is_empty() {
                         return Err(Error::BoundaryMissing);
                     }
-                    if chunk.len() < boundary.len() {
+
+                    let Some(line) = chunk.as_ref().strip_suffix(b"\r\n") else {
                         continue;
-                    }
-                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes() {
-                        break;
-                    } else {
-                        if chunk.len() < boundary.len() + 2 {
-                            continue;
+                    };
+
+                    if let Some(line) = line.strip_prefix(b"--") {
+                        if line == boundary {
+                            break;
                         }
-                        let b: &[u8] = boundary.as_ref();
-                        if &chunk[..boundary.len()] == b
-                            && &chunk[boundary.len()..boundary.len() + 2] == b"--"
-                        {
+
+                        if line.strip_suffix(b"--") == Some(boundary) {
                             eof = true;
                             break;
                         }
@@ -589,11 +651,226 @@ mod tests {
         (bytes, headers)
     }
 
+    fn create_header(content_type: &'static str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(content_type),
+        );
+        headers
+    }
+
+    fn create_multipart_with_buffer_limit(
+        body: impl Stream<Item = Result<Bytes, PayloadError>> + 'static,
+        buffer_limit: usize,
+    ) -> Multipart {
+        Multipart::from_ct_and_boundary_with_buffer_limit(
+            "multipart/mixed; boundary=\"a\"".parse().unwrap(),
+            "a".to_owned(),
+            body,
+            buffer_limit,
+        )
+    }
+
+    #[actix_rt::test]
+    async fn empty_boundary_does_not_panic() {
+        let payload = stream::once(async { Ok(Bytes::from_static(b"\n")) });
+        let ct = "multipart/mixed; boundary=\"a\"".parse().unwrap();
+
+        let mut multipart = Multipart::from_ct_and_boundary(ct, String::new(), payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::BoundaryMissing));
+    }
+
+    #[actix_rt::test]
+    async fn short_line_with_one_byte_boundary_does_not_panic() {
+        let bytes = Bytes::from_static(b"\n");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/mixed; boundary=\"a\""),
+        );
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::Incomplete));
+    }
+
+    #[actix_rt::test]
+    async fn short_final_boundary_with_one_byte_boundary_does_not_panic() {
+        let bytes = Bytes::from_static(b"--\n");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/mixed; boundary=\"a\""),
+        );
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::Incomplete));
+    }
+
+    #[actix_rt::test]
+    async fn one_byte_boundary_parses_valid_body() {
+        let bytes = Bytes::from_static(
+            b"preamble\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            one\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            two\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "one");
+        drop(field);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "two");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn one_byte_boundary_parses_when_split_across_chunks() {
+        let bytes = Bytes::from_static(
+            b"x\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 4\r\n\
+            \r\n\
+            data\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "data");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn short_preamble_lines_before_boundary_are_skipped() {
+        let bytes = Bytes::from_static(
+            b"\n\
+            -\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 4\r\n\
+            \r\n\
+            data\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "data");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn first_boundary_can_be_final() {
+        let bytes = Bytes::from_static(b"--a--\r\n");
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn malformed_preamble_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [b"aaaaaaaa", b"bbbbbbbb", b"cccccccc"].map(|chunk| Ok(Bytes::from_static(chunk))),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 16);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn malformed_headers_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [
+                Bytes::from_static(b"--a\r\n"),
+                Bytes::from_static(b"X-Long: 12345678"),
+                Bytes::from_static(b"9012345678901234"),
+                Bytes::from_static(b"5678901234567890"),
+            ]
+            .map(Ok),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 24);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn raw_extractor_uses_configured_buffer_limit() {
+        let (req, mut payload) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "multipart/mixed; boundary=\"a\""))
+            .app_data(MultipartConfig::default().buffer_limit(16))
+            .set_payload(Bytes::from_static(b"aaaaaaaabbbbbbbbcccccccc"))
+            .to_http_parts();
+
+        let mut multipart = Multipart::from_request(&req, &mut payload).await.unwrap();
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[actix_rt::test]
+    async fn valid_large_field_streams_through_small_parser_buffer() {
+        let mut bytes = BytesMut::new();
+        bytes.put(&b"--a\r\nContent-Length: 100\r\n\r\n"[..]);
+        bytes.put(&[b'x'; 100][..]);
+        bytes.put(&b"\r\n--a--\r\n"[..]);
+        let body = stream::once(async { Ok(bytes.freeze()) });
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 32);
+        let mut field = multipart.next().await.unwrap().unwrap();
+
+        assert_eq!(
+            get_whole_field(&mut field).await,
+            Bytes::from(vec![b'x'; 100])
+        );
+        drop(field);
+        assert!(multipart.next().await.is_none());
+    }
+
     #[actix_rt::test]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
         let (mut bytes, headers) = create_double_request_with_header();
-        let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
+        let bytes_stripped = bytes.split_to(bytes.len() - 2); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
         drop(sender); // eof

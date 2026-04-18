@@ -63,6 +63,27 @@ impl Guard for Acceptable {
 
         false
     }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn name(&self) -> String {
+        if self.match_star_star {
+            format!("Acceptable({}, match_star_star=true)", self.mime)
+        } else {
+            format!("Acceptable({})", self.mime)
+        }
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn details(&self) -> Option<Vec<super::GuardDetail>> {
+        let mut details = Vec::new();
+        details.push(super::GuardDetail::Generic(format!("mime={}", self.mime)));
+        if self.match_star_star {
+            details.push(super::GuardDetail::Generic(
+                "match_star_star=true".to_string(),
+            ));
+        }
+        Some(details)
+    }
 }
 
 #[cfg(test)]
@@ -95,5 +116,29 @@ mod tests {
         assert!(Acceptable::new(mime::APPLICATION_JSON)
             .match_star_star()
             .check(&req.guard_ctx()));
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    #[test]
+    fn acceptable_guard_details_include_mime() {
+        let guard = Acceptable::new(mime::APPLICATION_JSON).match_star_star();
+        let details = guard.details().expect("missing guard details");
+
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Generic(value) => value == "match_star_star=true",
+            _ => false,
+        }));
+        let expected = format!("mime={}", mime::APPLICATION_JSON);
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Generic(value) => value == &expected,
+            _ => false,
+        }));
+        assert_eq!(
+            guard.name(),
+            format!(
+                "Acceptable({}, match_star_star=true)",
+                mime::APPLICATION_JSON
+            )
+        );
     }
 }

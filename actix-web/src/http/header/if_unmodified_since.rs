@@ -10,6 +10,11 @@ crate::http::header::common_header! {
     /// This field accomplishes the same purpose as If-Match for cases where
     /// the user agent does not have an entity-tag for the representation.
     ///
+    /// # Note
+    /// This is a request header used for conditional requests. Servers should not send
+    /// `If-Unmodified-Since` in responses; use [`LastModified`](super::LastModified) / the
+    /// `Last-Modified` header instead.
+    ///
     /// # ABNF
     /// ```plain
     /// If-Unmodified-Since = HTTP-date
@@ -22,14 +27,13 @@ crate::http::header::common_header! {
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfUnmodifiedSince;
+    /// use actix_web::{http::header::IfUnmodifiedSince, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-    /// builder.insert_header(
-    ///     IfUnmodifiedSince(modified.into())
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfUnmodifiedSince(modified.into()))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (IfUnmodifiedSince, IF_UNMODIFIED_SINCE) => [HttpDate]
 

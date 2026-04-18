@@ -1,0 +1,86 @@
+name: Semver Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  semver-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
+        with:
+          toolchain: stable
+
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@7a562dfa955aa2e4d5b0fd6ebd57ff9715c07b0b # v2.73.0
+        with:
+          tool: cargo-semver-checks
+
+      - name: Run cargo semver-checks
+        id: semver
+        shell: bash
+        run: |
+          set -o pipefail
+
+          output_file="$(mktemp)"
+
+          cargo semver-checks \
+            --workspace \
+            --release-type=patch \
+            --baseline-rev "${{ github.event.pull_request.base.sha }}" \
+            2>&1 | tee "$output_file"
+          status=$?
+
+          semver_type=patch
+          if grep -q "semver requires new major version" "$output_file"; then
+            semver_type=major
+          elif grep -q "semver requires new minor version" "$output_file"; then
+            semver_type=minor
+          elif grep -q "semver requires new patch version" "$output_file"; then
+            semver_type=patch
+          fi
+
+          {
+            echo "exit_code=$status"
+            echo "output_file=$output_file"
+            echo "semver_type=$semver_type"
+          } >> "$GITHUB_OUTPUT"
+
+          exit 0
+
+      - name: Summarize cargo semver-checks output
+        if: always() && steps.semver.outcome != 'skipped'
+        shell: bash
+        run: |
+          summary_file="${{ steps.semver.outputs.output_file }}"
+          status="${{ steps.semver.outputs.exit_code }}"
+
+          {
+            echo "## cargo semver-checks"
+            echo
+            echo "- Base SHA: \`${{ github.event.pull_request.base.sha }}\`"
+            echo "- Head SHA: \`${{ github.event.pull_request.head.sha }}\`"
+            echo "- Required release: \`${{ steps.semver.outputs.semver_type }}\`"
+            echo "- cargo semver-checks exit code: \`$status\`"
+
+            echo
+            echo "<details><summary>Command output</summary>"
+            echo
+            echo '```text'
+            sed -n '1,200p' "$summary_file"
+            total_lines="$(wc -l < "$summary_file")"
+            if [ "$total_lines" -gt 200 ]; then
+              echo
+              echo "[truncated; showing first 200 of ${total_lines} lines]"
+            fi
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"

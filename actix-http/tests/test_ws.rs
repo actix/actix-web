@@ -37,16 +37,16 @@ impl WsService {
 
 #[derive(Debug, Display, Error, From)]
 enum WsServiceError {
-    #[display(fmt = "HTTP error")]
+    #[display("HTTP error")]
     Http(actix_http::Error),
 
-    #[display(fmt = "WS handshake error")]
+    #[display("WS handshake error")]
     Ws(actix_http::ws::HandshakeError),
 
-    #[display(fmt = "I/O error")]
+    #[display("I/O error")]
     Io(std::io::Error),
 
-    #[display(fmt = "dispatcher error")]
+    #[display("dispatcher error")]
     Dispatcher,
 }
 

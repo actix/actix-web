@@ -28,9 +28,9 @@ use crate::{
 ///
 /// Resource in turn has at least one route. Route consists of an handlers objects and list of
 /// guards (objects that implement `Guard` trait). Resources and routes uses builder-like pattern
-/// for configuration. During request handling, resource object iterate through all routes and check
-/// guards for specific route, if request matches all guards, route considered matched and route
-/// handler get called.
+/// for configuration. During request handling, the resource object iterates through all routes
+/// and checks guards for the specific route, if the request matches all the guards, then the route
+/// is considered matched and the route handler gets called.
 ///
 /// # Examples
 /// ```
@@ -417,6 +417,8 @@ where
     B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
+        let routes = std::mem::take(&mut self.routes);
+
         let guards = if self.guards.is_empty() {
             None
         } else {
@@ -428,13 +430,71 @@ where
         } else {
             ResourceDef::new(self.rdef.clone())
         };
+        #[cfg(feature = "experimental-introspection")]
+        {
+            use crate::http::Method;
+
+            let full_paths = crate::introspection::expand_patterns(&config.current_prefix, &rdef);
+            let patterns = rdef
+                .pattern_iter()
+                .map(|pattern| pattern.to_string())
+                .collect::<Vec<_>>();
+            let guards_routes = routes.iter().map(|r| r.guards()).collect::<Vec<_>>();
+            let scope_id = config.scope_id_stack.last().copied();
+            let resource_guards: &[Box<dyn Guard>] = guards.as_deref().unwrap_or(&[]);
+            let resource_name = self.name.clone();
+
+            for route_guards in guards_routes {
+                // Log the guards and methods for introspection
+                let mut guard_names = Vec::new();
+                let mut methods = Vec::new();
+
+                for guard in resource_guards.iter().chain(route_guards.iter()) {
+                    guard_names.push(guard.name());
+                    methods.extend(
+                        guard
+                            .details()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .flat_map(|d| {
+                                if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                                    v.into_iter()
+                                        .filter_map(|s| s.parse::<Method>().ok())
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    Vec::new()
+                                }
+                            }),
+                    );
+                }
+
+                let guard_details = crate::introspection::guard_reports_from_iter(
+                    resource_guards.iter().chain(route_guards.iter()),
+                );
+
+                for full_path in &full_paths {
+                    let info = crate::introspection::RouteInfo::new(
+                        full_path.clone(),
+                        methods.clone(),
+                        guard_names.clone(),
+                        guard_details.clone(),
+                        patterns.clone(),
+                        resource_name.clone(),
+                    );
+                    config
+                        .introspector
+                        .borrow_mut()
+                        .register_route(info, scope_id);
+                }
+            }
+        }
 
         if let Some(ref name) = self.name {
             rdef.set_name(name);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
-            routes: self.routes,
+            routes,
             default: self.default,
         });
 

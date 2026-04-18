@@ -17,7 +17,7 @@ async fn main() -> io::Result<()> {
                     ext.insert(42u32);
                 })
                 .finish(|req: Request| async move {
-                    info!("{:?}", req);
+                    info!("{req:?}");
 
                     let mut res = Response::build(StatusCode::OK);
                     res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));

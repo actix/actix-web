@@ -18,35 +18,35 @@ pub use crate::client::{ConnectError, FreezeRequestError, InvalidUrl, SendReques
 #[derive(Debug, Display, From)]
 pub enum WsClientError {
     /// Invalid response status
-    #[display(fmt = "Invalid response status")]
+    #[display("Invalid response status")]
     InvalidResponseStatus(StatusCode),
 
     /// Invalid upgrade header
-    #[display(fmt = "Invalid upgrade header")]
+    #[display("Invalid upgrade header")]
     InvalidUpgradeHeader,
 
     /// Invalid connection header
-    #[display(fmt = "Invalid connection header")]
+    #[display("Invalid connection header")]
     InvalidConnectionHeader(HeaderValue),
 
     /// Missing Connection header
-    #[display(fmt = "Missing Connection header")]
+    #[display("Missing Connection header")]
     MissingConnectionHeader,
 
     /// Missing Sec-Websocket-Accept header
-    #[display(fmt = "Missing Sec-Websocket-Accept header")]
+    #[display("Missing Sec-Websocket-Accept header")]
     MissingWebSocketAcceptHeader,
 
     /// Invalid challenge response
-    #[display(fmt = "Invalid challenge response")]
+    #[display("Invalid challenge response")]
     InvalidChallengeResponse([u8; 28], HeaderValue),
 
     /// Protocol error
-    #[display(fmt = "{}", _0)]
+    #[display("{}", _0)]
     Protocol(WsProtocolError),
 
     /// Send request error
-    #[display(fmt = "{}", _0)]
+    #[display("{}", _0)]
     SendRequest(SendRequestError),
 }
 
@@ -68,13 +68,13 @@ impl From<HttpError> for WsClientError {
 #[derive(Debug, Display, From)]
 pub enum JsonPayloadError {
     /// Content type error
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
     /// Deserialize error
-    #[display(fmt = "Json deserialize error: {}", _0)]
+    #[display("Json deserialize error: {}", _0)]
     Deserialize(JsonError),
     /// Payload error
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
+    #[display("Error that occur during reading payload: {}", _0)]
     Payload(PayloadError),
 }
 

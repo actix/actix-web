@@ -1,4 +1,4 @@
-use actix_http::{header, uri::Uri, RequestHead};
+use actix_http::{header, uri::Uri, RequestHead, Version};
 
 use super::{Guard, GuardContext};
 
@@ -66,6 +66,7 @@ fn get_host_uri(req: &RequestHead) -> Option<Uri> {
     req.headers
         .get(header::HOST)
         .and_then(|host_value| host_value.to_str().ok())
+        .filter(|_| req.version < Version::HTTP_2)
         .or_else(|| req.uri.host())
         .and_then(|host| host.parse().ok())
 }
@@ -116,12 +117,67 @@ impl Guard for HostGuard {
         // all conditions passed
         true
     }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn name(&self) -> String {
+        if let Some(ref scheme) = self.scheme {
+            format!("Host({}, scheme={})", self.host, scheme)
+        } else {
+            format!("Host({})", self.host)
+        }
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    fn details(&self) -> Option<Vec<super::GuardDetail>> {
+        let mut details = vec![super::GuardDetail::Headers(vec![(
+            "host".to_string(),
+            self.host.clone(),
+        )])];
+
+        if let Some(ref scheme) = self.scheme {
+            details.push(super::GuardDetail::Generic(format!("scheme={scheme}")));
+        }
+
+        Some(details)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test::TestRequest;
+
+    #[test]
+    fn host_not_from_header_if_http2() {
+        let req = TestRequest::default()
+            .uri("www.rust-lang.org")
+            .insert_header((
+                header::HOST,
+                header::HeaderValue::from_static("www.example.com"),
+            ))
+            .to_srv_request();
+
+        let host = Host("www.example.com");
+        assert!(host.check(&req.guard_ctx()));
+
+        let host = Host("www.rust-lang.org");
+        assert!(!host.check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .version(actix_http::Version::HTTP_2)
+            .uri("www.rust-lang.org")
+            .insert_header((
+                header::HOST,
+                header::HeaderValue::from_static("www.example.com"),
+            ))
+            .to_srv_request();
+
+        let host = Host("www.example.com");
+        assert!(!host.check(&req.guard_ctx()));
+
+        let host = Host("www.rust-lang.org");
+        assert!(host.check(&req.guard_ctx()));
+    }
 
     #[test]
     fn host_from_header() {
@@ -205,5 +261,24 @@ mod tests {
 
         let host = Host("localhost");
         assert!(!host.check(&req.guard_ctx()));
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    #[test]
+    fn host_guard_details_include_host_and_scheme() {
+        let host = Host("example.com").scheme("https");
+        let details = host.details().expect("missing guard details");
+
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Headers(headers) => headers
+                .iter()
+                .any(|(name, value)| name == "host" && value == "example.com"),
+            _ => false,
+        }));
+        assert!(details.iter().any(|detail| match detail {
+            crate::guard::GuardDetail::Generic(value) => value == "scheme=https",
+            _ => false,
+        }));
+        assert_eq!(host.name(), "Host(example.com, scheme=https)");
     }
 }

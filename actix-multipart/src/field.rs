@@ -25,7 +25,7 @@ use crate::{
 
 /// Error type returned from [`Field::bytes()`] when field data is larger than limit.
 #[derive(Debug, Display, Error)]
-#[display(fmt = "size limit exceeded while collecting field data")]
+#[display("size limit exceeded while collecting field data")]
 #[non_exhaustive]
 pub struct LimitExceeded;
 

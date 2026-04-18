@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # developed on macOS and probably doesn't work on Linux yet due to minor
 # differences in flags on sed

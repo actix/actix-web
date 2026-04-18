@@ -332,7 +332,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             (true, Ok(Some(mime))) => {
                 mime.subtype() == mime::JSON
                     || mime.suffix() == Some(mime::JSON)
-                    || ctype_fn.map_or(false, |predicate| predicate(mime))
+                    || ctype_fn.is_some_and(|predicate| predicate(mime))
             }
 
             // if content-type is expected but not parsable as mime type, bail
@@ -616,7 +616,7 @@ mod tests {
             }
         ));
 
-        let (req, mut pl) = TestRequest::default()
+        let (mut req, mut pl) = TestRequest::default()
             .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
@@ -624,6 +624,7 @@ mod tests {
             .set_payload(Bytes::from_static(&[0u8; 1000]))
             .to_http_parts();
 
+        req.head_mut().headers_mut().remove(header::CONTENT_LENGTH);
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;

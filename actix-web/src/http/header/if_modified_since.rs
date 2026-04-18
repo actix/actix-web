@@ -10,9 +10,14 @@ crate::http::header::common_header! {
     /// Transfer of the selected representation's data is avoided if that
     /// data has not changed.
     ///
+    /// # Note
+    /// This is a request header used for cache validation. Servers should not send
+    /// `If-Modified-Since` in responses; use [`LastModified`](super::LastModified) / the
+    /// `Last-Modified` header instead.
+    ///
     /// # ABNF
     /// ```plain
-    /// If-Unmodified-Since = HTTP-date
+    /// If-Modified-Since = HTTP-date
     /// ```
     ///
     /// # Example Values
@@ -22,14 +27,13 @@ crate::http::header::common_header! {
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfModifiedSince;
+    /// use actix_web::{http::header::IfModifiedSince, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-    /// builder.insert_header(
-    ///     IfModifiedSince(modified.into())
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(IfModifiedSince(modified.into()))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (IfModifiedSince, IF_MODIFIED_SINCE) => [HttpDate]
 

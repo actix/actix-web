@@ -275,6 +275,23 @@ impl MessageType for Request {
         // convert headers
         let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
+        if msg.head().headers.contains_key(header::TRANSFER_ENCODING) {
+            if ver == Version::HTTP_10 {
+                debug!("Transfer-Encoding is not allowed in HTTP/1.0 requests");
+                return Err(ParseError::Header);
+            }
+
+            if !crate::HttpMessage::chunked(&msg)? {
+                debug!("request Transfer-Encoding must be chunked");
+                return Err(ParseError::Header);
+            }
+
+            if msg.head().headers.contains_key(header::CONTENT_LENGTH) {
+                debug!("both Content-Length and Transfer-Encoding are set");
+                return Err(ParseError::Header);
+            }
+        }
+
         // disallow HTTP/1.0 POST requests that do not contain a Content-Length headers
         // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
         if ver == Version::HTTP_10 && method == Method::POST && length.is_none() {
@@ -1116,18 +1133,57 @@ mod tests {
 
     #[test]
     fn hrs_cl_and_te_http10() {
-        // in HTTP/1.0 transfer encoding is simply ignored so it's fine to have both
-
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.0\r\n\
             Host: example.com\r\n\
             Content-Length: 3\r\n\
             Transfer-Encoding: chunked\r\n\
             \r\n\
             000",
-        );
+        ));
+    }
 
-        parse_ready!(&mut buf);
+    #[test]
+    fn hrs_cl_and_chunked_te_http11() {
+        expect_parse_err!(&mut BytesMut::from(
+            "POST / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 3\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            0\r\n\
+            \r\n",
+        ));
+
+        expect_parse_err!(&mut BytesMut::from(
+            "POST / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Transfer-Encoding: chunked\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            0\r\n\
+            \r\n",
+        ));
+    }
+
+    #[test]
+    fn hrs_identity_te_http11() {
+        expect_parse_err!(&mut BytesMut::from(
+            "POST / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Transfer-Encoding: identity\r\n\
+            \r\n\
+            0\r\n",
+        ));
+
+        expect_parse_err!(&mut BytesMut::from(
+            "POST / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 3\r\n\
+            Transfer-Encoding: identity\r\n\
+            \r\n\
+            0\r\n",
+        ));
     }
 
     #[test]
@@ -1165,14 +1221,16 @@ mod tests {
     }
 
     #[test]
-    fn transfer_encoding_agrees() {
+    fn hrs_chunked_te_http11() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
             Host: example.com\r\n\
-            Content-Length: 3\r\n\
-            Transfer-Encoding: identity\r\n\
+            Transfer-Encoding: chunked\r\n\
             \r\n\
-            0\r\n",
+            1\r\n\
+            a\r\n\
+            0\r\n\
+            \r\n",
         );
 
         let mut reader = MessageDecoder::<Request>::default();
@@ -1180,6 +1238,6 @@ mod tests {
         let mut pl = pl.unwrap();
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"0\r\n")));
+        assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"a")));
     }
 }

@@ -149,10 +149,16 @@ async fn h2_content_length() {
 
     {
         let req = srv.request(Method::HEAD, srv.surl("/0")).send();
-        req.await.expect_err("should timeout on recv 1xx frame");
+        actix_rt::time::timeout(Duration::from_secs(15), req)
+            .await
+            .expect("request future stalled on recv 1xx frame")
+            .expect_err("should timeout on recv 1xx frame");
 
         let req = srv.request(Method::GET, srv.surl("/0")).send();
-        req.await.expect_err("should timeout on recv 1xx frame");
+        actix_rt::time::timeout(Duration::from_secs(15), req)
+            .await
+            .expect("request future stalled on recv 1xx frame")
+            .expect_err("should timeout on recv 1xx frame");
 
         let req = srv.request(Method::GET, srv.surl("/1")).send();
         let response = req.await.unwrap();
@@ -398,7 +404,7 @@ async fn h2_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {

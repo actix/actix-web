@@ -1,12 +1,14 @@
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cell::RefCell,
+    collections::HashMap,
     fmt::Write as _,
+    hash::{BuildHasher, Hash},
     rc::{Rc, Weak},
 };
 
 use actix_router::ResourceDef;
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use url::Url;
 
 use crate::{error::UrlGenerationError, request::HttpRequest};
@@ -19,7 +21,7 @@ pub struct ResourceMap {
 
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
-    named: AHashMap<String, Rc<ResourceMap>>,
+    named: FoldHashMap<String, Rc<ResourceMap>>,
 
     parent: RefCell<Weak<ResourceMap>>,
 
@@ -32,7 +34,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             pattern: root,
-            named: AHashMap::default(),
+            named: FoldHashMap::default(),
             parent: RefCell::new(Weak::new()),
             nodes: Some(Vec::new()),
         }
@@ -86,7 +88,7 @@ impl ResourceMap {
         } else {
             let new_node = Rc::new(ResourceMap {
                 pattern: pattern.clone(),
-                named: AHashMap::default(),
+                named: FoldHashMap::default(),
                 parent: RefCell::new(Weak::new()),
                 nodes: None,
             });
@@ -140,6 +142,56 @@ impl ResourceMap {
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using map of dynamic segment values.
+    ///
+    /// Check [`HttpRequest::url_for_map`] for detailed information.
+    pub fn url_for_map<K, V, S>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        let path = self
+            .named
+            .get(name)
+            .ok_or(UrlGenerationError::ResourceNotFound)?
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
+                node.pattern
+                    .resource_path_from_map(&mut acc, elements)
+                    .then_some(acc)
+            })
+            .ok_or(UrlGenerationError::NotEnoughElements)?;
+
+        self.url_from_path(req, path)
+    }
+
+    /// Generate URL for named resource using an iterator of key-value pairs.
+    ///
+    /// Check [`HttpRequest::url_for_iter`] for detailed information.
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: I,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        let elements = elements.into_iter().collect::<FoldHashMap<K, V>>();
+        self.url_for_map(req, name, &elements)
+    }
+
+    fn url_from_path(&self, req: &HttpRequest, path: String) -> Result<Url, UrlGenerationError> {
         let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
             // build full URL from connection info parts and resource path
             let conn = req.connection_info();
@@ -188,8 +240,38 @@ impl ResourceMap {
         )
     }
 
+    pub(crate) fn is_resource_path_match(&self, resource_path: &[u16]) -> bool {
+        self.find_node_by_resource_path(resource_path)
+            .is_some_and(|node| node.nodes.is_none())
+    }
+
+    pub(crate) fn match_name_by_resource_path(&self, resource_path: &[u16]) -> Option<&str> {
+        self.find_node_by_resource_path(resource_path)?
+            .pattern
+            .name()
+    }
+
+    pub(crate) fn match_pattern_by_resource_path(&self, resource_path: &[u16]) -> Option<String> {
+        self.find_node_by_resource_path(resource_path)?
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
+                let pattern = node.pattern.pattern()?;
+                acc.push_str(pattern);
+                Some(acc)
+            })
+    }
+
     fn find_matching_node(&self, path: &str) -> Option<&ResourceMap> {
         self._find_matching_node(path).flatten()
+    }
+
+    fn find_node_by_resource_path(&self, resource_path: &[u16]) -> Option<&ResourceMap> {
+        let mut node = self;
+
+        for id in resource_path {
+            node = node.nodes.as_ref()?.get(*id as usize)?;
+        }
+
+        Some(node)
     }
 
     /// Returns `None` if root pattern doesn't match;

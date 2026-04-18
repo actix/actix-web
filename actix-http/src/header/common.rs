@@ -18,6 +18,14 @@ pub const CACHE_STATUS: HeaderName = HeaderName::from_static("cache-status");
 // TODO(breaking): replace with http's version
 pub const CDN_CACHE_CONTROL: HeaderName = HeaderName::from_static("cdn-cache-control");
 
+/// Response header field that sends a signal to the user agent that it ought to remove all data of
+/// a certain set of types.
+///
+/// See the [W3C Clear-Site-Data spec] for full semantics.
+///
+/// [W3C Clear-Site-Data spec]: https://www.w3.org/TR/clear-site-data/#header
+pub const CLEAR_SITE_DATA: HeaderName = HeaderName::from_static("clear-site-data");
+
 /// Response header that prevents a document from loading any cross-origin resources that don't
 /// explicitly grant the document permission (using [CORP] or [CORS]).
 ///

@@ -191,8 +191,10 @@ where
                             None => true,
                             Some(hdr) => {
                                 match hdr.to_str().ok().and_then(|hdr| hdr.parse::<Mime>().ok()) {
-                                    Some(mime) if mime.type_().as_str() == "image" => false,
-                                    Some(mime) if mime.type_().as_str() == "video" => false,
+                                    Some(mime) if mime.type_() == mime::IMAGE => {
+                                        matches!(mime.subtype(), mime::SVG)
+                                    }
+                                    Some(mime) if mime.type_() == mime::VIDEO => false,
                                     _ => true,
                                 }
                             }
@@ -446,6 +448,29 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
         assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
         assert!(test::read_body(res).await.is_empty());
+    }
+
+    #[actix_rt::test]
+    async fn skips_compression_partial_content() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(|| {
+                    HttpResponse::PartialContent()
+                        .insert_header((header::CONTENT_TYPE, "text/plain"))
+                        .insert_header((header::CONTENT_RANGE, "bytes 0-10/100"))
+                        .body(TEXT_DATA)
+                }))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
     }
 }
 

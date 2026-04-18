@@ -1,0 +1,15 @@
+version: "0.2"
+words:
+  - actix
+  - addrs
+  - ALPN
+  - bytestring
+  - httparse
+  - MSRV
+  - realip
+  - rustls
+  - rustup
+  - serde
+  - uring
+  - webpki
+  - zstd

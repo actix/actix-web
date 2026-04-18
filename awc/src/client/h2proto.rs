@@ -12,7 +12,7 @@ use h2::{
     SendStream,
 };
 use http::{
-    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING},
+    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, HOST, TRANSFER_ENCODING},
     request::Request,
     Method, Version,
 };
@@ -97,7 +97,7 @@ where
             // TODO: consider skipping other headers according to:
             //       https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
             // omit HTTP/1.x only headers
-            CONNECTION | TRANSFER_ENCODING => continue,
+            CONNECTION | TRANSFER_ENCODING | HOST => continue,
             CONTENT_LENGTH if skip_len => continue,
             // DATE => has_date = true,
             _ => {}
@@ -107,7 +107,7 @@ where
 
     let res = poll_fn(|cx| io.poll_ready(cx)).await;
     if let Err(err) = res {
-        io.on_release(err.is_io());
+        io.on_release(err.is_io() || err.is_go_away());
         return Err(SendRequestError::from(err));
     }
 
@@ -121,7 +121,7 @@ where
             fut.await.map_err(SendRequestError::from)?
         }
         Err(err) => {
-            io.on_release(err.is_io());
+            io.on_release(err.is_io() || err.is_go_away());
             return Err(err.into());
         }
     };

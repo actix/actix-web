@@ -1,6 +1,9 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt, net,
+    collections::HashMap,
+    fmt,
+    hash::{BuildHasher, Hash},
+    net,
     rc::Rc,
     str,
 };
@@ -26,6 +29,9 @@ use crate::{
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+#[cfg(feature = "cookies")]
+struct RawCookies(Vec<Cookie<'static>>);
+
 /// An incoming request.
 #[derive(Clone)]
 pub struct HttpRequest {
@@ -39,6 +45,8 @@ pub struct HttpRequest {
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    pub(crate) resource_path: SmallVec<[u16; 4]>,
+    pub(crate) resource_path_matched: bool,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
     pub(crate) extensions: Rc<RefCell<Extensions>>,
@@ -62,6 +70,8 @@ impl HttpRequest {
             inner: Rc::new(HttpRequestInner {
                 head,
                 path,
+                resource_path: SmallVec::new(),
+                resource_path_matched: false,
                 app_state,
                 app_data: data,
                 conn_data,
@@ -177,6 +187,26 @@ impl HttpRequest {
         &mut Rc::get_mut(&mut self.inner).unwrap().path
     }
 
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path.push(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path_matched = is_matched;
+    }
+
+    #[inline]
+    pub(crate) fn resource_path(&self) -> &[u16] {
+        &self.inner.resource_path
+    }
+
+    #[inline]
+    pub(crate) fn is_resource_path_matched(&self) -> bool {
+        self.inner.resource_path_matched
+    }
+
     /// The resource definition pattern that matched the path. Useful for logging and metrics.
     ///
     /// For example, when a resource with pattern `/user/{id}/profile` is defined and a call is made
@@ -185,6 +215,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
+        if self.is_resource_path_matched() {
+            if let Some(pattern) = self
+                .resource_map()
+                .match_pattern_by_resource_path(self.resource_path())
+            {
+                return Some(pattern);
+            }
+        }
+
         self.resource_map().match_pattern(self.path())
     }
 
@@ -193,6 +232,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
+        if self.is_resource_path_matched() {
+            if let Some(name) = self
+                .resource_map()
+                .match_name_by_resource_path(self.resource_path())
+            {
+                return Some(name);
+            }
+        }
+
         self.resource_map().match_name(self.path())
     }
 
@@ -242,6 +290,76 @@ impl HttpRequest {
         self.resource_map().url_for(self, name, elements)
     }
 
+    /// Generates URL for a named resource using a map of dynamic segment values.
+    ///
+    /// This substitutes URL parameters by name from `elements`, including parameters from parent
+    /// scopes.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one", "1");
+    ///     params.insert("two", "2");
+    ///     let url = req.url_for_map("foo", &params); // <- generate URL for "foo" resource
+    ///     HttpResponse::Ok().into()
+    /// }
+    ///
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for_map`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
+    /// ```
+    pub fn url_for_map<K, V, S>(
+        &self,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        self.resource_map().url_for_map(self, name, elements)
+    }
+
+    /// Generates URL for a named resource using an iterator of key-value pairs.
+    ///
+    /// This is a convenience wrapper around [`HttpRequest::url_for_map`].
+    ///
+    /// Note: passing a borrowed map (e.g. `&HashMap<String, String>`) directly does not satisfy the
+    /// trait bounds because the iterator yields `(&String, &String)`. Prefer `url_for_map` for
+    /// borrowed maps, or map entries to `&str`:
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one".to_string(), "1".to_string());
+    ///     params.insert("two".to_string(), "2".to_string());
+    ///
+    ///     let iter = params.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+    ///     let url = req.url_for_iter("foo", iter);
+    ///     HttpResponse::Ok().into()
+    /// }
+    /// ```
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        name: &str,
+        elements: I,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        self.resource_map().url_for_iter(self, name, elements)
+    }
+
     /// Generate URL for named resource
     ///
     /// This method is similar to `HttpRequest::url_for()` but it can be used
@@ -264,8 +382,10 @@ impl HttpRequest {
     ///
     /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    /// Will only return `None` when server is listening on [UDS socket] or when called in unit
+    /// tests unless [`TestRequest::peer_addr`] is used.
     ///
+    /// [UDS socket]: crate::HttpServer::bind_uds
     /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
     /// [`connection_info`]: Self::connection_info
     #[inline]
@@ -339,6 +459,11 @@ impl HttpRequest {
     }
 
     /// Load request cookies.
+    ///
+    /// The names and values of cookies are percent-decoded.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::header::COOKIE;
@@ -347,9 +472,9 @@ impl HttpRequest {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                for cookie_str in s.split(';').map(|s| s.trim()) {
-                    if !cookie_str.is_empty() {
-                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse_encoded(cookie_str) {
+                        cookies.push(cookie.into_owned());
                     }
                 }
             }
@@ -361,16 +486,49 @@ impl HttpRequest {
         }))
     }
 
+    /// Load request cookies **without** percent-decoding their names and values.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
+    #[cfg(feature = "cookies")]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::header::COOKIE;
+
+        if self.extensions().get::<RawCookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse(cookie_str) {
+                        cookies.push(cookie.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(RawCookies(cookies));
+        }
+
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<RawCookies>().unwrap().0
+        }))
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
-            for cookie in cookies.iter() {
-                if cookie.name() == name {
-                    return Some(cookie.to_owned());
-                }
-            }
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
         }
+
+        None
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies_raw() {
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
+        }
+
         None
     }
 }
@@ -548,11 +706,14 @@ impl HttpRequestPool {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bytes::Bytes;
 
     use super::*;
     use crate::{
         dev::{ResourceDef, Service},
+        guard,
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
@@ -601,6 +762,65 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=hello%20world"))
+            .append_header((header::COOKIE, "cookie2=%db"))
+            .to_http_request();
+        {
+            let cookies = req.cookies_raw().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "hello%20world");
+            assert_eq!(cookies[1].name(), "cookie2");
+            assert_eq!(cookies[1].value(), "%db");
+        }
+
+        let cookie = req.cookie_raw("cookie1");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie1");
+        assert_eq!(cookie.value(), "hello%20world");
+
+        let cookie = req.cookie_raw("cookie2");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie2");
+        assert_eq!(cookie.value(), "%db");
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw_is_independent_from_encoded_cookies() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie=%20"))
+            .to_http_request();
+
+        let cookie = req.cookie("cookie").unwrap();
+        assert_eq!(cookie.value(), " ");
+
+        let raw_cookie = req.cookie_raw("cookie").unwrap();
+        assert_eq!(raw_cookie.value(), "%20");
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_empty_key() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=value1; value2; cookie3=value3"))
+            .to_http_request();
+        {
+            let cookies = req.cookies().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "value1");
+            assert_eq!(cookies[1].name(), "cookie3");
+            assert_eq!(cookies[1].value(), "value3");
+        }
+    }
+
+    #[test]
     fn test_request_query() {
         let req = TestRequest::with_uri("/?id=test").to_http_request();
         assert_eq!(req.query_string(), "id=test");
@@ -634,6 +854,59 @@ mod tests {
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
         );
+    }
+
+    #[test]
+    fn test_url_for_map() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let mut params = HashMap::new();
+        params.insert("name", "test");
+        params.insert("ext", "html");
+
+        let url = req.url_for_map("index", &params);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        params.remove("ext");
+        assert_eq!(
+            req.url_for_map("index", &params),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
+    }
+
+    #[test]
+    fn test_url_for_iter() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let url = req.url_for_iter("index", [("ext", "html"), ("name", "test")]);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        let url = req.url_for_iter("index", [("name", "test")]);
+        assert_eq!(url, Err(UrlGenerationError::NotEnoughElements));
     }
 
     #[test]
@@ -866,6 +1139,44 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
 
         let req = TestRequest::get().uri("/user/22/not-exist").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn extract_path_pattern_with_guards() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/widgets")
+                    .service(
+                        web::resource("/{id}")
+                            .name("get_widget")
+                            .guard(guard::Get())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/{id}".to_owned()));
+                                assert_eq!(req.match_name(), Some("get_widget"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    )
+                    .service(
+                        web::resource("/action")
+                            .name("widget_action")
+                            .guard(guard::Post())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/action".to_owned()));
+                                assert_eq!(req.match_name(), Some("widget_action"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/widgets/42").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::post().uri("/widgets/action").to_request();
         let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }

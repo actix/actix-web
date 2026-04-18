@@ -1,0 +1,43 @@
+A-files:
+  - changed-files:
+      - any-glob-to-any-file: actix-files/**
+
+A-http:
+  - changed-files:
+      - any-glob-to-any-file: actix-http/**
+
+A-http-test:
+  - changed-files:
+      - any-glob-to-any-file: actix-http-test/**
+
+A-multipart:
+  - changed-files:
+      - any-glob-to-any-file: actix-multipart/**
+
+A-multipart-derive:
+  - changed-files:
+      - any-glob-to-any-file: actix-multipart-derive/**
+
+A-router:
+  - changed-files:
+      - any-glob-to-any-file: actix-router/**
+
+A-test:
+  - changed-files:
+      - any-glob-to-any-file: actix-test/**
+
+A-web:
+  - changed-files:
+      - any-glob-to-any-file: actix-web/**
+
+A-web-actors:
+  - changed-files:
+      - any-glob-to-any-file: actix-web-actors/**
+
+A-web-codegen:
+  - changed-files:
+      - any-glob-to-any-file: actix-web-codegen/**
+
+A-awc:
+  - changed-files:
+      - any-glob-to-any-file: awc/**

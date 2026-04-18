@@ -61,7 +61,7 @@ pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B, camel_case: bool) {
 /// perform a remaining length check before writing.
 pub(crate) struct MutWriter<'a, B>(pub(crate) &'a mut B);
 
-impl<'a, B> io::Write for MutWriter<'a, B>
+impl<B> io::Write for MutWriter<'_, B>
 where
     B: BufMut,
 {

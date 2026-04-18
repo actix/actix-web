@@ -10,12 +10,16 @@ use actix_http::{
     header, Error, HttpService, KeepAlive, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::{net::TcpStream, time::sleep};
+use actix_rt::{
+    net::TcpStream,
+    time::{sleep, timeout},
+};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
+use rand::RngExt as _;
 use regex::Regex;
 
 #[actix_rt::test]
@@ -62,7 +66,7 @@ async fn h1_2() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "expect failed")]
+#[display("expect failed")]
 struct ExpectFailed;
 
 impl From<ExpectFailed> for Response<BoxBody> {
@@ -164,7 +168,10 @@ async fn chunked_payload() {
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
-            let random_bytes: Vec<u8> = (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+            let random_bytes = rand::rng()
+                .sample_iter(rand::distr::StandardUniform)
+                .take(*chunk_size)
+                .collect::<Vec<_>>();
 
             bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
             bytes.extend(&random_bytes[..]);
@@ -435,6 +442,60 @@ async fn content_length() {
             assert_eq!(response.headers().get(&header), Some(&value));
         }
     }
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn content_length_truncated() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|mut req: Request| async move {
+                let expected_length: usize = req.uri().path()[1..].parse().unwrap();
+                let mut payload = req.take_payload();
+
+                let mut length = 0;
+                let mut seen_error = false;
+                while let Some(chunk) = payload.next().await {
+                    match chunk {
+                        Ok(b) => length += b.len(),
+                        Err(_) => {
+                            seen_error = true;
+                            break;
+                        }
+                    }
+                }
+                if seen_error {
+                    return Result::<_, Infallible>::Ok(Response::bad_request());
+                }
+
+                assert_eq!(length, expected_length, "length must match when no error");
+                Result::<_, Infallible>::Ok(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    let addr = srv.addr();
+    let mut buf = [0; 12];
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(b"POST /10000 HTTP/1.1\r\nContent-Length: 10000\r\n\r\ndata_truncated")
+        .await
+        .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 400");
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(b"POST /4 HTTP/1.1\r\nContent-Length: 4\r\n\r\ndata")
+        .await
+        .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 200");
 
     srv.stop().await;
 }
@@ -723,7 +784,7 @@ async fn h1_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {
@@ -892,6 +953,71 @@ async fn h2c_auto() {
 
     assert!(head.status.is_success());
     assert_eq!(body, &b"h2"[..]);
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn h2_flow_control_window_sizes() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(KeepAlive::Disabled)
+            .finish(|mut req: Request| async move {
+                while let Some(item) = req.take_payload().next().await {
+                    item?;
+                }
+
+                Ok::<_, Error>(Response::ok())
+            })
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+
+    let mut builder = h2::client::Builder::new();
+    builder.max_send_buffer_size(4 * 1024 * 1024);
+
+    let (h2, connection) = builder.handshake(tcp).await.unwrap();
+    tokio::spawn(async move { connection.await.unwrap() });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let request = ::http::Request::builder()
+        .method("POST")
+        .uri("/")
+        .body(())
+        .unwrap();
+
+    let (response, mut send) = h2.send_request(request, false).unwrap();
+
+    // request more than the default 64KiB. if server is advertising larger flow control windows,
+    // we should get at least 1MiB assigned.
+    send.reserve_capacity(2 * 1024 * 1024);
+
+    let cap = timeout(Duration::from_secs(2), async {
+        loop {
+            let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
+                .await
+                .expect("request stream closed before flow control capacity became available")
+                .expect("failed polling flow control capacity");
+
+            if cap >= 1024 * 1024 {
+                break cap;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for flow control capacity");
+
+    assert!(
+        cap >= 1024 * 1024,
+        "expected >= 1MiB send capacity, got {cap}"
+    );
+
+    send.send_data(Bytes::new(), true).unwrap();
+
+    let res = response.await.unwrap();
+    assert!(res.status().is_success());
 
     srv.stop().await;
 }
