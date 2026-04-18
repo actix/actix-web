@@ -15,6 +15,7 @@
 - Fix `HeaderMap` iterators' `len()` and `size_hint()` implementations for multi-value headers.
 - Update `rand` dependency to `0.10`.
 - Update `sha1` dependency to `0.11`.
+- Add `ServiceConfigBuilder::h1_write_buffer_size()` and `HttpServiceBuilder::h1_write_buffer_size()`.
 
 [#3953]: https://github.com/actix/actix-web/pull/3953
 
