@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reject HTTP/1 requests with ambiguous request framing from `Content-Length` and `Transfer-Encoding` headers to prevent request smuggling.
 - Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
 - Fix `HeaderMap` iterators' `len()` and `size_hint()` implementations for multi-value headers.
 - Update `rand` dependency to `0.10`.
