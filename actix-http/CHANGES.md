@@ -3,6 +3,7 @@
 ## Unreleased
 
 - When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
+- Update `foldhash` dependency to `0.2`.
 
 [#3967]: https://github.com/actix/actix-web/issues/3967
 
