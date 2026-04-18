@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add support for extracting multi-component path params into a sequence (Vec, tuple, ...). [#3432]
+
+[#3432]: https://github.com/actix/actix-web/pull/3432
+
 ## 0.5.4
 
 - Minimum supported Rust version (MSRV) is now 1.88.
