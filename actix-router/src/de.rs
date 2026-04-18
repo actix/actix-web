@@ -435,13 +435,13 @@ impl<'de> Deserializer<'de> for Value<'de> {
     fn deserialize_tuple_struct<V>(
         self,
         _: &'static str,
-        _: usize,
-        _: V,
+        len: usize,
+        visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(de::value::Error::custom("unsupported type: tuple struct"))
+        self.deserialize_tuple(len, visitor)
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -627,6 +627,14 @@ mod tests {
         tail: (String, String, String),
     }
 
+    #[derive(Debug, Deserialize)]
+    struct TestSeq3 {
+        tail: TestTupleStruct,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct TestTupleStruct(String, String, String);
+
     #[test]
     fn test_request_extract() {
         let mut router = Router::<()>::build();
@@ -748,6 +756,16 @@ mod tests {
         assert_eq!(
             i.tail,
             (
+                String::from("tail"),
+                String::from("with"),
+                String::from("slash/es")
+            )
+        );
+
+        let i: TestSeq3 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(
+            i.tail,
+            TestTupleStruct(
                 String::from("tail"),
                 String::from("with"),
                 String::from("slash/es")
