@@ -55,7 +55,7 @@ use crate::{
 /// ```
 ///
 /// Segments matching multiple path components can be deserialized
-/// into a Vec<_> to percent-decode the components individually. Empty
+/// into a `Vec<_>` to percent-decode the components individually. Empty
 /// path components are ignored.
 ///
 /// ```

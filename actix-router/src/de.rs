@@ -477,7 +477,6 @@ impl<'de> Deserializer<'de> for Value<'de> {
         }
     }
 
-    unsupported_type!(deserialize_seq, "any");
     unsupported_type!(deserialize_map, "map");
     unsupported_type!(deserialize_identifier, "identifier");
 }
