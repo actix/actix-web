@@ -547,20 +547,18 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
 }
 
 struct ValueSeq<'de> {
-    value: &'de str,
     elems: std::str::Split<'de, char>,
 }
 
 impl<'de> ValueSeq<'de> {
     fn new(value: &'de str) -> Self {
         Self {
-            value,
             elems: value.split('/'),
         }
     }
 
     fn len(&self) -> usize {
-        self.value.split('/').filter(|s| !s.is_empty()).count()
+        self.elems.clone().filter(|s| !s.is_empty()).count()
     }
 }
 
@@ -755,6 +753,19 @@ mod tests {
                 String::from("slash/es")
             )
         );
+    }
+
+    #[test]
+    fn test_value_seq_size_hint_counts_remaining_elements() {
+        use serde::de::SeqAccess as _;
+
+        let mut seq = ValueSeq::new("tail/with/slash");
+
+        assert_eq!(seq.size_hint(), Some(3));
+
+        let elem = seq.next_element::<String>().unwrap();
+        assert_eq!(elem.as_deref(), Some("tail"));
+        assert_eq!(seq.size_hint(), Some(2));
     }
 
     #[test]
