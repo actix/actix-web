@@ -245,7 +245,7 @@ where
     ///
     /// To disable timeout set value to 0.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
+    /// By default client timeout is set to 1000 milliseconds.
     pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
         self.config.lock().unwrap().client_disconnect_timeout = dur;
         self

@@ -7,7 +7,10 @@ use std::{
 };
 
 use actix_codec::Framed;
-use actix_rt::{pin, time::sleep};
+use actix_rt::{
+    pin,
+    time::{sleep, timeout},
+};
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
 use bytes::{Buf, Bytes, BytesMut};
@@ -82,6 +85,11 @@ fn drop_payload_service() -> impl Service<Request, Response = Response<&'static 
         let _ = req.take_payload();
         Ok::<_, Error>(Response::with_body(StatusCode::OK, "payload dropped"))
     })
+}
+
+fn ignore_payload_service(
+) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
 }
 
 fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
@@ -536,15 +544,14 @@ async fn pipelining_ok_then_ok() {
 }
 
 #[actix_rt::test]
-async fn early_response_with_payload_closes_connection() {
+async fn early_response_with_payload_lingers_before_closing() {
     lazy(|cx| {
-        let buf = TestBuffer::new(
-            "\
-                GET /unfinished HTTP/1.1\r\n\
-                Content-Length: 2\r\n\
-                \r\n\
-                ",
-        );
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            GET /unfinished HTTP/1.1
+            Content-Length: 2
+            ",
+        ));
 
         let cfg = ServiceConfig::new(
             KeepAlive::Os,
@@ -569,37 +576,170 @@ async fn early_response_with_payload_closes_connection() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("Should have shut down"),
-            Poll::Ready(res) => assert!(res.is_ok()),
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("should still be lingering: {:?}", res),
         }
 
-        // polls: initial => shutdown
-        assert_eq!(h1.poll_count, 2);
+        // polls: initial
+        assert_eq!(h1.poll_count, 1);
 
-        {
-            let mut res = buf.write_buf_slice_mut();
-            stabilize_date_header(&mut res);
-            let res = &res[..];
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
 
-            let exp = b"\
-                HTTP/1.1 200 OK\r\n\
-                content-length: 11\r\n\
-                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                /unfinished\
-                ";
+        let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 11\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            /unfinished\
+            ";
 
-            assert_eq!(
-                res,
-                exp,
-                "\nexpected response not in write buffer:\n\
-               response: {:?}\n\
-               expected: {:?}",
-                String::from_utf8_lossy(res),
-                String::from_utf8_lossy(exp)
-            );
-        }
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
     })
     .await;
+}
+
+#[actix_rt::test]
+async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
+    lazy(|cx| {
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            POST / HTTP/1.1
+            Content-Length: 8
+
+            ab
+            ",
+        ));
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("closed connection early: {:?}", res),
+        }
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 2
+            connection: close
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            ok
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn lingering_timeout_uses_graceful_shutdown() {
+    let buf = TestSeqBuffer::new(
+        "\
+            POST / HTTP/1.1\r\n\
+            Content-Length: 8\r\n\
+            \r\n\
+            ab\
+            ",
+    );
+
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::ZERO,
+        Duration::from_millis(1),
+        false,
+        None,
+    );
+
+    let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+
+    assert!(matches!(
+        timeout(Duration::from_millis(100), h1).await,
+        Ok(Ok(()))
+    ));
+
+    let mut res = buf.take_write_buf().to_vec();
+    stabilize_date_header(&mut res);
+    let res = &res[..];
+
+    let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 2\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            ok\
+            ";
+
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+        String::from_utf8_lossy(res),
+        String::from_utf8_lossy(exp)
+    );
 }
 
 #[actix_rt::test]
