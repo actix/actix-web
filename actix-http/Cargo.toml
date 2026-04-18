@@ -102,7 +102,7 @@ bytes = "1"
 bytestring = "1"
 derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
-foldhash = "0.1"
+foldhash = "0.2"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http = "0.2.7"
 httparse = "1.5.1"
