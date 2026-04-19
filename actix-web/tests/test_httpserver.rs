@@ -1,9 +1,16 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-use std::{sync::mpsc, thread, time::Duration};
+use std::{
+    convert::Infallible,
+    sync::{mpsc, Arc},
+    thread,
+    time::Duration,
+};
 
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{rt::time::sleep, web, App, HttpRequest, HttpResponse, HttpServer};
+use bytes::Bytes;
+use futures_util::stream;
 
 #[actix_rt::test]
 async fn test_start() {
@@ -72,6 +79,74 @@ async fn test_start() {
     assert!(result.is_err());
 
     srv.stop(false).await;
+}
+
+#[actix_rt::test]
+async fn test_app_data_dropped_after_graceful_shutdown_with_slow_request() {
+    struct State {
+        _data: Arc<String>,
+    }
+
+    async fn echo(_body: web::Json<String>) -> HttpResponse {
+        HttpResponse::Ok().finish()
+    }
+
+    let (weak_data, app_data) = {
+        let data = Arc::new("data".to_owned());
+        (Arc::downgrade(&data), web::Data::new(State { _data: data }))
+    };
+
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(app_data.clone())
+            .service(web::resource("/echo").route(web::post().to(echo)))
+    })
+    .workers(1)
+    .shutdown_timeout(1)
+    .bind(("127.0.0.1", 0))
+    .unwrap();
+
+    let addr = server.addrs()[0];
+    let server = server.run();
+    let server_handle = server.handle();
+
+    let send_request = async move {
+        sleep(Duration::from_millis(100)).await;
+
+        let slow_body = stream::unfold(0, |idx| async move {
+            if idx < 8 {
+                sleep(Duration::from_millis(200)).await;
+                Some((Ok::<_, Infallible>(Bytes::from_static(b" ")), idx + 1))
+            } else {
+                None
+            }
+        });
+
+        let client = awc::Client::default();
+        let _ = client
+            .post(format!("http://{addr}/echo"))
+            .insert_header(("content-type", "application/json"))
+            .send_stream(slow_body)
+            .await;
+    };
+
+    let graceful_stop = async move {
+        sleep(Duration::from_millis(300)).await;
+        server_handle.stop(true).await;
+    };
+
+    let (server_res, (), ()) = tokio::join!(server, send_request, graceful_stop);
+    server_res.unwrap();
+
+    for _ in 0..20 {
+        sleep(Duration::from_millis(100)).await;
+
+        if weak_data.upgrade().is_none() {
+            return;
+        }
+    }
+
+    panic!("app data still referenced after graceful shutdown");
 }
 
 #[cfg(feature = "openssl")]

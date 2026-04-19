@@ -1013,7 +1013,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = h1::Payload::create(false);
+        let (_sender, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 
