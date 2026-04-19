@@ -143,7 +143,7 @@ actix-utils = "3"
 actix-web = { version = "4.13", features = ["openssl"] }
 
 brotli = "8"
-const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
+const-str = "1.1"
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
