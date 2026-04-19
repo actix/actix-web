@@ -38,7 +38,7 @@ use crate::{
 ///
 /// A dynamic segment is specified in the form `{identifier}`, where the identifier can be used
 /// later in a request handler to access the matched value for that segment. This is done by looking
-/// up the identifier in the `Path` object returned by [`HttpRequest.match_info()`] method.
+/// up the identifier in the `Path` object returned by [`HttpRequest::match_info()`](crate::HttpRequest::match_info) method.
 ///
 /// By default, each segment matches the regular expression `[^{}/]+`.
 ///

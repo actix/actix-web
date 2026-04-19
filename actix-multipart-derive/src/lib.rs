@@ -4,7 +4,7 @@
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::disallowed_names)] // false positives in some macro expansions
 
 use std::collections::HashSet;
@@ -16,17 +16,12 @@ use proc_macro2::Ident;
 use quote::quote;
 use syn::{parse_macro_input, Type};
 
-#[derive(FromMeta)]
+#[derive(Default, FromMeta)]
 enum DuplicateField {
+    #[default]
     Ignore,
     Deny,
     Replace,
-}
-
-impl Default for DuplicateField {
-    fn default() -> Self {
-        Self::Ignore
-    }
 }
 
 #[derive(FromDeriveInput, Default)]
@@ -232,7 +227,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             ::actix_multipart::MultipartError::UnknownField(field.name().unwrap().to_string())
         ))
     } else {
-        quote!(::std::result::Result::Ok(()))
+        quote!(::actix_multipart::form::discard_field(field, limits).await)
     };
 
     // Value for duplicate action
@@ -294,7 +289,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             ) -> ::std::pin::Pin<::std::boxed::Box<dyn ::std::future::Future<Output = ::std::result::Result<(), ::actix_multipart::MultipartError>> + 't>> {
                 match field.name().unwrap() {
                     #handle_field_impl
-                    _ => return ::std::boxed::Box::pin(::std::future::ready(#unknown_field_result)),
+                    _ => return ::std::boxed::Box::pin(async move { #unknown_field_result }),
                 }
             }
 

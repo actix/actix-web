@@ -3,7 +3,7 @@ extern crate tls_openssl as openssl;
 
 use std::{sync::mpsc, thread, time::Duration};
 
-use actix_web::{web, App, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 
 #[actix_rt::test]
 async fn test_start() {
@@ -149,6 +149,115 @@ async fn test_start_ssl() {
 
     let host = format!("https://{}", addr);
     let response = client.get(host.clone()).send().await.unwrap();
+    assert!(response.status().is_success());
+
+    srv.stop(false).await;
+}
+
+async fn assert_tcp_nodelay_config(nodelay: bool) {
+    let addr = actix_test::unused_addr();
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        actix_rt::System::new()
+            .block_on(async move {
+                let srv = HttpServer::new(move || {
+                    let expected = nodelay;
+
+                    App::new().service(web::resource("/").route(web::to(
+                        move |req: HttpRequest| {
+                            let expected = expected;
+
+                            async move {
+                                let actual = req.conn_data::<bool>().copied().unwrap_or(!expected);
+                                if actual == expected {
+                                    HttpResponse::Ok().finish()
+                                } else {
+                                    HttpResponse::InternalServerError().finish()
+                                }
+                            }
+                        },
+                    )))
+                })
+                .workers(1)
+                .tcp_nodelay(nodelay)
+                .on_connect(move |io, ext| {
+                    if let Some(io) = io.downcast_ref::<actix_web::rt::net::TcpStream>() {
+                        ext.insert(io.nodelay().unwrap());
+                    }
+                })
+                .bind(format!("{}", addr))
+                .unwrap()
+                .run();
+
+                tx.send(srv.handle()).unwrap();
+                srv.await
+            })
+            .unwrap()
+    });
+
+    let srv = rx.recv().unwrap();
+
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().timeout(Duration::from_millis(100)))
+        .finish();
+
+    let response = client.get(format!("http://{}", addr)).send().await.unwrap();
+    assert!(response.status().is_success());
+
+    srv.stop(false).await;
+}
+
+#[actix_rt::test]
+async fn test_tcp_nodelay_enabled() {
+    assert_tcp_nodelay_config(true).await;
+}
+
+#[actix_rt::test]
+async fn test_tcp_nodelay_disabled() {
+    assert_tcp_nodelay_config(false).await;
+}
+
+#[actix_rt::test]
+#[cfg(windows)]
+async fn test_dual_stack_ipv6_on_windows() {
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        actix_rt::System::new()
+            .block_on(async {
+                let srv = HttpServer::new(|| {
+                    App::new().service(
+                        web::resource("/")
+                            .route(web::to(|| async { HttpResponse::Ok().body("test") })),
+                    )
+                })
+                .workers(1)
+                .disable_signals()
+                .bind("[::]:0")
+                .unwrap();
+
+                let port = srv.addrs()[0].port();
+                let srv = srv.run();
+
+                tx.send((srv.handle(), port)).unwrap();
+                srv.await
+            })
+            .unwrap();
+    });
+
+    let (srv, port) = rx.recv().unwrap();
+
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().timeout(Duration::from_secs(1)))
+        .finish();
+
+    let response = client
+        .get(format!("http://127.0.0.1:{port}"))
+        .send()
+        .await
+        .unwrap();
+
     assert!(response.status().is_success());
 
     srv.stop(false).await;

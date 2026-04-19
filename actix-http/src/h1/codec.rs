@@ -237,4 +237,18 @@ mod tests {
         assert_eq!(*req.method(), Method::POST);
         assert!(req.chunked().unwrap());
     }
+
+    #[actix_rt::test]
+    async fn test_http_request_rejects_content_length_and_chunked() {
+        let mut codec = Codec::default();
+        let mut buf = BytesMut::from(
+            "POST /test HTTP/1.1\r\n\
+             content-length: 11\r\n\
+             transfer-encoding: chunked\r\n\r\n\
+             0\r\n\r\n\
+             GET /test2 HTTP/1.1\r\n\r\n",
+        );
+
+        assert!(codec.decode(&mut buf).is_err());
+    }
 }

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`. [#3953]
+- Update `rand` dependency to `0.10`.
+
+[#3953]: https://github.com/actix/actix-web/pull/3953
+
+## 3.8.2
+
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Fix empty streaming request bodies being sent with chunked transfer encoding.
+
+## 3.8.1
+
+- Fix a bug where `GO_AWAY` errors did not stop connections from returning to the pool.
+
+## 3.8.0
+
+- Add `hickory-dns` crate feature (off-by-default).
+- The `trust-dns` crate feature now delegates DNS resolution to `hickory-dns`.
+
 ## 3.7.0
 
 - Update `brotli` dependency to `8`.

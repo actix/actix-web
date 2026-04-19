@@ -14,7 +14,7 @@ use actix_web::{
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
-            ExtendedValue, HeaderValue,
+            ExtendedValue,
         },
         StatusCode,
     },
@@ -80,6 +80,7 @@ pub struct NamedFile {
     pub(crate) content_type: Mime,
     pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
+    pub(crate) read_mode_threshold: u64,
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
@@ -89,6 +90,55 @@ pub(crate) use std::fs::File;
 pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
+
+pub(crate) fn get_content_type_and_disposition(
+    path: &Path,
+) -> Result<(mime::Mime, ContentDisposition), io::Error> {
+    let filename = match path.file_name() {
+        Some(name) => name.to_string_lossy(),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Provided path has no filename",
+            ));
+        }
+    };
+
+    let ct = mime_guess::from_path(path).first_or_octet_stream();
+
+    let disposition = match ct.type_() {
+        mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
+        mime::APPLICATION => match ct.subtype() {
+            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        },
+        _ => DispositionType::Attachment,
+    };
+
+    // replace special characters in filenames which could occur on some filesystems
+    let filename_s = filename
+        .replace('\n', "%0A") // \n line break
+        .replace('\x0B', "%0B") // \v vertical tab
+        .replace('\x0C', "%0C") // \f form feed
+        .replace('\r', "%0D"); // \r carriage return
+    let mut parameters = vec![DispositionParam::Filename(filename_s)];
+
+    if !filename.is_ascii() {
+        parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+            charset: Charset::Ext(String::from("UTF-8")),
+            language_tag: None,
+            value: filename.into_owned().into_bytes(),
+        }))
+    }
+
+    let cd = ContentDisposition {
+        disposition,
+        parameters,
+    };
+
+    Ok((ct, cd))
+}
 
 impl NamedFile {
     /// Creates an instance from a previously opened file.
@@ -116,52 +166,7 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) = {
-            let filename = match path.file_name() {
-                Some(name) => name.to_string_lossy(),
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Provided path has no filename",
-                    ));
-                }
-            };
-
-            let ct = mime_guess::from_path(&path).first_or_octet_stream();
-
-            let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
-                mime::APPLICATION => match ct.subtype() {
-                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
-                    _ => DispositionType::Attachment,
-                },
-                _ => DispositionType::Attachment,
-            };
-
-            // replace special characters in filenames which could occur on some filesystems
-            let filename_s = filename
-                .replace('\n', "%0A") // \n line break
-                .replace('\x0B', "%0B") // \v vertical tab
-                .replace('\x0C', "%0C") // \f form feed
-                .replace('\r', "%0D"); // \r carriage return
-            let mut parameters = vec![DispositionParam::Filename(filename_s)];
-
-            if !filename.is_ascii() {
-                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
-                    charset: Charset::Ext(String::from("UTF-8")),
-                    language_tag: None,
-                    value: filename.into_owned().into_bytes(),
-                }))
-            }
-
-            let cd = ContentDisposition {
-                disposition,
-                parameters,
-            };
-
-            (ct, cd)
-        };
+        let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
         let md = {
             #[cfg(not(feature = "experimental-io-uring"))]
@@ -200,6 +205,7 @@ impl NamedFile {
             encoding,
             status_code: StatusCode::OK,
             flags: Flags::default(),
+            read_mode_threshold: 0,
         })
     }
 
@@ -353,6 +359,23 @@ impl NamedFile {
         self
     }
 
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
+        self
+    }
+
     /// Specifies whether to return `ETag` header in response.
     ///
     /// Default is true.
@@ -382,7 +405,9 @@ impl NamedFile {
 
     /// Creates an `ETag` in a format is similar to Apache's.
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
-        self.modified.as_ref().map(|mtime| {
+        let mtime = self.modified?;
+
+        Some({
             let ino = {
                 #[cfg(unix)]
                 {
@@ -398,22 +423,50 @@ impl NamedFile {
                 }
             };
 
-            let dur = mtime
-                .duration_since(UNIX_EPOCH)
-                .expect("modification time must be after epoch");
+            // Don't panic for pre-epoch modification times. Encode the timestamp as seconds and
+            // sub-second nanoseconds relative to the UNIX epoch, allowing negative values.
+            let (secs, nanos) = match mtime.duration_since(UNIX_EPOCH) {
+                Ok(dur) => (dur.as_secs() as i64, dur.subsec_nanos()),
+                Err(err) => {
+                    let dur = err.duration();
+
+                    // For timestamps before the epoch, represent the time as a negative seconds
+                    // offset with positive nanoseconds (like POSIX timespec).
+                    if dur.subsec_nanos() == 0 {
+                        (-(dur.as_secs() as i64), 0)
+                    } else {
+                        (
+                            -(dur.as_secs() as i64) - 1,
+                            1_000_000_000 - dur.subsec_nanos(),
+                        )
+                    }
+                }
+            };
 
             header::EntityTag::new_strong(format!(
                 "{:x}:{:x}:{:x}:{:x}",
                 ino,
                 self.md.len(),
-                dur.as_secs(),
-                dur.subsec_nanos()
+                secs as u64,
+                nanos
             ))
         })
     }
 
     pub(crate) fn last_modified(&self) -> Option<header::HttpDate> {
-        self.modified.map(|mtime| mtime.into())
+        let mtime = self.modified?;
+
+        // avoid panic in `httpdate` crate when formatting as an HTTP date
+        // see: https://github.com/actix/actix-web/issues/2748
+        //
+        // httpdate supports dates in range [1970, 9999); see:
+        // https://github.com/seanmonstar/httpdate/blob/v1.0.3/src/date.rs
+        let dur = mtime.duration_since(UNIX_EPOCH).ok()?;
+        if dur.as_secs() >= 253_402_300_800 {
+            return None;
+        }
+
+        Some(mtime.into())
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
@@ -440,7 +493,8 @@ impl NamedFile {
                 res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
-            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader =
+                chunked::new_chunked_read(self.md.len(), 0, self.file, self.read_mode_threshold);
 
             return res.streaming(reader);
         }
@@ -526,34 +580,18 @@ impl NamedFile {
 
         let mut length = self.md.len();
         let mut offset = 0;
+        let mut ranged_req = false;
 
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
-                    length = ranges[0].length;
-                    offset = ranges[0].start;
-
-                    // When a Content-Encoding header is present in a 206 partial content response
-                    // for video content, it prevents browser video players from starting playback
-                    // before loading the whole video and also prevents seeking.
-                    //
-                    // See: https://github.com/actix/actix-web/issues/2815
-                    //
-                    // The assumption of this fix is that the video player knows to not send an
-                    // Accept-Encoding header for this request and that downstream middleware will
-                    // not attempt compression for requests without it.
-                    //
-                    // TODO: Solve question around what to do if self.encoding is set and partial
-                    // range is requested. Reject request? Ignoring self.encoding seems wrong, too.
-                    // In practice, it should not come up.
-                    if req.headers().contains_key(&header::ACCEPT_ENCODING) {
-                        // don't allow compression middleware to modify partial content
-                        res.insert_header((
-                            header::CONTENT_ENCODING,
-                            HeaderValue::from_static("identity"),
-                        ));
-                    }
+                if let Some(range) = HttpRange::parse(ranges_header, length)
+                    .ok()
+                    .and_then(|ranges| ranges.first().copied())
+                {
+                    ranged_req = true;
+                    length = range.length;
+                    offset = range.start;
 
                     res.insert_header((
                         header::CONTENT_RANGE,
@@ -577,9 +615,9 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = chunked::new_chunked_read(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
-        if offset != 0 || length != self.md.len() {
+        if ranged_req {
             res.status(StatusCode::PARTIAL_CONTENT);
         }
 
@@ -685,5 +723,16 @@ impl HttpServiceFactory for NamedFile {
             self,
             None,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audio_files_use_inline_content_disposition() {
+        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
+        assert_eq!(cd.disposition, DispositionType::Inline);
     }
 }

@@ -11,7 +11,7 @@ use actix_rt::time::{sleep_until, Sleep};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 use h2::{
-    server::{handshake, Connection, Handshake},
+    server::{Builder, Connection, Handshake},
     RecvStream,
 };
 
@@ -61,8 +61,13 @@ pub(crate) fn handshake_with_timeout<T>(io: T, config: &ServiceConfig) -> Handsh
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
+    let mut builder = Builder::new();
+    builder
+        .initial_window_size(config.h2_initial_window_size())
+        .initial_connection_window_size(config.h2_initial_connection_window_size());
+
     HandshakeWithTimeout {
-        handshake: handshake(io),
+        handshake: builder.handshake(io),
         timer: config
             .client_request_deadline()
             .map(|deadline| Box::pin(sleep_until(deadline.into()))),

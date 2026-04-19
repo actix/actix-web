@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.75.
+## 0.8.0
+
+- Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]
+- Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
+- Bound internal multipart parser buffering to prevent unbounded memory growth on malformed bodies.
+  - behavior change notice: There's now a cap for buffering (64KB). It can be changed with `MultipartConfig::buffer_limit`.
+- Fix user-triggerable panic when parsing multipart boundaries.
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Update `rand` dependency to `0.10`.
+
+[#3577]: https://github.com/actix/actix-web/pull/3577
+[#3575]: https://github.com/actix/actix-web/issues/3575
 
 ## 0.7.2
 

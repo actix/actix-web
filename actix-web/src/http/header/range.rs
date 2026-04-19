@@ -15,6 +15,10 @@ use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderVa
 /// only one or more sub-ranges of the selected representation data, rather than the entire selected
 /// representation data.
 ///
+/// # Note
+/// This is a request header. Servers should not send `Range` in responses; use
+/// [`ContentRange`](super::ContentRange) / the `Content-Range` header for partial responses.
+///
 /// # ABNF
 /// ```plain
 /// Range = byte-ranges-specifier / other-ranges-specifier
@@ -42,16 +46,18 @@ use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderVa
 ///
 /// # Examples
 /// ```
-/// use actix_web::http::header::{Range, ByteRangeSpec};
-/// use actix_web::HttpResponse;
+/// use actix_web::{http::header::{ByteRangeSpec, Range}, test};
 ///
-/// let mut builder = HttpResponse::Ok();
-/// builder.insert_header(Range::Bytes(
-///     vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::From(200)]
-/// ));
-/// builder.insert_header(Range::Unregistered("letters".to_owned(), "a-f".to_owned()));
-/// builder.insert_header(Range::bytes(1, 100));
-/// builder.insert_header(Range::bytes_multi(vec![(1, 100), (200, 300)]));
+/// let req = test::TestRequest::default()
+///     .insert_header(Range::Bytes(vec![
+///         ByteRangeSpec::FromTo(1, 100),
+///         ByteRangeSpec::From(200),
+///     ]))
+///     .insert_header(Range::Unregistered("letters".to_owned(), "a-f".to_owned()))
+///     .insert_header(Range::bytes(1, 100))
+///     .insert_header(Range::bytes_multi(vec![(1, 100), (200, 300)]))
+///     .to_http_request();
+/// # let _ = req;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Range {

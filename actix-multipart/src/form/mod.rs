@@ -82,7 +82,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -159,7 +161,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -184,6 +188,45 @@ where
             .remove(name)
             .map(|m| *m.downcast::<T>().unwrap())
             .ok_or_else(|| MultipartError::MissingField(name.to_owned()))
+    }
+}
+
+impl<'t, T> FieldGroupReader<'t> for Option<Vec<T>>
+where
+    T: FieldReader<'t>,
+{
+    type Future = LocalBoxFuture<'t, Result<(), MultipartError>>;
+
+    fn handle_field(
+        req: &'t HttpRequest,
+        field: Field,
+        limits: &'t mut Limits,
+        state: &'t mut State,
+        _duplicate_field: DuplicateField,
+    ) -> Self::Future {
+        let field_name = field.name().unwrap().to_string();
+
+        Box::pin(async move {
+            let vec = state
+                .entry(field_name)
+                .or_insert_with(|| Box::<Vec<T>>::default())
+                .downcast_mut::<Vec<T>>()
+                .unwrap();
+
+            let item = T::read_field(req, field, limits).await?;
+            vec.push(item);
+
+            Ok(())
+        })
+    }
+
+    fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
+        if let Some(boxed_vec) = state.remove(name) {
+            let vec = *boxed_vec.downcast::<Vec<T>>().unwrap();
+            Ok(Some(vec))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -271,6 +314,16 @@ impl Limits {
 
         Ok(())
     }
+}
+
+/// Drain a field that will not be retained while still accounting for form limits.
+#[doc(hidden)]
+pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), MultipartError> {
+    while let Some(chunk) = field.try_next().await? {
+        limits.try_consume_limits(chunk.len(), false)?;
+    }
+
+    Ok(())
 }
 
 /// Typed `multipart/form-data` extractor.
@@ -506,6 +559,40 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    /// Test `Option<Vec>` fields.
+    #[derive(MultipartForm)]
+    struct TestOptionVec {
+        list1: Option<Vec<Text<String>>>,
+        list2: Option<Vec<Text<String>>>,
+    }
+
+    async fn test_option_vec_route(form: MultipartForm<TestOptionVec>) -> impl Responder {
+        let form = form.into_inner();
+        let strings = form
+            .list1
+            .unwrap()
+            .into_iter()
+            .map(|s| s.into_inner())
+            .collect::<Vec<_>>();
+        assert_eq!(strings, vec!["value1", "value2", "value3"]);
+        assert!(form.list2.is_none());
+        HttpResponse::Ok().finish()
+    }
+
+    #[actix_rt::test]
+    async fn test_option_vec() {
+        let srv =
+            actix_test::start(|| App::new().route("/", web::post().to(test_option_vec_route)));
+
+        let mut form = multipart::Form::default();
+        form.add_text("list1", "value1");
+        form.add_text("list1", "value2");
+        form.add_text("list1", "value3");
+
+        let response = send_form(&srv, form, "/").await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
     /// Test the `rename` field attribute.
     #[derive(MultipartForm)]
     struct TestFieldRenaming {
@@ -635,6 +722,32 @@ mod tests {
         form.add_text("field", "second_value");
         let response = send_form(&srv, form, "/ignore").await;
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_discarded_fields_count_towards_total_limit() {
+        let srv = actix_test::start(|| {
+            App::new()
+                .route("/unknown", web::post().to(test_upload_limits_memory))
+                .route("/duplicate", web::post().to(test_duplicate_ignore_route))
+                .app_data(
+                    MultipartFormConfig::default()
+                        .memory_limit(usize::MAX)
+                        .total_limit(20),
+                )
+        });
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "7 bytes");
+        form.add_text("unknown", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/unknown").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "first_value");
+        form.add_text("field", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/duplicate").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
     /// Test the Limits.

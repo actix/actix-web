@@ -1,11 +1,16 @@
 use crate::Path;
 
-// TODO: this trait is necessary, document it
-// see impl Resource for ServiceRequest
+/// Abstraction over types that can provide a mutable [`Path`] for routing.
+///
+/// This trait is used by the router to extract the request path in a uniform way across different
+/// request types (e.g., Actix Web's `ServiceRequest`). Implementors return a mutable [`Path`]
+/// wrapper so routing can read and potentially normalize/parse the path without requiring the
+/// original request type.
 pub trait Resource {
     /// Type of resource's path returned in `resource_path`.
     type Path: ResourcePath;
 
+    /// Returns a mutable reference to the path wrapper used by the router.
     fn resource_path(&mut self) -> &mut Path<Self::Path>;
 }
 

@@ -30,6 +30,15 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
+    #[cfg(feature = "experimental-introspection")]
+    pub current_prefix: String,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) introspector:
+        std::rc::Rc<std::cell::RefCell<crate::introspection::IntrospectionCollector>>,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) scope_id_stack: Vec<usize>,
+    #[cfg(feature = "experimental-introspection")]
+    pending_scope_id: Option<usize>,
 }
 
 impl AppService {
@@ -40,6 +49,16 @@ impl AppService {
             default,
             root: true,
             services: Vec::new(),
+            #[cfg(feature = "experimental-introspection")]
+            current_prefix: "".to_string(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: std::rc::Rc::new(std::cell::RefCell::new(
+                crate::introspection::IntrospectionCollector::new(),
+            )),
+            #[cfg(feature = "experimental-introspection")]
+            scope_id_stack: Vec::new(),
+            #[cfg(feature = "experimental-introspection")]
+            pending_scope_id: None,
         }
     }
 
@@ -49,6 +68,24 @@ impl AppService {
     }
 
     #[allow(clippy::type_complexity)]
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn into_services(
+        self,
+    ) -> (
+        AppConfig,
+        Vec<(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            Option<Guards>,
+            Option<Rc<ResourceMap>>,
+        )>,
+        std::rc::Rc<std::cell::RefCell<crate::introspection::IntrospectionCollector>>,
+    ) {
+        (self.config, self.services, self.introspector)
+    }
+
+    #[allow(clippy::type_complexity)]
+    #[cfg(not(feature = "experimental-introspection"))]
     pub(crate) fn into_services(
         self,
     ) -> (
@@ -71,6 +108,14 @@ impl AppService {
             default: Rc::clone(&self.default),
             services: Vec::new(),
             root: false,
+            #[cfg(feature = "experimental-introspection")]
+            current_prefix: self.current_prefix.clone(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: std::rc::Rc::clone(&self.introspector),
+            #[cfg(feature = "experimental-introspection")]
+            scope_id_stack: self.scope_id_stack.clone(),
+            #[cfg(feature = "experimental-introspection")]
+            pending_scope_id: None,
         }
     }
 
@@ -101,8 +146,86 @@ impl AppService {
                 InitError = (),
             > + 'static,
     {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            use std::borrow::Borrow;
+
+            // Extract methods and guards for introspection
+            let guard_list: &[Box<dyn Guard>] = guards.borrow().as_ref().map_or(&[], |v| &v[..]);
+            let methods = guard_list
+                .iter()
+                .flat_map(|g| g.details().unwrap_or_default())
+                .flat_map(|d| {
+                    if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                        v.into_iter()
+                            .filter_map(|s| s.parse().ok())
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let guard_names = guard_list.iter().map(|g| g.name()).collect::<Vec<_>>();
+            let guard_details = crate::introspection::guard_reports_from_iter(guard_list.iter());
+
+            let is_resource = nested.is_none();
+            let full_paths = crate::introspection::expand_patterns(&self.current_prefix, &rdef);
+            let patterns = rdef
+                .pattern_iter()
+                .map(|pattern| pattern.to_string())
+                .collect::<Vec<_>>();
+            let resource_name = rdef.name().map(|name| name.to_string());
+            let is_prefix = rdef.is_prefix();
+            let scope_id = if nested.is_some() {
+                self.pending_scope_id.take()
+            } else {
+                None
+            };
+            let parent_scope_id = self.scope_id_stack.last().copied();
+
+            for full_path in full_paths {
+                let info = crate::introspection::RouteInfo::new(
+                    full_path,
+                    methods.clone(),
+                    guard_names.clone(),
+                    guard_details.clone(),
+                    patterns.clone(),
+                    resource_name.clone(),
+                );
+                self.introspector.borrow_mut().register_service(
+                    info,
+                    is_resource,
+                    is_prefix,
+                    scope_id,
+                    parent_scope_id,
+                );
+            }
+        }
+
         self.services
             .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
+    }
+
+    /// Update the current path prefix.
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn update_prefix(&mut self, prefix: &str) {
+        let next = ResourceDef::root_prefix(prefix);
+
+        if self.current_prefix.is_empty() {
+            self.current_prefix = next.pattern().unwrap_or("").to_string();
+            return;
+        }
+
+        let current = ResourceDef::root_prefix(&self.current_prefix);
+        let joined = current.join(&next);
+        self.current_prefix = joined.pattern().unwrap_or("").to_string();
+    }
+
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn prepare_scope_id(&mut self) -> usize {
+        let scope_id = self.introspector.borrow_mut().next_scope_id();
+        self.pending_scope_id = Some(scope_id);
+        scope_id
     }
 }
 

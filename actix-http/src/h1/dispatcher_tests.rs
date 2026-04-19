@@ -1,7 +1,19 @@
-use std::{future::Future, str, task::Poll, time::Duration};
+use std::{
+    cell::Cell,
+    future::Future,
+    io,
+    pin::Pin,
+    rc::Rc,
+    str,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use actix_codec::Framed;
-use actix_rt::{pin, time::sleep};
+use actix_rt::{
+    pin,
+    time::{sleep, timeout},
+};
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
 use bytes::{Buf, Bytes, BytesMut};
@@ -9,13 +21,138 @@ use futures_util::future::lazy;
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
-    body::MessageBody,
+    body::{BoxBody, MessageBody},
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{TestBuffer, TestSeqBuffer},
     Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
+
+struct YieldService;
+
+impl Service<Request> for YieldService {
+    type Response = Response<BoxBody>;
+    type Error = Response<BoxBody>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    actix_service::always_ready!();
+
+    fn call(&self, _: Request) -> Self::Future {
+        Box::pin(async {
+            // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
+            // once in `handle_request` and another in `poll_response`
+            actix_rt::task::yield_now().await;
+            actix_rt::task::yield_now().await;
+            Ok(Response::ok())
+        })
+    }
+}
+
+struct ReadyChunkBody {
+    chunk_polls: Rc<Cell<usize>>,
+    remaining: usize,
+    chunk_len: usize,
+}
+
+impl ReadyChunkBody {
+    fn new(chunk_polls: Rc<Cell<usize>>, remaining: usize, chunk_len: usize) -> Self {
+        Self {
+            chunk_polls,
+            remaining,
+            chunk_len,
+        }
+    }
+}
+
+impl MessageBody for ReadyChunkBody {
+    type Error = Error;
+
+    fn size(&self) -> crate::body::BodySize {
+        crate::body::BodySize::Stream
+    }
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        if self.remaining == 0 {
+            return Poll::Ready(None);
+        }
+
+        self.remaining -= 1;
+        self.chunk_polls.set(self.chunk_polls.get() + 1);
+
+        Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
+    }
+}
+
+struct PendingOnceWriteBuf {
+    io: TestBuffer,
+    block_next_write: bool,
+}
+
+impl PendingOnceWriteBuf {
+    fn new<T>(data: T) -> Self
+    where
+        T: Into<BytesMut>,
+    {
+        Self {
+            io: TestBuffer::new(data),
+            block_next_write: true,
+        }
+    }
+}
+
+impl io::Read for PendingOnceWriteBuf {
+    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+        self.io.read(dst)
+    }
+}
+
+impl io::Write for PendingOnceWriteBuf {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.io.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.io.flush()
+    }
+}
+
+impl actix_codec::AsyncRead for PendingOnceWriteBuf {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut actix_codec::ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+
+impl actix_codec::AsyncWrite for PendingOnceWriteBuf {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        if self.block_next_write {
+            self.block_next_write = false;
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+
+        Pin::new(&mut self.io).poll_write(cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+}
 
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     memchr::memmem::find(&haystack[from..], needle)
@@ -58,6 +195,11 @@ fn drop_payload_service() -> impl Service<Request, Response = Response<&'static 
     })
 }
 
+fn ignore_payload_service(
+) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
+}
+
 fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
     fn_service(|mut req: Request| {
         Box::pin(async move {
@@ -71,6 +213,18 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 
             Ok::<_, Error>(Response::ok().set_body(body.freeze()))
         })
+    })
+}
+
+fn ready_chunk_body_service(
+    chunk_polls: Rc<Cell<usize>>,
+    chunk_count: usize,
+    chunk_len: usize,
+) -> impl Service<Request, Response = Response<ReadyChunkBody>, Error = Error> {
+    fn_service(move |_req: Request| {
+        ready(Ok::<_, Error>(Response::ok().set_body(
+            ReadyChunkBody::new(chunk_polls.clone(), chunk_count, chunk_len),
+        )))
     })
 }
 
@@ -510,6 +664,205 @@ async fn pipelining_ok_then_ok() {
 }
 
 #[actix_rt::test]
+async fn early_response_with_payload_lingers_before_closing() {
+    lazy(|cx| {
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            GET /unfinished HTTP/1.1
+            Content-Length: 2
+            ",
+        ));
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("should still be lingering: {:?}", res),
+        }
+
+        // polls: initial
+        assert_eq!(h1.poll_count, 1);
+
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 11\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            /unfinished\
+            ";
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
+    lazy(|cx| {
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            POST / HTTP/1.1
+            Content-Length: 8
+
+            ab
+            ",
+        ));
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("closed connection early: {:?}", res),
+        }
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 2
+            connection: close
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            ok
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn lingering_timeout_uses_graceful_shutdown() {
+    let buf = TestSeqBuffer::new(
+        "\
+            POST / HTTP/1.1\r\n\
+            Content-Length: 8\r\n\
+            \r\n\
+            ab\
+            ",
+    );
+
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::ZERO,
+        Duration::from_millis(1),
+        false,
+        None,
+    );
+
+    let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+
+    assert!(matches!(
+        timeout(Duration::from_millis(100), h1).await,
+        Ok(Ok(()))
+    ));
+
+    let mut res = buf.take_write_buf().to_vec();
+    stabilize_date_header(&mut res);
+    let res = &res[..];
+
+    let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 2\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            ok\
+            ";
+
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+        String::from_utf8_lossy(res),
+        String::from_utf8_lossy(exp)
+    );
+}
+
+#[actix_rt::test]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -791,7 +1144,7 @@ async fn handler_drop_payload() {
         r"
         POST /drop-payload HTTP/1.1
         Content-Length: 3
-        
+
         abc
         ",
     ));
@@ -922,6 +1275,265 @@ async fn handler_drop_payload() {
         );
     })
     .await;
+}
+
+// Handler drops request payload without reading it. Server should keep reading and discarding the
+// rest of the request body so clients that do not read the response until they've finished
+// writing the request (like `requests` in Python) do not deadlock.
+// ref. https://github.com/actix/actix-web/issues/2972
+#[actix_rt::test]
+async fn handler_drop_payload_drains_body() {
+    let _ = env_logger::try_init();
+
+    let mut buf = TestSeqBuffer::new(http_msg(
+        r"
+        POST /drop-payload HTTP/1.1
+        Transfer-Encoding: chunked
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        drop_payload_service(),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+
+    // stream a body larger than the dispatcher read buffer limit; it should still be drained
+    // (read + decoded + discarded) without stalling.
+    for _ in 0..32 {
+        let data = vec![b'a'; 8192];
+        let mut chunk = BytesMut::new();
+        chunk.extend_from_slice(format!("{:x}\r\n", data.len()).as_bytes());
+        chunk.extend_from_slice(&data);
+        chunk.extend_from_slice(b"\r\n");
+
+        buf.extend_read_buf(chunk);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+            assert!(buf.take_write_buf().is_empty());
+            assert!(buf.read_buf().is_empty());
+        })
+        .await;
+    }
+
+    // terminating chunk
+    buf.extend_read_buf(b"0\r\n\r\n");
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(buf.take_write_buf().is_empty());
+        assert!(buf.read_buf().is_empty());
+    })
+    .await;
+
+    // connection should be able to accept another request after draining the previous body
+    buf.extend_read_buf(http_msg("GET /drop-payload HTTP/1.1"));
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn allow_half_closed() {
+    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 3);
+
+    let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+    stabilize_date_header(&mut res);
+    let exp = http_msg(
+        r"
+        HTTP/1.1 200 OK
+        content-length: 0
+        date: Thu, 01 Jan 1970 12:34:56 UTC
+        ",
+    );
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+        String::from_utf8_lossy(&res),
+        String::from_utf8_lossy(&exp)
+    );
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(inner.state.is_none());
+}
+
+#[actix_rt::test]
+async fn disallow_half_closed() {
+    use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
+
+    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+    let config = ServiceConfigBuilder::new()
+        .h1_allow_half_closed(false)
+        .build();
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        config,
+        None,
+        OnConnectData::default(),
+    );
+    pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 2);
+
+    let res = BytesMut::from(buf.take_write_buf().as_ref());
+    assert!(res.is_empty());
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(matches!(inner.state, State::ServiceCall { .. }))
+}
+
+#[actix_rt::test]
+async fn h1_write_buffer_size_limits_buffering() {
+    let request = "GET /stream HTTP/1.1\r\nConnection: close\r\n\r\n";
+
+    let default_polls = Rc::new(Cell::new(0));
+    let default_services = HttpFlow::new(
+        ready_chunk_body_service(default_polls.clone(), 8, 1024),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let default_io = PendingOnceWriteBuf::new(request);
+    let default_dispatcher = Dispatcher::new(
+        default_io,
+        default_services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(default_dispatcher);
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    assert!(default_dispatcher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(default_polls.get(), 8);
+
+    let custom_polls = Rc::new(Cell::new(0));
+    let custom_services = HttpFlow::new(
+        ready_chunk_body_service(custom_polls.clone(), 8, 1024),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let custom_io = PendingOnceWriteBuf::new(request);
+    let custom_dispatcher = Dispatcher::new(
+        custom_io,
+        custom_services,
+        crate::config::ServiceConfigBuilder::new()
+            .h1_write_buffer_size(1024)
+            .build(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(custom_dispatcher);
+
+    assert!(custom_dispatcher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(custom_polls.get(), 1);
+}
+
+#[actix_rt::test]
+#[should_panic(expected = "HTTP/1 write buffer size must be greater than zero")]
+async fn h1_write_buffer_size_rejects_zero() {
+    let _ = crate::config::ServiceConfigBuilder::new().h1_write_buffer_size(0);
 }
 
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {

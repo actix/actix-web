@@ -132,13 +132,9 @@ impl WebsocketsRequest {
     /// Set a cookie
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies
+            .get_or_insert_with(CookieJar::new)
+            .add(cookie.into_owned());
         self
     }
 
@@ -270,6 +266,21 @@ impl WebsocketsRequest {
         self.deflate_compression_level = compression_level;
 
         self.header(key, value)
+    }
+
+    /// Returns whether headers should be sent in Camel-Case.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn camel_case_headers(&self) -> bool {
+        self.head.camel_case_headers()
+    }
+
+    /// Sets whether to send headers formatted as Camel-Case.
+    #[inline]
+    pub fn set_camel_case_headers(mut self, val: bool) -> Self {
+        self.head.set_camel_case_headers(val);
+        self
     }
 
     /// Complete request construction and connect to a WebSocket server.
@@ -589,6 +600,12 @@ mod tests {
 
         #[allow(clippy::let_underscore_future)]
         let _ = req.connect();
+    }
+
+    #[actix_rt::test]
+    async fn camel_case_headers() {
+        let req = Client::new().ws("/").set_camel_case_headers(true);
+        assert!(req.camel_case_headers());
     }
 
     #[actix_rt::test]

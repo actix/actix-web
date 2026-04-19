@@ -41,6 +41,7 @@ pub struct Files {
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
+    with_permanent_redirect: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -49,6 +50,8 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    try_compressed: bool,
+    read_mode_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -64,6 +67,7 @@ impl Clone for Files {
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
+            with_permanent_redirect: self.with_permanent_redirect,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -73,6 +77,8 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
+            read_mode_threshold: self.read_mode_threshold,
         }
     }
 }
@@ -92,6 +98,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
+    /// If `serve_from` cannot be canonicalized at startup, an error is logged and the original
+    /// path is preserved. Requests will return `404 Not Found` until the path exists.
+    ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
@@ -101,7 +110,8 @@ impl Files {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
                 log::error!("Specified path is not a directory: {:?}", orig_dir);
-                PathBuf::new()
+                // Preserve original path so requests don't fall back to CWD.
+                orig_dir
             }
         };
 
@@ -111,6 +121,7 @@ impl Files {
             index: None,
             show_index: false,
             redirect_to_slash: false,
+            with_permanent_redirect: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -119,6 +130,8 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            try_compressed: false,
+            read_mode_threshold: 0,
         }
     }
 
@@ -138,6 +151,14 @@ impl Files {
     /// By default never redirect.
     pub fn redirect_to_slash_directory(mut self) -> Self {
         self.redirect_to_slash = true;
+        self
+    }
+
+    /// Redirect with permanent redirect status code (308).
+    ///
+    /// By default redirect with temporary redirect status code (307).
+    pub fn with_permanent_redirect(mut self) -> Self {
+        self.with_permanent_redirect = true;
         self
     }
 
@@ -192,15 +213,36 @@ impl Files {
         self
     }
 
-    /// Set index file
+    /// Sets index file for directory requests.
     ///
-    /// Shows specific index file for directories instead of
-    /// showing files listing.
+    /// When a directory is requested, this value is appended to the directory's path on disk.
+    /// Therefore, the index file path is relative to the served directory (the `serve_from` path
+    /// passed to [`Files::new`]) and should not include the `serve_from` prefix.
+    ///
+    /// For example, to serve `./static/index.html` when mounting `Files::new("/", "./static")`,
+    /// configure it as `.index_file("index.html")` (not `.index_file("./static/index.html")`).
     ///
     /// If the index file is not found, files listing is shown as a fallback if
     /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
+        self
+    }
+
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
         self
     }
 
@@ -316,6 +358,15 @@ impl Files {
         self.hidden_files = true;
         self
     }
+
+    /// Attempts to search for a suitable pre-compressed version of a file on disk before falling
+    /// back to the uncompressed version.
+    ///
+    /// Currently, `.gz`, `.br`, and `.zst` files are supported.
+    pub fn try_compressed(mut self) -> Self {
+        self.try_compressed = true;
+        self
+    }
 }
 
 impl HttpServiceFactory for Files {
@@ -367,6 +418,9 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
+            size_threshold: self.read_mode_threshold,
+            with_permanent_redirect: self.with_permanent_redirect,
         };
 
         if let Some(ref default) = *self.default.borrow() {

@@ -22,6 +22,9 @@ use crate::{error::ParseError, http::header, HttpMessage};
 /// representation is unchanged, send me the part(s) that I am requesting
 /// in Range; otherwise, send me the entire representation.
 ///
+/// # Note
+/// This is a request header. Servers should not send `If-Range` in responses.
+///
 /// # ABNF
 /// ```plain
 /// If-Range = entity-tag / HTTP-date
@@ -34,26 +37,23 @@ use crate::{error::ParseError, http::header, HttpMessage};
 ///
 /// # Examples
 /// ```
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{EntityTag, IfRange};
+/// use actix_web::{http::header::{EntityTag, IfRange}, test};
 ///
-/// let mut builder = HttpResponse::Ok();
-/// builder.insert_header(
-///     IfRange::EntityTag(
-///         EntityTag::new(false, "abc".to_owned())
-///     )
-/// );
+/// let req = test::TestRequest::default()
+///     .insert_header(IfRange::EntityTag(EntityTag::new(false, "abc".to_owned())))
+///     .to_http_request();
+/// # let _ = req;
 /// ```
 ///
 /// ```
 /// use std::time::{Duration, SystemTime};
-/// use actix_web::{http::header::IfRange, HttpResponse};
+/// use actix_web::{http::header::IfRange, test};
 ///
-/// let mut builder = HttpResponse::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-/// builder.insert_header(
-///     IfRange::Date(fetched.into())
-/// );
+/// let req = test::TestRequest::default()
+///     .insert_header(IfRange::Date(fetched.into()))
+///     .to_http_request();
+/// # let _ = req;
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IfRange {

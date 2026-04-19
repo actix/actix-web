@@ -11,6 +11,11 @@ common_header! {
     /// content-codings are acceptable in the response. An `identity` token is used as a synonym
     /// for "no encoding" in order to communicate when no encoding is preferred.
     ///
+    /// # Note
+    /// This is a request header. Servers should not send `Accept-Encoding` in responses; use the
+    /// `Content-Encoding` header (or middleware like compression) to describe any content-coding
+    /// applied to the response body.
+    ///
     /// # ABNF
     /// ```plain
     /// Accept-Encoding  = #( codings [ weight ] )
@@ -26,26 +31,26 @@ common_header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, Preference, QualityItem};
+    /// use actix_web::{http::header::{AcceptEncoding, Encoding, Preference, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptEncoding(vec![QualityItem::max(Preference::Specific(Encoding::gzip()))])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptEncoding(vec![
+    ///         QualityItem::max(Preference::Specific(Encoding::gzip())),
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem};
+    /// use actix_web::{http::header::{AcceptEncoding, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptEncoding(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptEncoding(vec![
     ///         "gzip".parse().unwrap(),
     ///         "br".parse().unwrap(),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (AcceptEncoding, header::ACCEPT_ENCODING) => (QualityItem<Preference<Encoding>>)*
 
