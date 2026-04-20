@@ -87,7 +87,7 @@ jobs:
 
       - name: deny check
         if: matrix.version.name == 'stable' && matrix.target.os == 'ubuntu-latest'
-        uses: EmbarkStudios/cargo-deny-action@175dc7fd4fb85ec8f46948fb98f44db001149081 # v2.0.16
+        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
 
   io-uring:
     name: io-uring tests
