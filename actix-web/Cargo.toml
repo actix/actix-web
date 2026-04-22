@@ -137,7 +137,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = "3.12.0"
+actix-http = "3.12.1"
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
@@ -147,7 +147,7 @@ cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
-foldhash = "0.1"
+foldhash = "0.2"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
 impl-more = "0.1.4"
@@ -174,13 +174,13 @@ actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "8"
-const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
+const-str = "1.1"
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
-rand = "0.9"
+rand = "0.10.1"
 rcgen = "0.13"
 rustls-pki-types = "1.13.1"
 serde = { version = "1", features = ["derive"] }

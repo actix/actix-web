@@ -19,7 +19,7 @@ use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
-use rand::Rng as _;
+use rand::RngExt as _;
 use regex::Regex;
 
 #[actix_rt::test]

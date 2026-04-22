@@ -227,7 +227,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             ::actix_multipart::MultipartError::UnknownField(field.name().unwrap().to_string())
         ))
     } else {
-        quote!(::std::result::Result::Ok(()))
+        quote!(::actix_multipart::form::discard_field(field, limits).await)
     };
 
     // Value for duplicate action
@@ -289,7 +289,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             ) -> ::std::pin::Pin<::std::boxed::Box<dyn ::std::future::Future<Output = ::std::result::Result<(), ::actix_multipart::MultipartError>> + 't>> {
                 match field.name().unwrap() {
                     #handle_field_impl
-                    _ => return ::std::boxed::Box::pin(::std::future::ready(#unknown_field_result)),
+                    _ => return ::std::boxed::Box::pin(async move { #unknown_field_result }),
                 }
             }
 

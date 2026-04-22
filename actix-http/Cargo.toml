@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.12.0"
+version = "3.12.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -102,7 +102,7 @@ bytes = "1"
 bytestring = "1"
 derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
-foldhash = "0.1"
+foldhash = "0.2"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http = "0.2.7"
 httparse = "1.5.1"
@@ -123,8 +123,8 @@ h2 = { version = "0.3.27", optional = true }
 # websockets
 base64 = { version = "0.22", optional = true }
 local-channel = { version = "0.1", optional = true }
-rand = { version = "0.9", optional = true }
-sha1 = { version = "0.10", optional = true }
+rand = { version = "0.10.1", optional = true }
+sha1 = { version = "0.11", optional = true }
 
 # openssl/rustls
 actix-tls = { version = "3.4", default-features = false, optional = true }

@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+- When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
+- Update `foldhash` dependency to `0.2`.
+
+[#3967]: https://github.com/actix/actix-web/issues/3967
+
+## 3.12.1
+
+**Notice: This release contains a security fix. Users are encouraged to update to this version ASAP.**
+
+- SECURITY: Reject HTTP/1 requests with ambiguous request framing from `Content-Length` and `Transfer-Encoding` headers to prevent request smuggling.
 - Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
 - Fix `HeaderMap` iterators' `len()` and `size_hint()` implementations for multi-value headers.
+- Update `rand` dependency to `0.10`.
+- Update `sha1` dependency to `0.11`.
+- Add `ServiceConfigBuilder::h1_write_buffer_size()` and `HttpServiceBuilder::h1_write_buffer_size()`.
 
 [#3953]: https://github.com/actix/actix-web/pull/3953
 

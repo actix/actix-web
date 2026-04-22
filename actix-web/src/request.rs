@@ -89,7 +89,10 @@ impl HttpRequest {
     }
 
     /// This method returns mutable reference to the request head.
-    /// panics if multiple references of HTTP request exists.
+    ///
+    /// # Panics
+    ///
+    /// Panics if multiple references of HTTP request exists.
     #[inline]
     pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
         &mut Rc::get_mut(&mut self.inner).unwrap().head
@@ -105,6 +108,12 @@ impl HttpRequest {
     ///
     /// Reconstructed URL is best-effort, using [`connection_info`](HttpRequest::connection_info())
     /// to get forwarded scheme & host.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the reconstructed URL cannot be parsed, such as when the host is malformed.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use actix_web::test::TestRequest;
