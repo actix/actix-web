@@ -1,5 +1,7 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
+    ffi::{OsStr, OsString},
     fmt, io,
     path::{Path, PathBuf},
     rc::Rc,
@@ -37,7 +39,7 @@ use crate::{
 /// ```
 pub struct Files {
     mount_path: String,
-    directory: PathBuf,
+    directories: Vec<PathBuf>,
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
@@ -63,7 +65,7 @@ impl fmt::Debug for Files {
 impl Clone for Files {
     fn clone(&self) -> Self {
         Self {
-            directory: self.directory.clone(),
+            directories: self.directories.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
@@ -83,6 +85,131 @@ impl Clone for Files {
     }
 }
 
+/// File serving root directories for [`Files`].
+///
+/// This type is used by [`Files::new`] to accept either one root directory or an ordered
+/// collection of root directories.
+#[derive(Debug)]
+pub struct FilesDirs(Vec<PathBuf>);
+
+impl FilesDirs {
+    fn canonicalize(self) -> Vec<PathBuf> {
+        self.0
+            .into_iter()
+            .map(|orig_dir| match orig_dir.canonicalize() {
+                Ok(canon_dir) => canon_dir,
+                Err(_) => {
+                    log::error!("Specified path is not a directory: {:?}", orig_dir);
+                    // Preserve original path so requests don't fall back to CWD.
+                    orig_dir
+                }
+            })
+            .collect()
+    }
+}
+
+impl From<&Path> for FilesDirs {
+    fn from(dir: &Path) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&PathBuf> for FilesDirs {
+    fn from(dir: &PathBuf) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<PathBuf> for FilesDirs {
+    fn from(dir: PathBuf) -> Self {
+        Self(vec![dir])
+    }
+}
+
+impl From<&str> for FilesDirs {
+    fn from(dir: &str) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&String> for FilesDirs {
+    fn from(dir: &String) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<String> for FilesDirs {
+    fn from(dir: String) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&OsStr> for FilesDirs {
+    fn from(dir: &OsStr) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<OsString> for FilesDirs {
+    fn from(dir: OsString) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&OsString> for FilesDirs {
+    fn from(dir: &OsString) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<Box<Path>> for FilesDirs {
+    fn from(dir: Box<Path>) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<Cow<'_, Path>> for FilesDirs {
+    fn from(dir: Cow<'_, Path>) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl<P, const N: usize> From<[P; N]> for FilesDirs
+where
+    P: Into<PathBuf>,
+{
+    fn from(dirs: [P; N]) -> Self {
+        Self(dirs.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<P, const N: usize> From<&[P; N]> for FilesDirs
+where
+    P: Clone + Into<PathBuf>,
+{
+    fn from(dirs: &[P; N]) -> Self {
+        Self(dirs.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<P> From<&[P]> for FilesDirs
+where
+    P: Clone + Into<PathBuf>,
+{
+    fn from(dirs: &[P]) -> Self {
+        Self(dirs.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<P> From<Vec<P>> for FilesDirs
+where
+    P: Into<PathBuf>,
+{
+    fn from(dirs: Vec<P>) -> Self {
+        Self(dirs.into_iter().map(Into::into).collect())
+    }
+}
+
 impl Files {
     /// Create new `Files` instance for a specified base directory.
     ///
@@ -90,34 +217,34 @@ impl Files {
     /// The first argument (`mount_path`) is the root URL at which the static files are served.
     /// For example, `/assets` will serve files at `example.com/assets/...`.
     ///
-    /// The second argument (`serve_from`) is the location on disk at which files are loaded.
-    /// This can be a relative path. For example, `./` would serve files from the current
-    /// working directory.
+    /// The second argument (`serve_from`) is the location on disk that files are served from. This
+    /// can be a single path or an ordered collection of paths. Relative paths are resolved from the
+    /// current working directory.
+    ///
+    /// When multiple directories are provided, they are checked in order. The first directory that
+    /// can serve the requested path is used.
+    ///
+    /// Directory listings are generated from the first matching directory and are not merged across
+    /// roots. When [`Files::index_file()`] is configured, later roots are searched if an earlier
+    /// matching directory does not contain the index file.
+    ///
+    /// Empty root collections never match files; requests fall through to the default handler, or
+    /// return `404 Not Found` if none is configured.
     ///
     /// # Implementation Notes
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
-    /// If `serve_from` cannot be canonicalized at startup, an error is logged and the original
-    /// path is preserved. Requests will return `404 Not Found` until the path exists.
+    /// If a `serve_from` path cannot be canonicalized at startup, an error is logged and the
+    /// original path is preserved. Requests will return `404 Not Found` until the path exists.
     ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
-    pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
-        let orig_dir = serve_from.into();
-        let dir = match orig_dir.canonicalize() {
-            Ok(canon_dir) => canon_dir,
-            Err(_) => {
-                log::error!("Specified path is not a directory: {:?}", orig_dir);
-                // Preserve original path so requests don't fall back to CWD.
-                orig_dir
-            }
-        };
-
+    pub fn new<T: Into<FilesDirs>>(mount_path: &str, serve_from: T) -> Files {
         Files {
             mount_path: mount_path.trim_end_matches('/').to_owned(),
-            directory: dir,
+            directories: serve_from.into().canonicalize(),
             index: None,
             show_index: false,
             redirect_to_slash: false,
@@ -149,6 +276,9 @@ impl Files {
     /// Redirects to a slash-ended path when browsing a directory.
     ///
     /// By default never redirect.
+    ///
+    /// When multiple root directories are configured, a matching directory in an earlier root can
+    /// trigger a redirect before later roots are checked for a file at the same path.
     pub fn redirect_to_slash_directory(mut self) -> Self {
         self.redirect_to_slash = true;
         self
@@ -407,7 +537,7 @@ impl ServiceFactory<ServiceRequest> for Files {
 
     fn new_service(&self, _: ()) -> Self::Future {
         let mut inner = FilesServiceInner {
-            directory: self.directory.clone(),
+            directories: self.directories.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,

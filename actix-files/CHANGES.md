@@ -2,11 +2,13 @@
 
 ## Unreleased
 
+- Add support for passing multiple root directories to `Files::new`. [#3402]
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`
 - Fix `NamedFile` panic when serving files with pre-UNIX epoch modification times. [#2748]
 - Fix invalid `Content-Encoding: identity` header in `NamedFile` range responses. [#3191]
 
+[#3402]: https://github.com/actix/actix-web/issues/3402
 [#2615]: https://github.com/actix/actix-web/pull/2615
 [#2748]: https://github.com/actix/actix-web/issues/2748
 [#3191]: https://github.com/actix/actix-web/issues/3191
