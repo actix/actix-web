@@ -47,7 +47,7 @@ enum Flow {
 /// [`Multipart`] extractor configuration.
 ///
 /// Add to your app data to have it picked up by [`Multipart`] extractors.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct MultipartConfig {
     buffer_limit: usize,
@@ -74,7 +74,7 @@ impl MultipartConfig {
     }
 }
 
-static DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
+const DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
     buffer_limit: DEFAULT_BUFFER_LIMIT,
 };
 
