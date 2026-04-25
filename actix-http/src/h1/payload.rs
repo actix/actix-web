@@ -140,11 +140,20 @@ impl PayloadSender {
     }
 }
 
+impl Drop for PayloadSender {
+    fn drop(&mut self) {
+        if let Some(shared) = self.inner.upgrade() {
+            shared.borrow_mut().close_sender();
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Inner {
     len: usize,
     eof: bool,
     err: Option<PayloadError>,
+    sender_closed: bool,
     need_read: bool,
     items: VecDeque<Bytes>,
     task: Option<Waker>,
@@ -157,6 +166,7 @@ impl Inner {
             eof,
             len: 0,
             err: None,
+            sender_closed: eof,
             items: VecDeque::new(),
             need_read: true,
             task: None,
@@ -200,12 +210,21 @@ impl Inner {
 
     #[inline]
     fn set_error(&mut self, err: PayloadError) {
+        self.sender_closed = true;
         self.err = Some(err);
         self.wake();
     }
 
+    fn close_sender(&mut self) {
+        if !self.sender_closed {
+            self.sender_closed = true;
+            self.set_error(PayloadError::Incomplete(None));
+        }
+    }
+
     #[inline]
     fn feed_eof(&mut self) {
+        self.sender_closed = true;
         self.eof = true;
         self.wake();
     }
@@ -329,6 +348,16 @@ mod tests {
 
         rx.await.unwrap();
         sender.feed_eof();
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn wake_on_sender_drop() {
+        let (sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
+
+        rx.await.unwrap();
+        drop(sender);
         timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
     }
 

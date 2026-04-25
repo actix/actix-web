@@ -231,7 +231,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn basic() {
-        let (_, payload) = h1::Payload::create(false);
+        let (_sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
 
         assert_eq!(payload.buf.len(), 0);

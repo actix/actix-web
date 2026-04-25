@@ -255,7 +255,7 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.app_state.pool().clear();
+        self.app_state.pool().disable();
     }
 }
 

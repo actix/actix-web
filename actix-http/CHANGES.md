@@ -3,9 +3,11 @@
 ## Unreleased
 
 - When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
+- Wake HTTP/1 payload receivers with an incomplete-payload error when the sender is dropped before EOF. [#3100]
 - Update `foldhash` dependency to `0.2`.
 
 [#3967]: https://github.com/actix/actix-web/issues/3967
+[#3100]: https://github.com/actix/actix-web/issues/3100
 
 ## 3.12.1
 

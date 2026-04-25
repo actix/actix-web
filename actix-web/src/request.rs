@@ -1,5 +1,5 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
+    cell::{Cell, Ref, RefCell, RefMut},
     collections::HashMap,
     fmt,
     hash::{BuildHasher, Hash},
@@ -669,6 +669,7 @@ impl fmt::Debug for HttpRequest {
 /// The pool's default capacity is 128 items.
 pub(crate) struct HttpRequestPool {
     inner: RefCell<Vec<Rc<HttpRequestInner>>>,
+    enabled: Cell<bool>,
     cap: usize,
 }
 
@@ -682,6 +683,7 @@ impl HttpRequestPool {
     pub(crate) fn with_capacity(cap: usize) -> Self {
         HttpRequestPool {
             inner: RefCell::new(Vec::with_capacity(cap)),
+            enabled: Cell::new(true),
             cap,
         }
     }
@@ -698,7 +700,7 @@ impl HttpRequestPool {
     /// Check if the pool still has capacity for request storage.
     #[inline]
     pub(crate) fn is_available(&self) -> bool {
-        self.inner.borrow_mut().len() < self.cap
+        self.enabled.get() && self.inner.borrow().len() < self.cap
     }
 
     /// Push a request to pool.
@@ -707,15 +709,16 @@ impl HttpRequestPool {
         self.inner.borrow_mut().push(req);
     }
 
-    /// Clears all allocated HttpRequest objects.
-    pub(crate) fn clear(&self) {
-        self.inner.borrow_mut().clear()
+    /// Prevents future requests from being returned to the pool and clears existing entries.
+    pub(crate) fn disable(&self) {
+        self.enabled.set(false);
+        self.inner.borrow_mut().clear();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, sync::Arc};
 
     use bytes::Bytes;
 
@@ -991,6 +994,41 @@ mod tests {
         drop(srv);
 
         assert_eq!(resp.headers().get("pool_cap").unwrap(), "128");
+    }
+
+    #[actix_rt::test]
+    async fn test_request_dropped_after_service_does_not_reenter_pool() {
+        struct State {
+            _data: Arc<String>,
+        }
+
+        let (weak_data, app_data) = {
+            let data = Arc::new("data".to_owned());
+            (Arc::downgrade(&data), web::Data::new(State { _data: data }))
+        };
+
+        let held_req = Rc::new(RefCell::new(None));
+
+        {
+            let held_req = Rc::clone(&held_req);
+            let srv = init_service(App::new().app_data(app_data).service(web::resource("/").to(
+                move |req: HttpRequest| {
+                    *held_req.borrow_mut() = Some(req.clone());
+                    HttpResponse::Ok()
+                },
+            )))
+            .await;
+
+            let resp = call_service(&srv, TestRequest::default().to_request()).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+
+            drop(resp);
+            drop(srv);
+        }
+
+        assert!(weak_data.upgrade().is_some());
+        drop(held_req.borrow_mut().take());
+        assert!(weak_data.upgrade().is_none());
     }
 
     #[actix_rt::test]

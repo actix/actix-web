@@ -7,6 +7,7 @@
 - Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
 - Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
 - Fix `Readlines` handling of lines split across payload chunks so combined line limits are enforced and complete lines are yielded.
+- Fix app data being retained after graceful shutdown with in-flight slow request bodies. [#3100]
 - Update `foldhash` dependency to `0.2`.
 - Update `rand` dependency to `0.10`.
 - Add `HttpServer::h1_write_buffer_size()`.
@@ -14,6 +15,7 @@
 [#3944]: https://github.com/actix/actix-web/pull/3944
 [#3346]: https://github.com/actix/actix-web/issues/3346
 [#3542]: https://github.com/actix/actix-web/issues/3542
+[#3100]: https://github.com/actix/actix-web/issues/3100
 
 ## 4.13.0
 
