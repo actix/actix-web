@@ -18,7 +18,7 @@ proc-macro = true
 
 [dependencies]
 bytesize = "2"
-darling = "0.20"
+darling = "0.23"
 proc-macro2 = "1"
 quote = "1"
 syn = "2"

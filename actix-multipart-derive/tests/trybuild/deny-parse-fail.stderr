@@ -1,4 +1,4 @@
-error: Unknown literal value `no`
+error: Unknown value: `no`. Available values: `deny`, `ignore`, `replace`
  --> tests/trybuild/deny-parse-fail.rs:4:31
   |
 4 | #[multipart(duplicate_field = "no")]
