@@ -32,7 +32,7 @@ mime = "0.3.9"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
-v_htmlescape = "0.15.5"
+v_htmlescape = "0.17"
 
 # experimental-io-uring
 [target.'cfg(target_os = "linux")'.dependencies]
