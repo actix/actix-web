@@ -7,7 +7,7 @@ use std::{
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
-use v_htmlescape::escape as escape_html_entity;
+use v_htmlescape::escape_fmt;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -64,7 +64,7 @@ macro_rules! encode_file_url {
 /// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy())
+        escape_fmt(&$entry.file_name().to_string_lossy())
     };
 }
 
