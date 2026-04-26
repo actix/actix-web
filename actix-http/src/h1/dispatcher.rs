@@ -366,10 +366,9 @@ where
         io.poll_flush(cx)
     }
 
-    fn enter_linger(mut self: Pin<&mut Self>) {
-        let this = self.as_mut().project();
-        this.flags.remove(Flags::KEEP_ALIVE);
-        this.flags.insert(Flags::LINGER | Flags::FINISHED);
+    fn enter_linger(flags: &mut Flags) {
+        flags.remove(Flags::KEEP_ALIVE);
+        flags.insert(Flags::LINGER | Flags::FINISHED);
     }
 
     fn ensure_linger_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> bool {
@@ -464,23 +463,19 @@ where
         let size = self.as_mut().send_response_inner(res, &body)?;
         match size {
             BodySize::None | BodySize::Sized(0) => {
-                let this = self.as_mut().project();
+                let mut this = self.as_mut().project();
 
                 if close_after_response {
                     if this.config.client_disconnect_deadline().is_some() {
-                        drop(this);
-                        self.as_mut().enter_linger();
+                        Self::enter_linger(this.flags);
                     } else {
-                        self.as_mut()
-                            .project()
-                            .flags
-                            .insert(Flags::SHUTDOWN | Flags::FINISHED);
+                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
                     }
                 } else {
                     this.flags.insert(Flags::FINISHED);
                 }
 
-                self.as_mut().project().state.set(State::None);
+                this.state.set(State::None);
             }
             _ => self
                 .as_mut()
@@ -509,23 +504,19 @@ where
         let size = self.as_mut().send_response_inner(res, &body)?;
         match size {
             BodySize::None | BodySize::Sized(0) => {
-                let this = self.as_mut().project();
+                let mut this = self.as_mut().project();
 
                 if close_after_response {
                     if this.config.client_disconnect_deadline().is_some() {
-                        drop(this);
-                        self.as_mut().enter_linger();
+                        Self::enter_linger(this.flags);
                     } else {
-                        self.as_mut()
-                            .project()
-                            .flags
-                            .insert(Flags::SHUTDOWN | Flags::FINISHED);
+                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
                     }
                 } else {
                     this.flags.insert(Flags::FINISHED);
                 }
 
-                self.as_mut().project().state.set(State::None);
+                this.state.set(State::None);
             }
             _ => self
                 .as_mut()
@@ -646,13 +637,9 @@ where
 
                                 if not_pipelined && close_after_response {
                                     if this.config.client_disconnect_deadline().is_some() {
-                                        drop(this);
-                                        self.as_mut().enter_linger();
+                                        Self::enter_linger(this.flags);
                                     } else {
-                                        self.as_mut()
-                                            .project()
-                                            .flags
-                                            .insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
                                     }
                                 } else {
                                     this.flags.insert(Flags::FINISHED);
@@ -708,13 +695,9 @@ where
 
                                 if not_pipelined && close_after_response {
                                     if this.config.client_disconnect_deadline().is_some() {
-                                        drop(this);
-                                        self.as_mut().enter_linger();
+                                        Self::enter_linger(this.flags);
                                     } else {
-                                        self.as_mut()
-                                            .project()
-                                            .flags
-                                            .insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
                                     }
                                 } else {
                                     this.flags.insert(Flags::FINISHED);
