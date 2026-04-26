@@ -10,6 +10,7 @@
 - Fix app data being retained after graceful shutdown with in-flight slow request bodies. [#3100]
 - Update `foldhash` dependency to `0.2`.
 - Update `rand` dependency to `0.10`.
+- Update `impl-more` dependency to `0.3`.
 - Add `HttpServer::h1_write_buffer_size()`.
 
 [#3944]: https://github.com/actix/actix-web/pull/3944
