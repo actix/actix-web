@@ -117,14 +117,35 @@ pub(crate) fn get_content_type_and_disposition(
     };
 
     // replace special characters in filenames which could occur on some filesystems
-    let filename_s = filename
-        .replace('\n', "%0A") // \n line break
-        .replace('\x0B', "%0B") // \v vertical tab
-        .replace('\x0C', "%0C") // \f form feed
-        .replace('\r', "%0D"); // \r carriage return
-    let mut parameters = vec![DispositionParam::Filename(filename_s)];
+    let mut escaped_len = filename.len();
+    for byte in filename.bytes() {
+        if matches!(byte, b'\n' | b'\x0B' | b'\x0C' | b'\r') {
+            escaped_len += 2;
+        }
+    }
 
-    if !filename.is_ascii() {
+    let filename_s = if escaped_len == filename.len() {
+        filename.to_string()
+    } else {
+        let mut escaped = String::with_capacity(escaped_len);
+        for ch in filename.chars() {
+            match ch {
+                '\n' => escaped.push_str("%0A"),   // \n line break
+                '\x0B' => escaped.push_str("%0B"), // \v vertical tab
+                '\x0C' => escaped.push_str("%0C"), // \f form feed
+                '\r' => escaped.push_str("%0D"),   // \r carriage return
+                ch => escaped.push(ch),
+            }
+        }
+        escaped
+    };
+
+    let is_ascii = filename.is_ascii();
+
+    let mut parameters = Vec::with_capacity(if is_ascii { 1 } else { 2 });
+    parameters.push(DispositionParam::Filename(filename_s));
+
+    if !is_ascii {
         parameters.push(DispositionParam::FilenameExt(ExtendedValue {
             charset: Charset::Ext(String::from("UTF-8")),
             language_tag: None,
@@ -734,5 +755,16 @@ mod tests {
     fn audio_files_use_inline_content_disposition() {
         let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
         assert_eq!(cd.disposition, DispositionType::Inline);
+    }
+
+    #[test]
+    fn special_chars_are_escaped_in_content_disposition_filename() {
+        let (_ct, cd) =
+            get_content_type_and_disposition(Path::new("test\n\x0B\x0C\rnewline.text")).unwrap();
+
+        assert_eq!(
+            cd.to_string(),
+            "inline; filename=\"test%0A%0B%0C%0Dnewline.text\"",
+        );
     }
 }

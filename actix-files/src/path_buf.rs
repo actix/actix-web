@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     path::{Component, Path, PathBuf},
     str::FromStr,
 };
@@ -70,8 +71,10 @@ impl PathBufWrap {
             .map_err(|_| UriSegmentError::NotValidUtf8)?;
 
         // disallow decoding `%2F` into `/`
-        if segment_count != path.matches('/').count() + 1 {
-            return Err(UriSegmentError::BadChar('/'));
+        if let Cow::Owned(ref path) = path {
+            if segment_count != path.matches('/').count() + 1 {
+                return Err(UriSegmentError::BadChar('/'));
+            }
         }
 
         for segment in path.split('/') {
@@ -196,6 +199,14 @@ mod tests {
                 .unwrap()
                 .0,
             PathBuf::from_iter(vec!["etc/passwd"])
+        );
+    }
+
+    #[test]
+    fn encoded_slash_is_rejected() {
+        assert_eq!(
+            PathBufWrap::parse_path("/test%2Ffile.txt", false),
+            Err(UriSegmentError::BadChar('/'))
         );
     }
 
