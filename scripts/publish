@@ -4,12 +4,12 @@ set -Euo pipefail
 
 for dir in $@; do
     cd "$dir"
-    
+
     cargo publish --dry-run
 
     read -p "Look okay? "
     read -p "Sure? "
-    
+
     cargo publish
 
     if [ $? -ne 0 ]; then

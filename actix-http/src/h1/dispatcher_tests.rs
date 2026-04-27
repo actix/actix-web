@@ -1144,7 +1144,7 @@ async fn handler_drop_payload() {
         r"
         POST /drop-payload HTTP/1.1
         Content-Length: 3
-        
+
         abc
         ",
     ));
@@ -1289,7 +1289,7 @@ async fn handler_drop_payload_drains_body() {
         r"
         POST /drop-payload HTTP/1.1
         Transfer-Encoding: chunked
-        
+
         ",
     ));
 
