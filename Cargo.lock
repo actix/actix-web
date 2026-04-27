@@ -294,7 +294,7 @@ dependencies = [
  "futures-core",
  "http 0.2.12",
  "http 1.4.0",
- "impl-more",
+ "impl-more 0.1.9",
  "openssl",
  "pin-project-lite",
  "rustls-native-certs",
@@ -354,7 +354,7 @@ dependencies = [
  "foldhash 0.2.0",
  "futures-core",
  "futures-util",
- "impl-more",
+ "impl-more 0.3.1",
  "itoa",
  "language-tags",
  "log",
@@ -1801,6 +1801,12 @@ name = "impl-more"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8a5a9a0ff0086c7a148acb942baaabeadf9504d10400b5a05645853729b9cd2"
+
+[[package]]
+name = "impl-more"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35a84fd5aa25fae5c0f4a33d9cac2ca017fc622cbd089be2229993514990f870"
 
 [[package]]
 name = "indexmap"

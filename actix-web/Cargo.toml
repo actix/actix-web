@@ -150,7 +150,7 @@ encoding_rs = "0.8"
 foldhash = "0.2"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
-impl-more = "0.1.4"
+impl-more = "0.3.1"
 itoa = "1"
 language-tags = "0.3"
 log = "0.4"
