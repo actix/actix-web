@@ -1,0 +1,8 @@
+rules:
+  dangerous-triggers:
+    ignore:
+      # Required for labeling PRs from forks; does not check out PR head.
+      - labeler.yml:3
+  dependabot-cooldown:
+    config:
+      days: 3
