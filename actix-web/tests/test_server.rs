@@ -405,6 +405,52 @@ async fn test_body_zstd_streaming() {
     srv.stop().await;
 }
 
+/// Regression test for https://github.com/actix/actix-web/issues/3410
+///
+/// Compress middleware must flush each chunk immediately so streaming responses
+/// deliver data progressively rather than buffering everything until the stream ends.
+#[actix_rt::test]
+#[cfg(feature = "compress-gzip")]
+async fn test_compress_streaming_flushes_chunks() {
+    use futures_util::StreamExt as _;
+
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::get().to(|| async {
+                // Two-chunk stream: first chunk arrives immediately, second after 500ms.
+                // Without the flush fix both chunks arrive together after 500ms.
+                let s = futures_util::stream::once(async {
+                    Ok::<_, std::io::Error>(Bytes::from("hello"))
+                })
+                .chain(futures_util::stream::once(async {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    Ok::<_, std::io::Error>(Bytes::from(" world"))
+                }));
+                HttpResponse::Ok().streaming(s)
+            })),
+        )
+    });
+
+    let mut res = srv
+        .get("/")
+        .no_decompress()
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // The first compressed chunk must arrive well before the 500ms delay.
+    let chunk = tokio::time::timeout(Duration::from_millis(200), res.next())
+        .await
+        .expect("first chunk must arrive before the 500ms stream delay (compress flush bug)")
+        .expect("stream should not be empty");
+    assert!(chunk.is_ok(), "chunk should not be an error");
+
+    srv.stop().await;
+}
+
 #[actix_rt::test]
 async fn test_zstd_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {

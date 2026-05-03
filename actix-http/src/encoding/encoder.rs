@@ -208,6 +208,7 @@ where
                     if let Some(mut encoder) = this.encoder.take() {
                         if chunk.len() < MAX_CHUNK_SIZE_ENCODE_IN_PLACE {
                             encoder.write(&chunk).map_err(EncoderError::Io)?;
+                            encoder.flush().map_err(EncoderError::Io)?;
                             let chunk = encoder.take();
                             *this.encoder = Some(encoder);
 
@@ -217,6 +218,7 @@ where
                         } else {
                             *this.fut = Some(spawn_blocking(move || {
                                 encoder.write(&chunk)?;
+                                encoder.flush()?;
                                 Ok(encoder)
                             }));
                         }
@@ -357,6 +359,26 @@ impl ContentEncoder {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+        }
+    }
+
+    /// Flush internal codec buffers so compressed bytes are available via [`take`](Self::take).
+    ///
+    /// Calling this after every [`write`](Self::write) ensures streaming responses emit data
+    /// promptly instead of waiting until the stream ends.
+    fn flush(&mut self) -> Result<(), io::Error> {
+        match *self {
+            #[cfg(feature = "compress-brotli")]
+            ContentEncoder::Brotli(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Deflate(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Gzip(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-zstd")]
+            ContentEncoder::Zstd(ref mut encoder) => encoder.flush(),
         }
     }
 
