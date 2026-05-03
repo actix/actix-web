@@ -415,8 +415,9 @@ async fn test_compress_streaming_flushes_chunks() {
     use futures_util::StreamExt as _;
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
-        App::new().wrap(Compress::default()).service(
-            web::resource("/").route(web::get().to(|| async {
+        App::new()
+            .wrap(Compress::default())
+            .service(web::resource("/").route(web::get().to(|| async {
                 // Two-chunk stream: first chunk arrives immediately, second after 500ms.
                 // Without the flush fix both chunks arrive together after 500ms.
                 let s = futures_util::stream::once(async {
@@ -427,8 +428,7 @@ async fn test_compress_streaming_flushes_chunks() {
                     Ok::<_, std::io::Error>(Bytes::from(" world"))
                 }));
                 HttpResponse::Ok().streaming(s)
-            })),
-        )
+            })))
     });
 
     let mut res = srv
