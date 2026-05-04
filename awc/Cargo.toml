@@ -131,7 +131,7 @@ tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, featu
 tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, default-features = false }
 
-hickory-resolver = { version = "0.25", optional = true, features = ["system-config", "tokio"] }
+hickory-resolver = { version = "0.26.1", optional = true, features = ["system-config", "tokio"] }
 
 [dev-dependencies]
 actix-http = { version = "3.12", features = ["openssl"] }
