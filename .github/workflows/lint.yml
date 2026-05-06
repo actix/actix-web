@@ -108,7 +108,7 @@ jobs:
           tool: just
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@f9eed3e4680f27610dc6d8c67be1b88593f7dade # v3.0.6
+        uses: taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7 # v3.0.7
         with:
           tool: cargo-check-external-types
 
