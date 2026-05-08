@@ -1,6 +1,6 @@
-use std::{borrow::Cow, fmt::Write as _};
+use std::{borrow::Cow, fmt::Write as _, hint::black_box};
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 fn compare_quoters(c: &mut Criterion) {
     let mut group = c.benchmark_group("Compare Quoters");

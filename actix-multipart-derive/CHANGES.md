@@ -5,6 +5,7 @@
 ## 0.8.0
 
 - Minimum supported Rust version (MSRV) is now 1.88.
+- Update `darling` dependency to `0.23`.
 
 ## 0.7.0
 

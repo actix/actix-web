@@ -37,8 +37,14 @@ mod range;
 mod service;
 
 pub use self::{
-    chunked::ChunkedReadFile, directory::Directory, error::UriSegmentError, files::Files,
-    named::NamedFile, path_buf::PathBufWrap, range::HttpRange, service::FilesService,
+    chunked::ChunkedReadFile,
+    directory::Directory,
+    error::UriSegmentError,
+    files::{Files, FilesDirs},
+    named::NamedFile,
+    path_buf::PathBufWrap,
+    range::HttpRange,
+    service::FilesService,
 };
 use self::{
     directory::{directory_listing, DirectoryRenderer},
@@ -63,9 +69,11 @@ type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 #[cfg(test)]
 mod tests {
     use std::{
+        ffi::OsString,
         fmt::Write as _,
         fs::{self},
         ops::Add,
+        path::PathBuf,
         time::{Duration, SystemTime},
     };
 
@@ -830,6 +838,243 @@ mod tests {
         let resp = test::call_service(&service, req).await;
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_accepts_borrowed_os_string_directory() {
+        let dir = OsString::from(".");
+        let service = Files::new("/", &dir).new_service(()).await.unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_empty_directories() {
+        let service = Files::new("/", Vec::<PathBuf>::new())
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let service = Files::new("/", Vec::<PathBuf>::new())
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
+            })
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            test::read_body(resp).await,
+            Bytes::from_static(b"default content")
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::write(first_dir.path().join("shared.txt"), "first").unwrap();
+        fs::write(second_dir.path().join("shared.txt"), "second").unwrap();
+        fs::write(second_dir.path().join("fallback.txt"), "fallback").unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/shared.txt").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, Bytes::from_static(b"first"));
+
+        let req = TestRequest::with_uri("/fallback.txt").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_file_as_parent_falls_back() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::write(first_dir.path().join("assets"), "file").unwrap();
+        fs::create_dir(second_dir.path().join("assets")).unwrap();
+        fs::write(
+            second_dir.path().join("assets").join("fallback.txt"),
+            "fallback",
+        )
+        .unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/assets/fallback.txt").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_default_handler() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::write(second_dir.path().join("fallback.txt"), "fallback").unwrap();
+
+        let service = Files::new("/", vec![first_dir.path(), second_dir.path()])
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
+            })
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/fallback.txt").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
+
+        let req = TestRequest::with_uri("/missing.txt").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            test::read_body(resp).await,
+            Bytes::from_static(b"default content")
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_index_file() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::create_dir(first_dir.path().join("nested")).unwrap();
+        fs::create_dir(second_dir.path().join("nested")).unwrap();
+        fs::write(
+            second_dir.path().join("nested").join("index.html"),
+            "second index",
+        )
+        .unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .index_file("index.html")
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/nested/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            test::read_body(resp).await,
+            Bytes::from_static(b"second index")
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_index_file_as_parent_falls_back() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::create_dir(first_dir.path().join("nested")).unwrap();
+        fs::write(first_dir.path().join("nested").join("index.html"), "file").unwrap();
+        fs::create_dir(second_dir.path().join("nested")).unwrap();
+        fs::create_dir(second_dir.path().join("nested").join("index.html")).unwrap();
+        fs::write(
+            second_dir
+                .path()
+                .join("nested")
+                .join("index.html")
+                .join("fallback.txt"),
+            "fallback",
+        )
+        .unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .index_file("index.html/fallback.txt")
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/nested/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_index_file_error_falls_back_to_listing() {
+        let dir = tempfile::tempdir().unwrap();
+
+        fs::write(dir.path().join("listed.txt"), "listed").unwrap();
+
+        let service = Files::new("/", dir.path())
+            .index_file("index.html\0")
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        assert!(format!("{bytes:?}").contains("listed.txt"));
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_show_files_listing() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::write(first_dir.path().join("listed.txt"), "listed").unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        assert!(format!("{bytes:?}").contains("listed.txt"));
+    }
+
+    #[actix_rt::test]
+    async fn test_static_files_multiple_directories_redirect_precedence() {
+        let first_dir = tempfile::tempdir().unwrap();
+        let second_dir = tempfile::tempdir().unwrap();
+
+        fs::create_dir(first_dir.path().join("item")).unwrap();
+        fs::write(second_dir.path().join("item"), "file").unwrap();
+
+        let service = Files::new("/", [first_dir.path(), second_dir.path()])
+            .show_files_listing()
+            .redirect_to_slash_directory()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/item").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/item/");
     }
 
     #[actix_rt::test]

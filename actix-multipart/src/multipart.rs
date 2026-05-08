@@ -47,7 +47,7 @@ enum Flow {
 /// [`Multipart`] extractor configuration.
 ///
 /// Add to your app data to have it picked up by [`Multipart`] extractors.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct MultipartConfig {
     buffer_limit: usize,
@@ -74,7 +74,7 @@ impl MultipartConfig {
     }
 }
 
-static DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
+const DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
     buffer_limit: DEFAULT_BUFFER_LIMIT,
 };
 
@@ -1013,7 +1013,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = h1::Payload::create(false);
+        let (_sender, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 

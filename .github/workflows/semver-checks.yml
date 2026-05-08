@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1.16.0
@@ -20,7 +21,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        uses: taiki-e/install-action@db5fb34fa772531a3ece57ca434f579eb334e0fb # v2.75.30
         with:
           tool: cargo-semver-checks
 
@@ -59,16 +60,22 @@ jobs:
       - name: Summarize cargo semver-checks output
         if: always() && steps.semver.outcome != 'skipped'
         shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SEMVER_TYPE: ${{ steps.semver.outputs.semver_type }}
+          STATUS: ${{ steps.semver.outputs.exit_code }}
+          SUMMARY_FILE: ${{ steps.semver.outputs.output_file }}
         run: |
-          summary_file="${{ steps.semver.outputs.output_file }}"
-          status="${{ steps.semver.outputs.exit_code }}"
+          summary_file="$SUMMARY_FILE"
+          status="$STATUS"
 
           {
             echo "## cargo semver-checks"
             echo
-            echo "- Base SHA: \`${{ github.event.pull_request.base.sha }}\`"
-            echo "- Head SHA: \`${{ github.event.pull_request.head.sha }}\`"
-            echo "- Required release: \`${{ steps.semver.outputs.semver_type }}\`"
+            echo "- Base SHA: \`${BASE_SHA}\`"
+            echo "- Head SHA: \`${HEAD_SHA}\`"
+            echo "- Required release: \`${SEMVER_TYPE}\`"
             echo "- cargo semver-checks exit code: \`$status\`"
 
             echo

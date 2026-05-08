@@ -1053,7 +1053,7 @@ mod resolver {
     use actix_tls::connect::Resolve;
     use hickory_resolver::{
         config::{ResolverConfig, ResolverOpts},
-        name_server::TokioConnectionProvider,
+        net::runtime::TokioRuntimeProvider,
         system_conf::read_system_conf,
         TokioResolver,
     };
@@ -1102,9 +1102,10 @@ mod resolver {
                     };
 
                     let resolver =
-                        TokioResolver::builder_with_config(cfg, TokioConnectionProvider::default())
+                        TokioResolver::builder_with_config(cfg, TokioRuntimeProvider::default())
                             .with_options(opts)
-                            .build();
+                            .build()
+                            .expect("failed to build Hickory DNS resolver");
 
                     Resolver::custom(HickoryDnsResolver(resolver))
                 })

@@ -150,7 +150,7 @@ encoding_rs = "0.8"
 foldhash = "0.2"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
-impl-more = "0.1.4"
+impl-more = "0.3.1"
 itoa = "1"
 language-tags = "0.3"
 log = "0.4"
@@ -176,7 +176,7 @@ awc = { version = "3", features = ["openssl"] }
 brotli = "8"
 const-str = "1.1"
 core_affinity = "0.8"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }

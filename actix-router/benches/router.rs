@@ -1,6 +1,8 @@
 //! Based on https://github.com/ibraheemdev/matchit/blob/master/benches/bench.rs
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, Criterion};
 
 macro_rules! register {
     (colon) => {{

@@ -2,16 +2,24 @@
 
 extern crate tls_openssl as openssl;
 
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    convert::Infallible,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
-use actix_http::HttpService;
+use actix_http::{HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
 use actix_utils::future::ok;
-use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
+use actix_web::{
+    dev::AppConfig,
+    http::{header, Version},
+    web, App, HttpResponse,
+};
+use futures_util::stream;
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslConnector, SslMethod, SslVerifyMode},
@@ -91,4 +99,56 @@ async fn test_connection_reuse_h2() {
 
     // one connection
     assert_eq!(num.load(Ordering::Relaxed), 1);
+}
+
+// Regression test for https://github.com/actix/actix-web/issues/2305.
+#[actix_rt::test]
+async fn h2_streaming_body_does_not_send_transfer_encoding() {
+    let has_transfer_encoding = Arc::new(AtomicBool::new(false));
+    let has_transfer_encoding2 = Arc::clone(&has_transfer_encoding);
+
+    let srv = test_server(move || {
+        let has_transfer_encoding = Arc::clone(&has_transfer_encoding2);
+
+        HttpService::build()
+            .h2(move |req: Request| {
+                let has_transfer_encoding = Arc::clone(&has_transfer_encoding);
+
+                async move {
+                    has_transfer_encoding.store(
+                        req.head().headers.contains_key(header::TRANSFER_ENCODING),
+                        Ordering::Relaxed,
+                    );
+
+                    Ok::<_, Infallible>(Response::ok())
+                }
+            })
+            .openssl(tls_config())
+            .map_err(|_| ())
+    })
+    .await;
+
+    // disable ssl verification
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let _ = builder
+        .set_alpn_protos(b"\x02h2\x08http/1.1")
+        .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().openssl(builder.build()))
+        .finish();
+
+    let response = client
+        .post(srv.surl("/"))
+        .version(Version::HTTP_2)
+        .send_stream(stream::once(async {
+            Ok::<_, Infallible>(bytes::Bytes::from_static(b"hello"))
+        }))
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+    assert_eq!(response.version(), Version::HTTP_2);
+    assert!(!has_transfer_encoding.load(Ordering::Relaxed));
 }

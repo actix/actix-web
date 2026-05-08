@@ -167,6 +167,44 @@ async fn test_compression_encodings() {
 }
 
 #[actix_web::test]
+async fn test_compression_encodings_multiple_directories() {
+    use actix_web::body::MessageBody;
+
+    let first_dir = tempfile::tempdir().unwrap();
+    let second_dir = tempfile::tempdir().unwrap();
+
+    let compressed_path = second_dir.path().join("fallback.txt.gz");
+    std::fs::write(&compressed_path, b"compressed").unwrap();
+    let compressed_len = std::fs::metadata(compressed_path).unwrap().len();
+
+    let srv = test::init_service(
+        App::new().service(Files::new("/", [first_dir.path(), second_dir.path()]).try_compressed()),
+    )
+    .await;
+
+    let mut req = TestRequest::with_uri("/fallback.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("gzip"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(
+        res.headers().get(header::CONTENT_ENCODING),
+        Some(&HeaderValue::from_static("gzip")),
+    );
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(compressed_len),
+    );
+}
+
+#[actix_web::test]
 async fn partial_range_response_encoding() {
     let srv = test::init_service(App::new().default_service(web::to(|| async {
         NamedFile::open_async("./tests/test.binary").await.unwrap()

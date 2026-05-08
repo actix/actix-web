@@ -33,7 +33,7 @@ impl Deref for FilesService {
 }
 
 pub struct FilesServiceInner {
-    pub(crate) directory: PathBuf,
+    pub(crate) directories: Vec<PathBuf>,
     pub(crate) index: Option<String>,
     pub(crate) show_index: bool,
     pub(crate) redirect_to_slash: bool,
@@ -113,8 +113,8 @@ impl FilesService {
         self.serve_named_file_with_encoding(req, named_file, header::ContentEncoding::Identity)
     }
 
-    fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
-        let dir = Directory::new(self.directory.clone(), path);
+    fn show_index(&self, req: ServiceRequest, base: PathBuf, path: PathBuf) -> ServiceResponse {
+        let dir = Directory::new(base, path);
 
         let (req, _) = req.into_parts();
 
@@ -171,70 +171,124 @@ impl Service<ServiceRequest> for FilesService {
                 }
             }
 
-            // full file path
-            let path = this.directory.join(&path_on_disk);
+            let mut last_miss = None;
+            let mut first_index_listing = None;
+            let mut found_unrenderable_dir = false;
 
-            // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
-            // Still handle directories (index/listing) through the normal branch below.
-            if this.try_compressed && !path.is_dir() {
-                if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
-                    return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
-                }
-            }
+            for directory in &this.directories {
+                // full file path
+                let path = directory.join(&path_on_disk);
 
-            if let Err(err) = path.canonicalize() {
-                return this.handle_err(err, req).await;
-            }
-
-            if path.is_dir() {
-                if this.redirect_to_slash
-                    && !req.path().ends_with('/')
-                    && (this.index.is_some() || this.show_index)
-                {
-                    let redirect_to = format!("{}/", req.path());
-
-                    let response = if this.with_permanent_redirect {
-                        HttpResponse::PermanentRedirect()
-                    } else {
-                        HttpResponse::TemporaryRedirect()
+                // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
+                // Still handle directories (index/listing) through the normal branch below.
+                if this.try_compressed && !path.is_dir() {
+                    if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                        return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
                     }
-                    .insert_header((header::LOCATION, redirect_to))
-                    .finish();
-
-                    return Ok(req.into_response(response));
                 }
 
-                match this.index {
-                    Some(ref index) => {
-                        let named_path = path.join(index);
-                        if this.try_compressed {
-                            if let Some((named_file, encoding)) =
-                                find_compressed(&req, &named_path).await
-                            {
-                                return Ok(
-                                    this.serve_named_file_with_encoding(req, named_file, encoding)
-                                );
+                if let Err(err) = path.canonicalize() {
+                    if matches!(
+                        err.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    ) {
+                        last_miss = Some(err);
+                        continue;
+                    }
+
+                    return this.handle_err(err, req).await;
+                }
+
+                if path.is_dir() {
+                    if this.redirect_to_slash
+                        && !req.path().ends_with('/')
+                        && (this.index.is_some() || this.show_index)
+                    {
+                        let redirect_to = format!("{}/", req.path());
+
+                        let response = if this.with_permanent_redirect {
+                            HttpResponse::PermanentRedirect()
+                        } else {
+                            HttpResponse::TemporaryRedirect()
+                        }
+                        .insert_header((header::LOCATION, redirect_to))
+                        .finish();
+
+                        return Ok(req.into_response(response));
+                    }
+
+                    match &this.index {
+                        Some(index) => {
+                            let named_path = path.join(index);
+                            if this.try_compressed {
+                                if let Some((named_file, encoding)) =
+                                    find_compressed(&req, &named_path).await
+                                {
+                                    return Ok(this.serve_named_file_with_encoding(
+                                        req, named_file, encoding,
+                                    ));
+                                }
+                            }
+                            // fallback to the uncompressed version
+                            match NamedFile::open_async(named_path).await {
+                                Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
+                                Err(err)
+                                    if matches!(
+                                        err.kind(),
+                                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                                    ) =>
+                                {
+                                    if this.show_index && first_index_listing.is_none() {
+                                        first_index_listing =
+                                            Some((directory.to_path_buf(), path.clone()));
+                                    }
+                                    last_miss = Some(err);
+                                }
+                                Err(_) if this.show_index => {
+                                    if first_index_listing.is_none() {
+                                        first_index_listing =
+                                            Some((directory.to_path_buf(), path.clone()));
+                                    }
+                                    break;
+                                }
+                                Err(err) => return this.handle_err(err, req).await,
                             }
                         }
-                        // fallback to the uncompressed version
-                        match NamedFile::open_async(named_path).await {
-                            Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                            Err(_) if this.show_index => Ok(this.show_index(req, path)),
-                            Err(err) => this.handle_err(err, req).await,
+                        None if this.show_index => {
+                            return Ok(this.show_index(req, directory.to_path_buf(), path));
                         }
+                        None => found_unrenderable_dir = true,
                     }
-                    None if this.show_index => Ok(this.show_index(req, path)),
-                    None => Ok(ServiceResponse::from_err(
-                        FilesError::IsDirectory,
-                        req.into_parts().0,
-                    )),
-                }
-            } else {
-                match NamedFile::open_async(&path).await {
-                    Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                    Err(err) => this.handle_err(err, req).await,
+                } else {
+                    match NamedFile::open_async(&path).await {
+                        Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
+                        Err(err)
+                            if matches!(
+                                err.kind(),
+                                io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                            ) =>
+                        {
+                            last_miss = Some(err);
+                        }
+                        Err(err) => return this.handle_err(err, req).await,
+                    }
                 }
             }
+
+            if let Some((base, path)) = first_index_listing {
+                return Ok(this.show_index(req, base, path));
+            }
+
+            if found_unrenderable_dir {
+                return Ok(ServiceResponse::from_err(
+                    FilesError::IsDirectory,
+                    req.into_parts().0,
+                ));
+            }
+
+            let err = last_miss
+                .unwrap_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No such file"));
+            this.handle_err(err, req).await
         })
     }
 }
