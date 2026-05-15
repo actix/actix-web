@@ -163,7 +163,7 @@ where
                 Poll::Pending => match this.ping_pong.as_mut() {
                     Some(ping_pong) => loop {
                         if ping_pong.in_flight {
-                            // When there is an in-flight ping-pong, poll pong and and keep-alive
+                            // When there is an in-flight ping-pong, poll pong and keep-alive
                             // timer. On successful pong received, update keep-alive timer to
                             // determine the next timing of ping pong.
                             match ping_pong.ping_pong.poll_pong(cx)? {
