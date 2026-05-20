@@ -54,7 +54,7 @@ Please use them in a production environment at your own risk.
 - [Website & User Guide](https://actix.rs)
 - [Examples Repository](https://github.com/actix/examples)
 - [API Documentation](https://docs.rs/actix-web)
-- [API Documentation (mainranch)](https://actix.rs/actix-web/actix_web)
+- [API Documentation (main branch)](https://actix.rs/actix-web/actix_web)
 
 ## Example
 
