@@ -78,7 +78,9 @@ impl PathBufWrap {
         }
 
         for segment in path.split('/') {
-            if segment == ".." {
+            if segment == "." {
+                return Err(UriSegmentError::BadStart('.'));
+            } else if segment == ".." {
                 segment_count -= 1;
                 buf.pop();
             } else if !hidden_files && segment.starts_with('.') {
@@ -179,6 +181,11 @@ mod tests {
         assert_eq!(
             PathBufWrap::parse_path("/test/.tt", true).unwrap().0,
             PathBuf::from_iter(vec!["test", ".tt"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/test/./file.txt", true).map(|t| t.0),
+            Err(UriSegmentError::BadStart('.'))
         );
     }
 

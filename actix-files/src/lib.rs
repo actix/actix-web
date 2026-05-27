@@ -1095,6 +1095,21 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_hidden_files_reject_cur_dir_segment() {
+        let service = Files::new("/", Vec::<PathBuf>::new())
+            .use_hidden_files()
+            .default_handler(Files::new("/", ".").use_hidden_files())
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/./Cargo.toml").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_rt::test]
     async fn test_serve_index_nested() {
         let service = Files::new(".", ".")
             .index_file("lib.rs")
