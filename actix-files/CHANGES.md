@@ -5,6 +5,7 @@
 - Add support for passing multiple root directories to `Files::new`. [#3402]
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`
+- Fix panic in `Files` when `use_hidden_files()` is enabled and request paths contain `.` segments. [#4082]
 - Fix `NamedFile` panic when serving files with pre-UNIX epoch modification times. [#2748]
 - Fix invalid `Content-Encoding: identity` header in `NamedFile` range responses. [#3191]
 - Update `v_htmlescape` dependency to `0.17`.
@@ -13,6 +14,7 @@
 [#2615]: https://github.com/actix/actix-web/pull/2615
 [#2748]: https://github.com/actix/actix-web/issues/2748
 [#3191]: https://github.com/actix/actix-web/issues/3191
+[#4082]: https://github.com/actix/actix-web/issues/4082
 
 ## 0.6.10
 

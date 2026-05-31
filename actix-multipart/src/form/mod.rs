@@ -862,7 +862,7 @@ mod tests {
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Exceeds the the 30 byte limit
+        // Exceeds the 30 byte limit
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is more than 30 bytes long");
         let response = send_form(&srv, form, "/").await;
