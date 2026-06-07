@@ -439,7 +439,13 @@ impl ToTokens for Route {
                 let method_guards = {
                     debug_assert!(!methods.is_empty(), "Args::methods should not be empty");
 
-                    let mut others = methods.iter();
+                    // Sort the methods for deterministic codegen. `methods` is a `HashSet`,
+                    // whose iteration order is not stable across compilations; emitting the
+                    // guard chain in that order makes the generated code (and therefore the
+                    // build output) non-reproducible for routes with more than one method.
+                    let mut sorted = methods.iter().collect::<Vec<_>>();
+                    sorted.sort_by_cached_key(|m| m.to_tokens_multi_guard_or_chain().to_string());
+                    let mut others = sorted.into_iter();
                     let first = others.next().unwrap();
 
                     if methods.len() > 1 {

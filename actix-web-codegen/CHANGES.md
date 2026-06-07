@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Generate deterministic output for routes registered with multiple methods. Previously the method guard chain was emitted in `HashSet` iteration order, which is not stable across compilations and made the generated code non-reproducible.
 - Minimum supported Rust version (MSRV) is now 1.88.
 
 ## 4.3.0
