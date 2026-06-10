@@ -109,7 +109,6 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         openssl::{
             reexports::{Error as SslError, SslAcceptor},
@@ -164,7 +163,6 @@ mod openssl {
 mod rustls_0_20 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -219,7 +217,6 @@ mod rustls_0_20 {
 mod rustls_0_21 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_21::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -274,7 +271,6 @@ mod rustls_0_21 {
 mod rustls_0_22 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_22::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -329,7 +325,6 @@ mod rustls_0_22 {
 mod rustls_0_23 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_23::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
