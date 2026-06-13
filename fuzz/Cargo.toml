@@ -1,0 +1,27 @@
+[package]
+name = "actix-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+actix-http = { path = "../actix-http" }
+http = "1"
+bytes = "1"
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[[bin]]
+name = "fuzz_header_parse"
+path = "fuzz_targets/fuzz_header_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_uri_parse"
+path = "fuzz_targets/fuzz_uri_parse.rs"
+test = false
+doc = false
