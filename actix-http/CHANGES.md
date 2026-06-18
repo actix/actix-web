@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove `Option` wrapper from `RequestHeadType::Rc` extra headers; add `RequestHeadType::extra_headers_mut()` method.
 - When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
 - Wake HTTP/1 payload receivers with an incomplete-payload error when the sender is dropped before EOF. [#3100]
 - Update `foldhash` dependency to `0.2`.

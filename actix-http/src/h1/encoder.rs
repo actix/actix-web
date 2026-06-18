@@ -648,7 +648,7 @@ mod tests {
         );
         extra_headers.insert(DATE, HeaderValue::from_static("date"));
 
-        let mut head = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));
+        let mut head = RequestHeadType::Rc(Rc::new(head), extra_headers);
 
         let _ = head.encode_headers(
             &mut bytes,

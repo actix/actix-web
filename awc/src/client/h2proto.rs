@@ -77,10 +77,9 @@ where
     // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.
     let (head, extra_headers) = match head {
         RequestHeadType::Owned(head) => (RequestHeadType::Owned(head), HeaderMap::new()),
-        RequestHeadType::Rc(head, extra_headers) => (
-            RequestHeadType::Rc(head, None),
-            extra_headers.unwrap_or_else(HeaderMap::new),
-        ),
+        RequestHeadType::Rc(head, extra_headers) => {
+            (RequestHeadType::Rc(head, HeaderMap::new()), extra_headers)
+        }
     };
 
     // merging headers from head and extra headers.

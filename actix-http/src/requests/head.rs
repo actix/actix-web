@@ -150,14 +150,32 @@ impl RequestHead {
 #[derive(Debug)]
 pub enum RequestHeadType {
     Owned(RequestHead),
-    Rc(Rc<RequestHead>, Option<HeaderMap>),
+    Rc(Rc<RequestHead>, HeaderMap),
 }
 
 impl RequestHeadType {
     pub fn extra_headers(&self) -> Option<&HeaderMap> {
         match self {
             RequestHeadType::Owned(_) => None,
-            RequestHeadType::Rc(_, headers) => headers.as_ref(),
+            RequestHeadType::Rc(_, headers) => {
+                if headers.is_empty() {
+                    None
+                } else {
+                    Some(headers)
+                }
+            }
+        }
+    }
+
+    /// Returns a mutable reference to the headers that can be modified on this request.
+    ///
+    /// For `Owned` variants, this returns the main header map.
+    /// For `Rc` variants, this returns the extra headers map (which overrides base headers
+    /// during encoding).
+    pub fn extra_headers_mut(&mut self) -> &mut HeaderMap {
+        match self {
+            RequestHeadType::Owned(head) => &mut head.headers,
+            RequestHeadType::Rc(_, headers) => headers,
         }
     }
 }

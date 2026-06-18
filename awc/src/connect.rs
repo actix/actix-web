@@ -41,6 +41,19 @@ pub enum ConnectRequest {
     Tunnel(RequestHead, Option<net::SocketAddr>),
 }
 
+impl ConnectRequest {
+    /// Returns a mutable reference to the request headers.
+    ///
+    /// For `Client` requests using the `Rc` variant, this returns the extra headers map
+    /// (which takes priority over base headers during encoding).
+    pub fn headers_mut(&mut self) -> &mut actix_http::header::HeaderMap {
+        match self {
+            ConnectRequest::Client(head, ..) => head.extra_headers_mut(),
+            ConnectRequest::Tunnel(head, ..) => &mut head.headers,
+        }
+    }
+}
+
 /// Combined HTTP response & WebSocket tunnel type returned from connection service.
 pub enum ConnectResponse {
     /// Standard HTTP response.

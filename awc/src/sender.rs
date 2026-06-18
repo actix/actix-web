@@ -176,7 +176,7 @@ impl From<PrepForSendingError> for SendClientRequest {
 #[derive(Debug)]
 pub(crate) enum RequestSender {
     Owned(RequestHead),
-    Rc(Rc<RequestHead>, Option<HeaderMap>),
+    Rc(Rc<RequestHead>, HeaderMap),
 }
 
 impl RequestSender {
@@ -296,14 +296,9 @@ impl RequestSender {
                 }
             }
             RequestSender::Rc(head, extra_headers) => {
-                if !head.headers.contains_key(&key)
-                    && !extra_headers.iter().any(|h| h.contains_key(&key))
-                {
+                if !head.headers.contains_key(&key) && !extra_headers.contains_key(&key) {
                     match value.try_into_value() {
-                        Ok(v) => {
-                            let h = extra_headers.get_or_insert(HeaderMap::new());
-                            h.insert(key, v)
-                        }
+                        Ok(v) => extra_headers.insert(key, v),
                         Err(err) => return Err(err.into()),
                     };
                 }

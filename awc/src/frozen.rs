@@ -49,7 +49,7 @@ impl FrozenClientRequest {
     where
         B: MessageBody + 'static,
     {
-        RequestSender::Rc(Rc::clone(&self.head), None).send_body(
+        RequestSender::Rc(Rc::clone(&self.head), HeaderMap::new()).send_body(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -60,7 +60,7 @@ impl FrozenClientRequest {
 
     /// Send a json body.
     pub fn send_json<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(Rc::clone(&self.head), None).send_json(
+        RequestSender::Rc(Rc::clone(&self.head), HeaderMap::new()).send_json(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -71,7 +71,7 @@ impl FrozenClientRequest {
 
     /// Send an urlencoded body.
     pub fn send_form<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(Rc::clone(&self.head), None).send_form(
+        RequestSender::Rc(Rc::clone(&self.head), HeaderMap::new()).send_form(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -86,7 +86,7 @@ impl FrozenClientRequest {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        RequestSender::Rc(Rc::clone(&self.head), None).send_stream(
+        RequestSender::Rc(Rc::clone(&self.head), HeaderMap::new()).send_stream(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -97,7 +97,7 @@ impl FrozenClientRequest {
 
     /// Send an empty body.
     pub fn send(&self) -> SendClientRequest {
-        RequestSender::Rc(Rc::clone(&self.head), None).send(
+        RequestSender::Rc(Rc::clone(&self.head), HeaderMap::new()).send(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -151,7 +151,7 @@ impl FrozenSendBuilder {
             return err.into();
         }
 
-        RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_body(
+        RequestSender::Rc(self.req.head, self.extra_headers).send_body(
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
@@ -166,7 +166,7 @@ impl FrozenSendBuilder {
             return err.into();
         }
 
-        RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_json(
+        RequestSender::Rc(self.req.head, self.extra_headers).send_json(
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
@@ -181,7 +181,7 @@ impl FrozenSendBuilder {
             return err.into();
         }
 
-        RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_form(
+        RequestSender::Rc(self.req.head, self.extra_headers).send_form(
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
@@ -200,7 +200,7 @@ impl FrozenSendBuilder {
             return err.into();
         }
 
-        RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_stream(
+        RequestSender::Rc(self.req.head, self.extra_headers).send_stream(
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
@@ -215,7 +215,7 @@ impl FrozenSendBuilder {
             return err.into();
         }
 
-        RequestSender::Rc(self.req.head, Some(self.extra_headers)).send(
+        RequestSender::Rc(self.req.head, self.extra_headers).send(
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,

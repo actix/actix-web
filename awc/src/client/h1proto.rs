@@ -9,7 +9,7 @@ use actix_http::{
     body::{BodySize, MessageBody},
     error::PayloadError,
     h1,
-    header::{HeaderMap, TryIntoHeaderValue, EXPECT, HOST},
+    header::{TryIntoHeaderValue, EXPECT, HOST},
     Payload, RequestHeadType, ResponseHead, StatusCode,
 };
 use actix_utils::future::poll_fn;
@@ -76,15 +76,9 @@ where
             };
 
             match wrt.get_mut().split().freeze().try_into_value() {
-                Ok(value) => match head {
-                    RequestHeadType::Owned(ref mut head) => {
-                        head.headers.insert(HOST, value);
-                    }
-                    RequestHeadType::Rc(_, ref mut extra_headers) => {
-                        let headers = extra_headers.get_or_insert(HeaderMap::new());
-                        headers.insert(HOST, value);
-                    }
-                },
+                Ok(value) => {
+                    head.extra_headers_mut().insert(HOST, value);
+                }
                 Err(err) => log::error!("Can not set HOST header {err}"),
             }
         }
