@@ -305,11 +305,23 @@ impl MessageType for RequestHeadType {
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
+
+        // RFC 7230 section 5.3.2: use absolute-form URI for proxy requests
+        let request_target = if head.is_proxy_request() {
+            head.uri.to_string()
+        } else {
+            head.uri
+                .path_and_query()
+                .map(|u| u.as_str())
+                .unwrap_or("/")
+                .to_owned()
+        };
+
         write!(
             helpers::MutWriter(dst),
             "{} {} {}",
             head.method,
-            head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+            request_target,
             match head.version {
                 Version::HTTP_09 => "HTTP/0.9",
                 Version::HTTP_10 => "HTTP/1.0",
@@ -662,6 +674,42 @@ mod tests {
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));
         assert!(data.contains("date: date\r\n"));
+    }
+
+    #[test]
+    fn test_proxy_request_absolute_uri() {
+        let mut bytes = BytesMut::with_capacity(2048);
+        let mut head = RequestHead::default();
+        head.uri = "http://example.com/foo?bar=1".parse().unwrap();
+        head.method = http::Method::GET;
+        head.set_proxy_request(true);
+
+        let mut head = RequestHeadType::Owned(head);
+        head.encode_status(&mut bytes).unwrap();
+
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(
+            data.starts_with("GET http://example.com/foo?bar=1 HTTP/1.1"),
+            "Expected absolute-form URI for proxy request, got: {data}",
+        );
+    }
+
+    #[test]
+    fn test_non_proxy_request_origin_form() {
+        let mut bytes = BytesMut::with_capacity(2048);
+        let mut head = RequestHead::default();
+        head.uri = "http://example.com/foo?bar=1".parse().unwrap();
+        head.method = http::Method::GET;
+        // proxy flag is NOT set
+
+        let mut head = RequestHeadType::Owned(head);
+        head.encode_status(&mut bytes).unwrap();
+
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(
+            data.starts_with("GET /foo?bar=1 HTTP/1.1"),
+            "Expected origin-form URI for non-proxy request, got: {data}",
+        );
     }
 
     #[actix_rt::test]

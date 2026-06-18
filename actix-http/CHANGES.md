@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `RequestHead::set_proxy_request()` / `is_proxy_request()` to support absolute-form URI encoding for HTTP proxy requests (RFC 7230 section 5.3.2).
 - When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
 - Wake HTTP/1 payload receivers with an incomplete-payload error when the sender is dropped before EOF. [#3100]
 - Update `foldhash` dependency to `0.2`.

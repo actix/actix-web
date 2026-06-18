@@ -13,7 +13,10 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::{
     any_body::AnyBody,
-    client::{Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError},
+    client::{
+        proxy::ProxyConfig, Connect as ClientConnect, ConnectError, Connection, ConnectionIo,
+        SendRequestError,
+    },
     ClientResponse,
 };
 
@@ -82,11 +85,20 @@ impl ConnectResponse {
 
 pub struct DefaultConnector<S> {
     connector: S,
+    proxy: ProxyConfig,
 }
 
 impl<S> DefaultConnector<S> {
     pub(crate) fn new(connector: S) -> Self {
-        Self { connector }
+        Self {
+            connector,
+            proxy: ProxyConfig::default(),
+        }
+    }
+
+    pub(crate) fn with_proxy(mut self, proxy: ProxyConfig) -> Self {
+        self.proxy = proxy;
+        self
     }
 }
 
@@ -101,18 +113,32 @@ where
 
     actix_service::forward_ready!(connector);
 
-    fn call(&self, req: ConnectRequest) -> Self::Future {
-        // connect to the host
-        let fut = match req {
-            ConnectRequest::Client(ref head, .., addr) => self.connector.call(ClientConnect {
-                uri: head.as_ref().uri.clone(),
-                addr,
-            }),
-            ConnectRequest::Tunnel(ref head, addr) => self.connector.call(ClientConnect {
-                uri: head.uri.clone(),
-                addr,
-            }),
+    fn call(&self, mut req: ConnectRequest) -> Self::Future {
+        let (target_uri, addr) = match req {
+            ConnectRequest::Client(ref head, .., addr) => (head.as_ref().uri.clone(), addr),
+            ConnectRequest::Tunnel(ref head, addr) => (head.uri.clone(), addr),
         };
+
+        let connect_uri = if let Some(proxy_uri) = self.proxy.proxy_for_uri(&target_uri) {
+            // Set the proxy flag on the request head so the encoder uses absolute-form URI
+            match req {
+                ConnectRequest::Client(ref mut head, ..) => match head {
+                    RequestHeadType::Owned(ref mut h) => h.set_proxy_request(true),
+                    RequestHeadType::Rc(_, _) => {
+                        log::warn!("Cannot set proxy flag on Rc<RequestHead>; request will use origin-form URI");
+                    }
+                },
+                ConnectRequest::Tunnel(..) => {}
+            }
+            proxy_uri.clone()
+        } else {
+            target_uri
+        };
+
+        let fut = self.connector.call(ClientConnect {
+            uri: connect_uri,
+            addr,
+        });
 
         ConnectRequestFuture::Connection {
             fut,

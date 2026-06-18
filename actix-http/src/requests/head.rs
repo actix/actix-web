@@ -144,6 +144,25 @@ impl RequestHead {
     pub(crate) fn set_expect(&mut self) {
         self.flags.insert(Flags::EXPECT);
     }
+
+    /// Returns whether this request should use absolute-form URI (for proxy requests).
+    #[inline]
+    pub fn is_proxy_request(&self) -> bool {
+        self.flags.contains(Flags::PROXY_REQUEST)
+    }
+
+    /// Sets whether this request should use absolute-form URI in the request line.
+    ///
+    /// When enabled, the full URI (including scheme and authority) is sent in the request line,
+    /// as required by HTTP/1.1 for requests to proxies (RFC 7230 section 5.3.2).
+    #[inline]
+    pub fn set_proxy_request(&mut self, val: bool) {
+        if val {
+            self.flags.insert(Flags::PROXY_REQUEST);
+        } else {
+            self.flags.remove(Flags::PROXY_REQUEST);
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]

@@ -11,7 +11,8 @@ use base64::prelude::*;
 
 use crate::{
     client::{
-        ClientConfig, ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection,
+        proxy::ProxyConfig, ClientConfig, ConnectInfo, Connector, ConnectorService,
+        TcpConnectError, TcpConnection,
     },
     connect::DefaultConnector,
     error::SendRequestError,
@@ -34,6 +35,7 @@ pub struct ClientBuilder<S = (), M = ()> {
     middleware: M,
     local_address: Option<IpAddr>,
     max_redirects: u8,
+    proxy: ProxyConfig,
 }
 
 impl ClientBuilder {
@@ -63,6 +65,7 @@ impl ClientBuilder {
             middleware: (),
             local_address: None,
             max_redirects: 10,
+            proxy: ProxyConfig::from_env(),
         }
     }
 }
@@ -93,6 +96,7 @@ where
             stream_window_size: self.stream_window_size,
             conn_window_size: self.conn_window_size,
             max_redirects: self.max_redirects,
+            proxy: self.proxy,
         }
     }
 
@@ -156,6 +160,22 @@ where
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_connection_window_size(mut self, size: u32) -> Self {
         self.conn_window_size = Some(size);
+        self
+    }
+
+    /// Set proxy configuration.
+    ///
+    /// By default, proxy settings are read from environment variables
+    /// (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`). Use this method to override with
+    /// an explicit configuration.
+    pub fn proxy(mut self, proxy: ProxyConfig) -> Self {
+        self.proxy = proxy;
+        self
+    }
+
+    /// Disable proxy usage, ignoring environment variables.
+    pub fn no_proxy(mut self) -> Self {
+        self.proxy = ProxyConfig::default();
         self
     }
 
@@ -245,6 +265,7 @@ where
             connector: self.connector,
             local_address: self.local_address,
             max_redirects: self.max_redirects,
+            proxy: self.proxy,
         }
     }
 
@@ -284,7 +305,7 @@ where
             connector = connector.local_address(val);
         }
 
-        let connector = DefaultConnector::new(connector.finish());
+        let connector = DefaultConnector::new(connector.finish()).with_proxy(self.proxy);
         let connector = boxed::rc_service(self.middleware.new_transform(connector));
 
         Client(ClientConfig {

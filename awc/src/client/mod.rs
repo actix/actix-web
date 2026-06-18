@@ -18,11 +18,13 @@ mod error;
 mod h1proto;
 mod h2proto;
 mod pool;
+pub(crate) mod proxy;
 
 pub use self::{
     connection::{Connection, ConnectionIo},
     connector::{Connector, ConnectorService},
     error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError},
+    proxy::ProxyConfig,
 };
 
 #[derive(Clone)]

@@ -138,7 +138,7 @@ pub mod http {
 pub use self::responses::{ClientResponse, JsonBody, MessageBody, ResponseBody};
 pub use self::{
     builder::ClientBuilder,
-    client::{Client, Connect, Connector},
+    client::{Client, Connect, Connector, ProxyConfig},
     connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse},
     frozen::{FrozenClientRequest, FrozenSendBuilder},
     request::ClientRequest,

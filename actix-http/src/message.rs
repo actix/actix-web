@@ -23,7 +23,8 @@ bitflags! {
         const UPGRADE     = 0b0000_0100;
         const EXPECT      = 0b0000_1000;
         const NO_CHUNKING = 0b0001_0000;
-        const CAMEL_CASE  = 0b0010_0000;
+        const CAMEL_CASE      = 0b0010_0000;
+        const PROXY_REQUEST   = 0b0100_0000;
     }
 }
 
