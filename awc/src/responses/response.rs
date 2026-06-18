@@ -8,7 +8,7 @@ use std::{
 
 use actix_http::{
     error::PayloadError, header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Payload,
-    ResponseHead, StatusCode, Version,
+    ResponseHead, StatusCode, Uri, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -64,6 +64,18 @@ impl<S> ClientResponse<S> {
     /// Returns request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
+    }
+
+    /// Returns the final URL of this response.
+    ///
+    /// When redirects are followed, this returns the URL of the final response (after all
+    /// redirects). Returns `None` if the redirect middleware was not used (e.g., redirects
+    /// were disabled).
+    pub fn url(&self) -> Option<Uri> {
+        self.extensions
+            .borrow()
+            .get::<super::FinalUrl>()
+            .map(|u| u.0.clone())
     }
 
     /// Map the current body type to another using a closure. Returns a new response.

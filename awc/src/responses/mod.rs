@@ -1,6 +1,6 @@
 use std::{future::Future, io, pin::Pin, task::Context};
 
-use actix_http::error::PayloadError;
+use actix_http::{error::PayloadError, Uri};
 use actix_rt::time::Sleep;
 
 mod json_body;
@@ -11,6 +11,9 @@ mod response_body;
 #[allow(deprecated)]
 pub use self::response_body::{MessageBody, ResponseBody};
 pub use self::{json_body::JsonBody, response::ClientResponse};
+
+/// Stores the final URL in response extensions after following redirects.
+pub(crate) struct FinalUrl(pub(crate) Uri);
 
 /// Default body size limit: 2 MiB
 const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;

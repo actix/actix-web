@@ -6,7 +6,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::{header, Method, RequestHead, RequestHeadType, StatusCode, Uri};
+use actix_http::{header, HttpMessage as _, Method, RequestHead, RequestHeadType, StatusCode, Uri};
 use actix_service::Service;
 use bytes::Bytes;
 use futures_core::ready;
@@ -16,6 +16,7 @@ use crate::{
     any_body::AnyBody,
     client::{InvalidUrl, SendRequestError},
     connect::{ConnectRequest, ConnectResponse},
+    responses::FinalUrl,
     ClientResponse,
 };
 
@@ -236,7 +237,12 @@ where
 
                         self.poll(cx)
                     }
-                    _ => Poll::Ready(Ok(ConnectResponse::Client(res))),
+                    _ => {
+                        if let Some(final_uri) = uri.take() {
+                            res.extensions_mut().insert(FinalUrl(final_uri));
+                        }
+                        Poll::Ready(Ok(ConnectResponse::Client(res)))
+                    }
                 },
                 _ => unreachable!("ConnectRequest::Tunnel is not handled by Redirect"),
             },
@@ -623,6 +629,52 @@ mod tests {
         let res = client.get(srv.url("/")).send().await.unwrap();
 
         assert_eq!(res.status().as_u16(), 400);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_final_url() {
+        let client = ClientBuilder::new().finish();
+
+        let srv = actix_test::start(|| {
+            App::new()
+                .service(web::resource("/final").route(web::to(|| async {
+                    Ok::<_, Error>(HttpResponse::Ok().body("done"))
+                })))
+                .service(web::resource("/").route(web::to(|| async {
+                    Ok::<_, Error>(
+                        HttpResponse::Found()
+                            .append_header(("location", "/final"))
+                            .finish(),
+                    )
+                })))
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+
+        let final_url = res.url().expect("final URL should be set after redirect");
+        assert_eq!(
+            final_url.path(),
+            "/final",
+            "final URL should be the redirected path"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_no_redirect_final_url() {
+        let client = ClientBuilder::new().finish();
+
+        let srv = actix_test::start(|| {
+            App::new().service(web::resource("/").route(web::to(|| async {
+                Ok::<_, Error>(HttpResponse::Ok().body("no redirect"))
+            })))
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+
+        let final_url = res.url().expect("final URL should be set even without redirect");
+        assert_eq!(final_url.path(), "/");
     }
 
     #[actix_rt::test]
