@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add support for HTTP and HTTPS proxies in `awc::Client`. Proxies can be configured explicitly via `ClientBuilder::proxy()` or automatically detected from `HTTP_PROXY` and `HTTPS_PROXY` environment variables.
 - Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`. [#3953]
 - Update `hickory-resolver` dependency to `0.26.1`.
 - Update `rand` dependency to `0.10`.

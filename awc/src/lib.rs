@@ -121,6 +121,7 @@ mod connect;
 pub mod error;
 mod frozen;
 pub mod middleware;
+pub mod proxy;
 mod request;
 mod responses;
 mod sender;
@@ -141,6 +142,7 @@ pub use self::{
     client::{Client, Connect, Connector},
     connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse},
     frozen::{FrozenClientRequest, FrozenSendBuilder},
+    proxy::Proxy,
     request::ClientRequest,
     sender::SendClientRequest,
 };

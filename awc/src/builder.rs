@@ -16,6 +16,7 @@ use crate::{
     connect::DefaultConnector,
     error::SendRequestError,
     middleware::{NestTransform, Redirect, Transform},
+    proxy::Proxy,
     Client, ConnectRequest, ConnectResponse,
 };
 
@@ -34,6 +35,10 @@ pub struct ClientBuilder<S = (), M = ()> {
     middleware: M,
     local_address: Option<IpAddr>,
     max_redirects: u8,
+    /// Explicit proxy configuration (overrides env-var detection when set).
+    proxy: Option<Proxy>,
+    /// When `true`, env-var proxy detection is disabled entirely.
+    disable_proxy: bool,
 }
 
 impl ClientBuilder {
@@ -63,6 +68,8 @@ impl ClientBuilder {
             middleware: (),
             local_address: None,
             max_redirects: 10,
+            proxy: None,
+            disable_proxy: false,
         }
     }
 }
@@ -93,6 +100,8 @@ where
             stream_window_size: self.stream_window_size,
             conn_window_size: self.conn_window_size,
             max_redirects: self.max_redirects,
+            proxy: self.proxy,
+            disable_proxy: self.disable_proxy,
         }
     }
 
@@ -138,6 +147,42 @@ where
     /// Max redirects is set to 10 by default.
     pub fn max_redirects(mut self, num: u8) -> Self {
         self.max_redirects = num;
+        self
+    }
+
+    /// Route all outgoing connections through `proxy`.
+    ///
+    /// Calling this method disables automatic environment-variable detection
+    /// for the lifetime of the client. To opt out of both explicit and
+    /// automatic proxies, call [`ClientBuilder::no_proxy`] instead.
+    ///
+    /// # Example
+    /// ```
+    /// use awc::{Client, proxy::Proxy};
+    ///
+    /// let client = Client::builder()
+    ///     .proxy(Proxy::new("http://proxy.corp.example:3128"))
+    ///     .finish();
+    /// ```
+    pub fn proxy(mut self, proxy: Proxy) -> Self {
+        self.proxy = Some(proxy);
+        // Explicit proxy overrides env detection.
+        self.disable_proxy = true;
+        self
+    }
+
+    /// Disable proxy support entirely, including automatic detection from the
+    /// `HTTP_PROXY` / `HTTPS_PROXY` environment variables.
+    ///
+    /// # Example
+    /// ```
+    /// use awc::Client;
+    ///
+    /// let client = Client::builder().no_proxy().finish();
+    /// ```
+    pub fn no_proxy(mut self) -> Self {
+        self.proxy = None;
+        self.disable_proxy = true;
         self
     }
 
@@ -245,6 +290,8 @@ where
             connector: self.connector,
             local_address: self.local_address,
             max_redirects: self.max_redirects,
+            proxy: self.proxy,
+            disable_proxy: self.disable_proxy,
         }
     }
 
@@ -284,7 +331,14 @@ where
             connector = connector.local_address(val);
         }
 
-        let connector = DefaultConnector::new(connector.finish());
+        // Resolve the proxy: explicit takes priority, then env-var auto-detection.
+        let proxy = if self.disable_proxy {
+            self.proxy
+        } else {
+            self.proxy.or_else(Proxy::from_env)
+        };
+
+        let connector = DefaultConnector::new(connector.finish(), proxy);
         let connector = boxed::rc_service(self.middleware.new_transform(connector));
 
         Client(ClientConfig {
