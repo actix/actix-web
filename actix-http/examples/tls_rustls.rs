@@ -43,11 +43,11 @@ async fn main() -> io::Result<()> {
 }
 
 fn rustls_config() -> rustls::ServerConfig {
-    let rcgen::CertifiedKey { cert, key_pair } =
+    let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
     let cert_chain = vec![cert.der().clone()];
     let key_der = rustls_pki_types::PrivateKeyDer::Pkcs8(
-        rustls_pki_types::PrivatePkcs8KeyDer::from(key_pair.serialize_der()),
+        rustls_pki_types::PrivatePkcs8KeyDer::from(signing_key.serialize_der()),
     );
 
     let mut config = rustls::ServerConfig::builder()
