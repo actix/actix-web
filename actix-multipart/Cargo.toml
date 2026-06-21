@@ -12,9 +12,14 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
+
+[[test]]
+name = "trybuild"
+required-features = ["derive", "tempfile"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
@@ -68,8 +73,10 @@ env_logger = "0.11"
 futures-test = "0.3"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 multer = "3"
+rustversion-msrv = "0.100"
 tokio = { version = "1.38.2", features = ["sync"] }
 tokio-stream = "0.1"
+trybuild = "1"
 
 [lints]
 workspace = true

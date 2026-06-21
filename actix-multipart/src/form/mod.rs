@@ -336,6 +336,107 @@ pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), 
 /// `multipart/related`, or non-multipart media types.
 ///
 /// Add a [`MultipartFormConfig`] to your app data to configure extraction.
+///
+/// # Basic Use
+///
+/// Each field type should implement the [`FieldReader`] trait:
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct ImageUpload {
+///     description: Text<String>,
+///     timestamp: Text<i64>,
+///     image: TempFile,
+/// }
+/// ```
+///
+/// # Optional and List Fields
+///
+/// You can also use [`Vec<T>`](Vec) and [`Option<T>`](Option) provided that `T: FieldReader`.
+///
+/// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
+/// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     category: Option<Text<String>>,
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Field Renaming
+///
+/// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(rename = "files[]")]
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Field Limits
+///
+/// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
+/// string is parsed using [`bytesize`].
+///
+/// Note: the form is also subject to the global limits configured using [`MultipartFormConfig`].
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(limit = "2 KiB")]
+///     description: Text<String>,
+///
+///     #[multipart(limit = "512 MiB")]
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Unknown Fields
+///
+/// By default fields with an unknown name are ignored. They can be rejected using the
+/// `#[multipart(deny_unknown_fields)]` attribute:
+///
+/// ```rust
+/// use actix_multipart::form::MultipartForm;
+///
+/// #[derive(MultipartForm)]
+/// #[multipart(deny_unknown_fields)]
+/// struct Form {}
+/// ```
+///
+/// # Duplicate Fields
+///
+/// The behaviour for when multiple fields with the same name are received can be changed using the
+/// `#[multipart(duplicate_field = "<behavior>")]` attribute:
+///
+/// - "ignore": (default) Extra fields are ignored. I.e., the first one is persisted.
+/// - "deny": A [`MultipartError::DuplicateField`] error response is returned.
+/// - "replace": Each field is processed, but only the last one is persisted.
+///
+/// Note that [`Vec`] fields will ignore this option.
+///
+/// ```rust
+/// use actix_multipart::form::MultipartForm;
+///
+/// #[derive(MultipartForm)]
+/// #[multipart(duplicate_field = "deny")]
+/// struct Form {}
+/// ```
+///
+/// [`bytesize`]: https://docs.rs/bytesize/2
+/// [`MultipartError::DuplicateField`]: crate::MultipartError::DuplicateField
 #[derive(Deref, DerefMut)]
 pub struct MultipartForm<T: MultipartCollect>(pub T);
 

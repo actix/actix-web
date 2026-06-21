@@ -165,27 +165,25 @@ dependencies = [
  "mime",
  "multer",
  "rand 0.10.1",
+ "rustversion-msrv",
  "serde",
  "serde_json",
  "serde_plain",
  "tempfile",
  "tokio",
  "tokio-stream",
+ "trybuild",
 ]
 
 [[package]]
 name = "actix-multipart-derive"
 version = "0.8.0"
 dependencies = [
- "actix-multipart",
- "actix-web",
  "bytesize",
  "darling",
  "proc-macro2",
  "quote",
- "rustversion-msrv",
  "syn",
- "trybuild",
 ]
 
 [[package]]
