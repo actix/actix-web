@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.14.0
+
 - Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]
 - Enable dual-stack IPv6 sockets on Windows when possible so that Actix-created listeners bound to `[::]` also accept IPv4 connections.
 - Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
