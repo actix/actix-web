@@ -1,6 +1,8 @@
 //! Multipart form derive macro for Actix Web.
 //!
-//! See [`macro@MultipartForm`] for usage examples.
+//! See [`actix_multipart::form::MultipartForm`] for usage examples.
+//!
+//! [`actix_multipart::form::MultipartForm`]: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartForm.html
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
@@ -49,103 +51,9 @@ struct ParsedField<'t> {
 /// Implements `MultipartCollect` for a struct so that it can be used with the `MultipartForm`
 /// extractor.
 ///
-/// # Basic Use
+/// See [`actix_multipart::form::MultipartForm`] for supported fields and attributes.
 ///
-/// Each field type should implement the `FieldReader` trait:
-///
-/// ```ignore
-/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
-///
-/// #[derive(MultipartForm)]
-/// struct ImageUpload {
-///     description: Text<String>,
-///     timestamp: Text<i64>,
-///     image: TempFile,
-/// }
-/// ```
-///
-/// # Optional and List Fields
-///
-/// You can also use `Vec<T>` and `Option<T>` provided that `T: FieldReader`.
-///
-/// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
-/// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
-///
-/// ```ignore
-/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
-///
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     category: Option<Text<String>>,
-///     files: Vec<TempFile>,
-/// }
-/// ```
-///
-/// # Field Renaming
-///
-/// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
-///
-/// ```ignore
-/// use actix_multipart::form::{tempfile::TempFile, MultipartForm};
-///
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     #[multipart(rename = "files[]")]
-///     files: Vec<TempFile>,
-/// }
-/// ```
-///
-/// # Field Limits
-///
-/// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
-/// string is parsed using [`bytesize`].
-///
-/// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
-///
-/// ```ignore
-/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
-///
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     #[multipart(limit = "2 KiB")]
-///     description: Text<String>,
-///
-///     #[multipart(limit = "512 MiB")]
-///     files: Vec<TempFile>,
-/// }
-/// ```
-///
-/// # Unknown Fields
-///
-/// By default fields with an unknown name are ignored. They can be rejected using the
-/// `#[multipart(deny_unknown_fields)]` attribute:
-///
-/// ```ignore
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// #[multipart(deny_unknown_fields)]
-/// struct Form { }
-/// ```
-///
-/// # Duplicate Fields
-///
-/// The behaviour for when multiple fields with the same name are received can be changed using the
-/// `#[multipart(duplicate_field = "<behavior>")]` attribute:
-///
-/// - "ignore": (default) Extra fields are ignored. I.e., the first one is persisted.
-/// - "deny": A `MultipartError::UnknownField` error response is returned.
-/// - "replace": Each field is processed, but only the last one is persisted.
-///
-/// Note that `Vec` fields will ignore this option.
-///
-/// ```ignore
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// #[multipart(duplicate_field = "deny")]
-/// struct Form { }
-/// ```
-///
-/// [`bytesize`]: https://docs.rs/bytesize/2
+/// [`actix_multipart::form::MultipartForm`]: https://docs.rs/actix-multipart/latest/actix_multipart/form/struct.MultipartForm.html
 #[proc_macro_derive(MultipartForm, attributes(multipart))]
 pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
