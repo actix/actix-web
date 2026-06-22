@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.13.1
+
+- Fix HTTP/1 WebSocket upgrade responses being overwritten with `Connection: close` when the upgraded request payload remains open. [#4115]
+
+[#4115]: https://github.com/actix/actix-web/issues/4115
+
 ## 3.13.0
 
 - When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]

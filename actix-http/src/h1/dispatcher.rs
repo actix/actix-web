@@ -451,7 +451,7 @@ where
         mut res: Response<()>,
         body: B,
     ) -> Result<(), DispatchError> {
-        let close_after_response = {
+        let close_after_response = !res.upgrade() && {
             let this = self.as_mut().project();
             should_close_after_response(this.payload.as_ref(), *this.payload_drainable)
         };
@@ -492,7 +492,7 @@ where
         mut res: Response<()>,
         body: BoxBody,
     ) -> Result<(), DispatchError> {
-        let close_after_response = {
+        let close_after_response = !res.upgrade() && {
             let this = self.as_mut().project();
             should_close_after_response(this.payload.as_ref(), *this.payload_drainable)
         };
