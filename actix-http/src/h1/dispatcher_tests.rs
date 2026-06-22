@@ -228,6 +228,17 @@ fn ready_chunk_body_service(
     })
 }
 
+fn upgrade_response_service(
+) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
+    fn_service(|_req: Request| {
+        ready(Ok::<_, Error>(
+            Response::build(StatusCode::SWITCHING_PROTOCOLS)
+                .upgrade("websocket")
+                .finish(),
+        ))
+    })
+}
+
 #[actix_rt::test]
 async fn late_request() {
     let mut buf = TestBuffer::empty();
@@ -1129,6 +1140,64 @@ async fn upgrade_handling() {
 
         // polls: manual shutdown
         assert_eq!(h1.poll_count, 2);
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn upgrade_response_does_not_close_unfinished_payload() {
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET /ws HTTP/1.1
+        Connection: Upgrade
+        Upgrade: websocket
+        Sec-WebSocket-Version: 13
+        Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        upgrade_response_service(),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 101 Switching Protocols
+            connection: upgrade
+            upgrade: websocket
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
     })
     .await;
 }
