@@ -6,7 +6,7 @@ use crate::{HttpResponse, ResponseError};
 
 /// General purpose Actix Web error.
 ///
-/// An Actix Web error is used to carry errors from `std::error` through actix in a convenient way.
+/// An Actix Web error is used to carry errors from `std::error` through Actix in a convenient way.
 /// It can be created through converting errors with `into()`.
 ///
 /// Whenever it is created from an external object a response error is created for it that can be
@@ -14,6 +14,7 @@ use crate::{HttpResponse, ResponseError};
 /// you can always get a `ResponseError` reference from it.
 pub struct Error {
     cause: Box<dyn ResponseError>,
+    response_mappers: Vec<Box<dyn Fn(HttpResponse) -> HttpResponse>>,
 }
 
 impl Error {
@@ -29,7 +30,20 @@ impl Error {
 
     /// Shortcut for creating an `HttpResponse`.
     pub fn error_response(&self) -> HttpResponse {
-        self.cause.error_response()
+        let mut res = self.cause.error_response();
+
+        for mapper in &self.response_mappers {
+            res = (mapper)(res);
+        }
+
+        res
+    }
+
+    pub fn add_mapper<F, B>(&mut self, mapper: F)
+    where
+        F: Fn(HttpResponse) -> HttpResponse + 'static,
+    {
+        self.response_mappers.push(Box::new(mapper))
     }
 }
 
@@ -56,6 +70,7 @@ impl<T: ResponseError + 'static> From<T> for Error {
     fn from(err: T) -> Error {
         Error {
             cause: Box::new(err),
+            response_mappers: Vec::new(),
         }
     }
 }
