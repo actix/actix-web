@@ -2,7 +2,8 @@
 
 name: Labeler
 
-on:
+# This is for labeling, permissions are restricted.
+on: # zizmor: ignore[dangerous-triggers]
   pull_request_target:
     types: [opened, synchronize, reopened]
 
