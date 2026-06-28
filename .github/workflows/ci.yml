@@ -76,11 +76,12 @@ jobs:
         if: matrix.version.name == 'msrv'
         run: just downgrade-for-msrv
 
-      - name: check minimal
-        run: just check-min
+      - parallel:
+          - name: check minimal
+            run: just check-min
 
-      - name: check default
-        run: just check-default
+          - name: check default
+            run: just check-default
 
       - name: tests
         timeout-minutes: 30
