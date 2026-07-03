@@ -73,9 +73,9 @@ test-coverage:
     cargo {{ toolchain }} llvm-cov nextest --no-tests=warn --no-report {{ all_crate_features }}
     cargo {{ toolchain }} llvm-cov --doc --no-report {{ all_crate_features }}
 
-# Test workspace and generate Codecov report.
-test-coverage-codecov: test-coverage
-    cargo {{ toolchain }} llvm-cov report --doctests --codecov --output-path=codecov.json
+# Test workspace and generate Cobertura report.
+test-coverage-cobertura: test-coverage
+    cargo {{ toolchain }} llvm-cov report --doctests --cobertura --output-path=cobertura.xml
 
 # Test workspace and generate LCOV report.
 test-coverage-lcov: test-coverage
