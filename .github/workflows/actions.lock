@@ -43,6 +43,8 @@ dependencies:
         commit: 'sha1-166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         owner_id: 103899579
         repo_id: 482610590
+        uses:
+            - 'swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4'
     'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae':
         ref: 'v5.0.5'
         commit: 'sha1-27d5ce7f107fe9357f9df03efb73ab90386fccae'
@@ -95,6 +97,11 @@ dependencies:
         commit: 'sha1-9c9c13bf4c3f1adef0cc596abc155580bcb04444'
         owner_id: 47400
         repo_id: 479867630
+    'swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4':
+        ref: 'v2.9.1'
+        commit: 'sha1-c19371144df3bb44fab255c43d04cbc2ab54d1c4'
+        owner_id: 580492
+        repo_id: 298565987
     'taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7':
         ref: '417450f3c33ee20393705369577571770643d4c7'
         commit: 'sha1-417450f3c33ee20393705369577571770643d4c7'
