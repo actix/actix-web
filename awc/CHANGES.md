@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `Client::query()` for constructing HTTP `QUERY` requests (RFC 10008).
 - Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`. [#3953]
 - Update `hickory-resolver` dependency to `0.26.1`.
 - Update `rand` dependency to `0.10`.
