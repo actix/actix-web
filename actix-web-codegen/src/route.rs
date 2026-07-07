@@ -101,6 +101,7 @@ standard_method_type! {
     Options,   OPTIONS, options,
     Trace,     TRACE,   trace,
     Patch,     PATCH,   patch,
+    Query,     QUERY,   query,
 }
 
 impl TryFrom<&syn::LitStr> for MethodType {

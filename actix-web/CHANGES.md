@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add support for the HTTP `QUERY` method (RFC 10008): `web::query()`, `guard::Query()`, `Resource::query()`, and `TestRequest::query()`.
+
 ## 4.14.0
 
 - Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]

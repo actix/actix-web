@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `#[query]` macro for routing the HTTP `QUERY` method (RFC 10008).
 - Minimum supported Rust version (MSRV) is now 1.88.
 
 ## 4.3.0

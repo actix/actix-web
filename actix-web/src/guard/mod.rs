@@ -425,6 +425,9 @@ impl Guard for MethodGuard {
 
 macro_rules! method_guard {
     ($method_fn:ident, $method_const:ident) => {
+        method_guard!($method_fn, $method_const, HttpMethod::$method_const);
+    };
+    ($method_fn:ident, $method_const:ident, $method:expr) => {
         #[doc = concat!("Creates a guard that matches the `", stringify!($method_const), "` request method.")]
         ///
         /// # Examples
@@ -438,7 +441,7 @@ macro_rules! method_guard {
         /// ```
         #[allow(non_snake_case)]
         pub fn $method_fn() -> impl Guard {
-            MethodGuard(HttpMethod::$method_const)
+            MethodGuard($method)
         }
     };
 }
@@ -452,6 +455,9 @@ method_guard!(Options, OPTIONS);
 method_guard!(Connect, CONNECT);
 method_guard!(Patch, PATCH);
 method_guard!(Trace, TRACE);
+// `QUERY` (RFC 10008) is a safe, idempotent method that carries a request body.
+// TODO: replace with `HttpMethod::QUERY` once the `http` dependency is bumped (see #3384).
+method_guard!(Query, QUERY, HttpMethod::from_bytes(b"QUERY").unwrap());
 
 /// Creates a guard that matches if request contains given header name and value.
 ///
@@ -542,6 +548,10 @@ mod tests {
         let req = TestRequest::patch().to_srv_request();
         assert!(Patch().check(&req.guard_ctx()));
         assert!(!Patch().check(&get_req.guard_ctx()));
+
+        let req = TestRequest::query().to_srv_request();
+        assert!(Query().check(&req.guard_ctx()));
+        assert!(!Query().check(&get_req.guard_ctx()));
 
         let r = TestRequest::delete().to_srv_request();
         assert!(Delete().check(&r.guard_ctx()));

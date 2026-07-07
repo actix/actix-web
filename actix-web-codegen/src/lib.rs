@@ -21,7 +21,8 @@
 //! There is a macro to set up a handler for each of the most common HTTP methods that also define
 //! additional guards and route-specific middleware.
 //!
-//! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
+//! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE],
+//! [QUERY]
 //!
 //! ```
 //! # use actix_web::HttpResponse;
@@ -71,6 +72,7 @@
 //! [TRACE]: macro@trace
 //! [PATCH]: macro@patch
 //! [DELETE]: macro@delete
+//! [QUERY]: macro@query
 
 #![recursion_limit = "512"]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
@@ -195,6 +197,7 @@ method_macro!(Connect, connect);
 method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
+method_macro!(Query, query);
 
 /// Prepends a path prefix to all handlers using routing macros inside the attached module.
 ///
