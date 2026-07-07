@@ -111,6 +111,14 @@ impl TestRequest {
         TestRequest::default().method(Method::PATCH)
     }
 
+    /// Constructs test request with QUERY method.
+    ///
+    /// `QUERY` (RFC 10008) is safe and idempotent like `GET`, but carries a request body.
+    // TODO: use `Method::QUERY` once the `http` dependency is bumped (see #3384).
+    pub fn query() -> TestRequest {
+        TestRequest::default().method(Method::from_bytes(b"QUERY").unwrap())
+    }
+
     /// Constructs test request with DELETE method.
     pub fn delete() -> TestRequest {
         TestRequest::default().method(Method::DELETE)

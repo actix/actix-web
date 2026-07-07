@@ -810,6 +810,32 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
+    #[actix_rt::test]
+    async fn test_query_method() {
+        let srv = init_service(
+            App::new().service(web::resource("/test").route(web::query().to(HttpResponse::Ok))),
+        )
+        .await;
+
+        // a QUERY request is routed to the `web::query()` handler
+        let req = TestRequest::with_uri("/test")
+            .method(Method::from_bytes(b"QUERY").unwrap())
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // any other method is rejected with `405 Method Not Allowed`
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.headers().get(header::ALLOW).unwrap().as_bytes(),
+            b"QUERY"
+        );
+    }
+
     // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
     #[actix_rt::test]
