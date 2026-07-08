@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add support for the HTTP `QUERY` method (RFC 10008): `web::query()`, `guard::Query()`, `Resource::query()`, and `TestRequest::query()`.
+- Add support for the HTTP `QUERY` method (RFC 10008): `web::query()`, `guard::Query()`, `Resource::query()`, and `TestRequest::query()`. [#4140]
+
+[#4140]: https://github.com/actix/actix-web/pull/4140
 
 ## 4.14.0
 
