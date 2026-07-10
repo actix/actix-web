@@ -422,7 +422,7 @@ async fn main() {
 
 ## Guards API
 
-Implementors of routing guards will need to use the modified interface of the `Guard` trait. The API is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
+Implementers of routing guards will need to use the modified interface of the `Guard` trait. The API is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
 
 ```diff
   struct MethodGuard(HttpMethod);
