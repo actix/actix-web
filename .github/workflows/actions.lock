@@ -10,19 +10,19 @@ workflows:
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d'
+        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
         - 'embarkstudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d'
+        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
         - 'codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f'
-        - 'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d'
+        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
     '.github/workflows/labeler.yml':
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
         - 'actions/labeler@f27b608878404679385c85cfa523b85ccb86e213'
@@ -31,15 +31,15 @@ workflows:
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
         - 'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0'
         - 'taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7'
-        - 'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d'
+        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
         - 'zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        - 'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d'
+        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659':
-        ref: 'v1.17.0'
+        ref: '166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         commit: 'sha1-166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         owner_id: 103899579
         repo_id: 482610590
@@ -109,9 +109,9 @@ dependencies:
         repo_id: 588643148
         uses:
             - 'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae'
-    'taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d':
-        ref: 'v2.82.5'
-        commit: 'sha1-bffeee26d4db9be238a4ea78d8826604ebcb594d'
+    'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3':
+        ref: 'v2.82.9'
+        commit: 'sha1-4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
         owner_id: 43724913
         repo_id: 442947557
     'zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa':
