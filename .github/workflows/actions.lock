@@ -25,7 +25,7 @@ workflows:
         - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
     '.github/workflows/labeler.yml':
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        - 'actions/labeler@f27b608878404679385c85cfa523b85ccb86e213'
+        - 'actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d'
     '.github/workflows/lint.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
@@ -60,9 +60,9 @@ dependencies:
         commit: 'sha1-ed597411d8f924073f98dfc5c65a23a2325f34cd'
         owner_id: 44036562
         repo_id: 205262760
-    'actions/labeler@f27b608878404679385c85cfa523b85ccb86e213':
-        ref: 'v6.1.0'
-        commit: 'sha1-f27b608878404679385c85cfa523b85ccb86e213'
+    'actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d':
+        ref: 'v6.2.0'
+        commit: 'sha1-b8dd2d9be0f68b860e7dae5dae7d772984eacd6d'
         owner_id: 44036562
         repo_id: 177139928
     'codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f':
