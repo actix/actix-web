@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent. [#2979]
+
+[#2979]: https://github.com/actix/actix-web/pull/2979
+
 ## 4.14.1
 
 - Close idle HTTP/1 keep-alive connections during graceful shutdown and let active connections finish only their current request before closing.
