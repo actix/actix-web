@@ -65,6 +65,24 @@ async fn h1_2() {
     srv.stop().await;
 }
 
+#[actix_rt::test]
+async fn h1_query() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                ok::<_, Infallible>(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    let response = srv.query("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    srv.stop().await;
+}
+
 #[derive(Debug, Display, Error)]
 #[display("expect failed")]
 struct ExpectFailed;

@@ -292,6 +292,24 @@ async fn test_head_binary() {
 }
 
 #[actix_rt::test]
+async fn test_query_method() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::query().to(|body: Bytes| async { HttpResponse::Ok().body(body) })),
+        )
+    });
+
+    let mut res = srv.query("/").send_body("query body").await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"query body"));
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
 async fn test_no_chunking() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || async {
