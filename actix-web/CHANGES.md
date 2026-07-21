@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent. [#2979]
+
+[#2979]: https://github.com/actix/actix-web/pull/2979
+
 ## 4.14.0
 
 - Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]
