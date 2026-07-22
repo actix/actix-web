@@ -11,7 +11,7 @@ use actix_web::{
     web, App, Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_web_codegen::{
-    connect, delete, get, head, options, patch, post, put, route, routes, trace,
+    connect, delete, get, head, options, patch, post, put, query, route, routes, trace,
 };
 use futures_core::future::LocalBoxFuture;
 
@@ -33,6 +33,11 @@ async fn put_test() -> impl Responder {
 
 #[patch("/test")]
 async fn patch_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[query("/test")]
+async fn query_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -258,6 +263,7 @@ async fn test_body() {
             .service(options_test)
             .service(trace_test)
             .service(patch_test)
+            .service(query_test)
             .service(test_handler)
             .service(route_test)
             .service(routes_overlapping_test)
@@ -287,6 +293,13 @@ async fn test_body() {
     assert!(response.status().is_success());
 
     let request = srv.request(http::Method::PATCH, srv.url("/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(
+        http::Method::from_bytes(b"QUERY").unwrap(),
+        srv.url("/test"),
+    );
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 

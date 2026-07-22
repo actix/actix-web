@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+- Add `#[query]` macro for routing the HTTP `QUERY` method (RFC 10008). [#4140]
 - Minimum supported Rust version (MSRV) is now 1.88.
+
+[#4140]: https://github.com/actix/actix-web/pull/4140
 
 ## 4.3.0
 

@@ -371,6 +371,7 @@ mod tests {
                 web::resource("/index.html")
                     .route(web::put().to(|| HttpResponse::Ok().body("put!")))
                     .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
+                    .route(web::query().to(|| HttpResponse::Ok().body("query!")))
                     .route(web::delete().to(|| HttpResponse::Ok().body("delete!"))),
             ),
         )
@@ -392,9 +393,40 @@ mod tests {
         let result = call_and_read_body(&app, patch_req).await;
         assert_eq!(result, Bytes::from_static(b"patch!"));
 
+        let query_req = TestRequest::query()
+            .uri("/index.html")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
+            .to_request();
+
+        let result = call_and_read_body(&app, query_req).await;
+        assert_eq!(result, Bytes::from_static(b"query!"));
+
         let delete_req = TestRequest::delete().uri("/index.html").to_request();
         let result = call_and_read_body(&app, delete_req).await;
         assert_eq!(result, Bytes::from_static(b"delete!"));
+    }
+
+    // `QUERY` is safe and idempotent like `GET`, but (like `POST`) carries a request body;
+    // this proves body extractors work for `QUERY` handlers. See RFC 10008.
+    #[actix_rt::test]
+    async fn test_query_carries_json_body() {
+        let app =
+            init_service(App::new().service(web::resource("/people").route(
+                web::query().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
+            )))
+            .await;
+
+        let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+
+        let req = TestRequest::query()
+            .uri("/people")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
+            .set_payload(payload)
+            .to_request();
+
+        let result: Person = call_and_read_body_json(&app, req).await;
+        assert_eq!(result.id, "12345");
+        assert_eq!(result.name, "User name");
     }
 
     #[derive(Serialize, Deserialize, Debug)]

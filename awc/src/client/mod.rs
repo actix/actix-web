@@ -181,6 +181,16 @@ impl Client {
         self.request(Method::OPTIONS, url)
     }
 
+    /// Construct HTTP *QUERY* request.
+    // TODO: use `Method::QUERY` once the `http` dependency is bumped (see #3384).
+    pub fn query<U>(&self, url: U) -> ClientRequest
+    where
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
+    {
+        self.request(Method::from_bytes(b"QUERY").unwrap(), url)
+    }
+
     /// Initialize a WebSocket connection.
     /// Returns a WebSocket connection builder.
     pub fn ws<U>(&self, url: U) -> ws::WebsocketsRequest
@@ -201,5 +211,16 @@ impl Client {
     /// (No other clone of client exists at the same time).
     pub fn headers(&mut self) -> Option<&mut HeaderMap> {
         Rc::get_mut(&mut self.0.default_headers)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn client_query_builds_query_request() {
+        let req = Client::new().query("/");
+        assert_eq!(req.get_method().as_str(), "QUERY");
     }
 }
