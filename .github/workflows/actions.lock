@@ -4,39 +4,39 @@
 version: 'v0.0.2'
 workflows:
     '.github/workflows/bench.yml':
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
     '.github/workflows/ci-post-merge.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
+        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        - 'embarkstudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
+        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f'
-        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
+        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
     '.github/workflows/labeler.yml':
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        - 'actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
     '.github/workflows/lint.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0'
         - 'taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7'
-        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
-        - 'zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa'
+        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
+        - 'zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
-        - 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        - 'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659':
         ref: '166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
@@ -50,9 +50,9 @@ dependencies:
         commit: 'sha1-27d5ce7f107fe9357f9df03efb73ab90386fccae'
         owner_id: 44036562
         repo_id: 215566462
-    'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0':
-        ref: '9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
-        commit: 'sha1-9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'
+    'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1':
+        ref: 'v7.0.1'
+        commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
     'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd':
@@ -60,9 +60,9 @@ dependencies:
         commit: 'sha1-ed597411d8f924073f98dfc5c65a23a2325f34cd'
         owner_id: 44036562
         repo_id: 205262760
-    'actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d':
-        ref: 'v6.2.0'
-        commit: 'sha1-b8dd2d9be0f68b860e7dae5dae7d772984eacd6d'
+    'actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13':
+        ref: 'v7.0.0'
+        commit: 'sha1-bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
         owner_id: 44036562
         repo_id: 177139928
     'codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f':
@@ -72,9 +72,9 @@ dependencies:
         repo_id: 200299178
         uses:
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'embarkstudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe':
-        ref: 'bb137d7af7e4fb67e5f82a49c4fce4fad40782fe'
-        commit: 'sha1-bb137d7af7e4fb67e5f82a49c4fce4fad40782fe'
+    'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25':
+        ref: 'v2.1.1'
+        commit: 'sha1-3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         owner_id: 44887257
         repo_id: 228054692
     'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0':
@@ -82,9 +82,9 @@ dependencies:
         commit: 'sha1-13b9d32482f25d29ead141b79e7e04e7900281e0'
         owner_id: 17407489
         repo_id: 560300269
-    'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e':
-        ref: 'v4.36.2'
-        commit: 'sha1-8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
+    'github/codeql-action@99df26d4f13ea111d4ec1a7dddef6063f76b97e9':
+        ref: 'v4.37.0'
+        commit: 'sha1-99df26d4f13ea111d4ec1a7dddef6063f76b97e9'
         owner_id: 9919
         repo_id: 259445878
     'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b':
@@ -109,15 +109,15 @@ dependencies:
         repo_id: 588643148
         uses:
             - 'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae'
-    'taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3':
-        ref: 'v2.82.9'
-        commit: 'sha1-4684b8405694ae9dd42c9f39ba901a70ae83f4a3'
+    'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7':
+        ref: 'v2.85.0'
+        commit: 'sha1-7572810d7dd469b651bb7793945692cf78da5dd7'
         owner_id: 43724913
         repo_id: 442947557
-    'zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa':
-        ref: '192e21d79ab29983730a13d1382995c2307fbcaa'
-        commit: 'sha1-192e21d79ab29983730a13d1382995c2307fbcaa'
+    'zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5':
+        ref: 'v0.6.1'
+        commit: 'sha1-6fc4b006235f201fdab3722e17240ab420d580e5'
         owner_id: 210636713
         repo_id: 985558803
         uses:
-            - 'github/codeql-action@8aad20d150bbac5944a9f9d289da16a4b0d87c1e'
+            - 'github/codeql-action@99df26d4f13ea111d4ec1a7dddef6063f76b97e9'
