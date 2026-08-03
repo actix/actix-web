@@ -63,6 +63,11 @@ bitflags! {
         const LINGER           = 0b0100_0000;
 
         /// Set when the server is draining this connection during graceful shutdown.
+        ///
+        /// Unlike [`SHUTDOWN`](Self::SHUTDOWN), this state continues polling the current request
+        /// and response. It prevents queued requests from starting and transitions to `SHUTDOWN`
+        /// after the current response finishes. [`LINGER`](Self::LINGER) remains separate and is
+        /// used only to close cleanly after a response to an unread request payload.
         const DRAINING         = 0b1000_0000;
     }
 }
@@ -462,7 +467,10 @@ where
             (
                 this.flags.contains(Flags::DRAINING),
                 !is_upgrade
-                    && should_close_after_response(this.payload.as_ref(), *this.payload_drainable),
+                    && should_close_for_unread_payload(
+                        this.payload.as_ref(),
+                        *this.payload_drainable,
+                    ),
             )
         };
         let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
@@ -509,7 +517,10 @@ where
             (
                 this.flags.contains(Flags::DRAINING),
                 !is_upgrade
-                    && should_close_after_response(this.payload.as_ref(), *this.payload_drainable),
+                    && should_close_for_unread_payload(
+                        this.payload.as_ref(),
+                        *this.payload_drainable,
+                    ),
             )
         };
         let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
@@ -653,7 +664,7 @@ where
                                 // this.payload was the payload for the request we just finished
                                 // responding to. We can check to see if we finished reading it
                                 // yet, and if not, shutdown the connection.
-                                let close_after_response = should_close_after_response(
+                                let close_for_unread_payload = should_close_for_unread_payload(
                                     this.payload.as_ref(),
                                     *this.payload_drainable,
                                 );
@@ -663,7 +674,7 @@ where
                                 // set state to None and handle next message
                                 this.state.set(State::None);
 
-                                if not_pipelined && close_after_response {
+                                if not_pipelined && close_for_unread_payload {
                                     if this.config.client_disconnect_deadline().is_some() {
                                         Self::enter_linger(this.flags);
                                     } else {
@@ -711,7 +722,7 @@ where
                                 // this.payload was the payload for the request we just finished
                                 // responding to. We can check to see if we finished reading it
                                 // yet, and if not, shutdown the connection.
-                                let close_after_response = should_close_after_response(
+                                let close_for_unread_payload = should_close_for_unread_payload(
                                     this.payload.as_ref(),
                                     *this.payload_drainable,
                                 );
@@ -721,7 +732,7 @@ where
                                 // set state to None and handle next message
                                 this.state.set(State::None);
 
-                                if not_pipelined && close_after_response {
+                                if not_pipelined && close_for_unread_payload {
                                     if this.config.client_disconnect_deadline().is_some() {
                                         Self::enter_linger(this.flags);
                                     } else {
@@ -1456,7 +1467,10 @@ where
     }
 }
 
-fn should_close_after_response(payload: Option<&PayloadSender>, payload_drainable: bool) -> bool {
+fn should_close_for_unread_payload(
+    payload: Option<&PayloadSender>,
+    payload_drainable: bool,
+) -> bool {
     let payload_unfinished = payload.is_some();
     let drain_payload = payload.is_some_and(|pl| pl.is_dropped()) && payload_drainable;
 
