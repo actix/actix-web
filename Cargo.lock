@@ -229,7 +229,7 @@ dependencies = [
 [[package]]
 name = "actix-server"
 version = "2.6.0"
-source = "git+https://github.com/actix/actix-net.git?rev=f0708caa1063f6d36471046848f29821f51f1724#f0708caa1063f6d36471046848f29821f51f1724"
+source = "git+https://github.com/actix/actix-net.git?branch=fix%2Fgraceful-http1-shutdown#a50fc23b85c6dd0c2cad3a8a32d1e1cb286c8210"
 dependencies = [
  "actix-rt",
  "actix-service",
