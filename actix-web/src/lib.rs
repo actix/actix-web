@@ -44,7 +44,7 @@
 //!
 //! # Features
 //! - Supports HTTP/1.x and HTTP/2
-//! - Streaming and pipelining
+//! - Streaming
 //! - Powerful [request routing](https://actix.rs/docs/url-dispatch/) with optional macros
 //! - Full [Tokio](https://tokio.rs) compatibility
 //! - Keep-alive and slow requests handling

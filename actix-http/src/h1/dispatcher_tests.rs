@@ -646,7 +646,7 @@ async fn req_parse_err() {
 }
 
 #[actix_rt::test]
-async fn pipelining_ok_then_ok() {
+async fn subsequent_requests_remain_buffered() {
     lazy(|cx| {
         let buf = TestBuffer::new(
             "\
@@ -654,63 +654,29 @@ async fn pipelining_ok_then_ok() {
                 GET /def HTTP/1.1\r\n\r\n\
                 ",
         );
-
         let cfg = ServiceConfig::new(
-            KeepAlive::Disabled,
+            KeepAlive::Timeout(Duration::from_millis(1)),
             Duration::from_millis(1),
             Duration::from_millis(1),
             false,
             None,
         );
-
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
         let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
-            buf.clone(),
+            buf,
             services,
             cfg,
             None,
             OnConnectData::default(),
         );
-
         pin!(h1);
 
-        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+        assert!(h1.as_mut().poll(cx).is_pending());
 
-        match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
-            Poll::Ready(res) => assert!(res.is_ok()),
+        if let DispatcherStateProj::Normal { inner } = h1.project().inner.project() {
+            assert_eq!(&inner.read_buf[..], b"GET /def HTTP/1.1\r\n\r\n");
         }
-
-        // polls: initial => shutdown
-        assert_eq!(h1.poll_count, 2);
-
-        let mut res = buf.write_buf_slice_mut();
-        stabilize_date_header(&mut res);
-        let res = &res[..];
-
-        let exp = b"\
-                HTTP/1.1 200 OK\r\n\
-                content-length: 5\r\n\
-                connection: close\r\n\
-                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                /abcd\
-                HTTP/1.1 200 OK\r\n\
-                content-length: 4\r\n\
-                connection: close\r\n\
-                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                /def\
-                ";
-
-        assert_eq!(
-            res,
-            exp,
-            "\nexpected response not in write buffer:\n\
-               response: {:?}\n\
-               expected: {:?}",
-            String::from_utf8_lossy(res),
-            String::from_utf8_lossy(exp)
-        );
     })
     .await;
 }
@@ -912,75 +878,6 @@ async fn lingering_timeout_uses_graceful_shutdown() {
         String::from_utf8_lossy(res),
         String::from_utf8_lossy(exp)
     );
-}
-
-#[actix_rt::test]
-async fn pipelining_ok_then_bad() {
-    lazy(|cx| {
-        let buf = TestBuffer::new(
-            "\
-                GET /abcd HTTP/1.1\r\n\r\n\
-                GET /def HTTP/1\r\n\r\n\
-                ",
-        );
-
-        let cfg = ServiceConfig::new(
-            KeepAlive::Disabled,
-            Duration::from_millis(1),
-            Duration::from_millis(1),
-            false,
-            None,
-        );
-
-        let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
-
-        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
-            buf.clone(),
-            services,
-            cfg,
-            None,
-            OnConnectData::default(),
-        );
-
-        pin!(h1);
-
-        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
-
-        match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
-            Poll::Ready(res) => assert!(res.is_err()),
-        }
-
-        // polls: initial => shutdown
-        assert_eq!(h1.poll_count, 1);
-
-        let mut res = buf.write_buf_slice_mut();
-        stabilize_date_header(&mut res);
-        let res = &res[..];
-
-        let exp = b"\
-                HTTP/1.1 200 OK\r\n\
-                content-length: 5\r\n\
-                connection: close\r\n\
-                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                /abcd\
-                HTTP/1.1 400 Bad Request\r\n\
-                content-length: 0\r\n\
-                connection: close\r\n\
-                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                ";
-
-        assert_eq!(
-            res,
-            exp,
-            "\nexpected response not in write buffer:\n\
-               response: {:?}\n\
-               expected: {:?}",
-            String::from_utf8_lossy(res),
-            String::from_utf8_lossy(exp)
-        );
-    })
-    .await;
 }
 
 #[actix_rt::test]

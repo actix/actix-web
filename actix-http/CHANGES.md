@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove HTTP/1.x request pipelining.
+
 ## 3.13.3
 
 - Close idle HTTP/1 keep-alive connections during graceful server shutdown and close active connections after their current request finishes.

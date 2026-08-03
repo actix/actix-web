@@ -1,5 +1,4 @@
 use std::{
-    collections::VecDeque,
     fmt,
     future::Future,
     io, mem, net,
@@ -36,7 +35,6 @@ use crate::{
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
-const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -65,7 +63,7 @@ bitflags! {
         /// Set when the server is draining this connection during graceful shutdown.
         ///
         /// Unlike [`SHUTDOWN`](Self::SHUTDOWN), this state continues polling the current request
-        /// and response. It prevents queued requests from starting and transitions to `SHUTDOWN`
+        /// and response. It prevents buffered requests from starting and transitions to `SHUTDOWN`
         /// after the current response finishes. [`LINGER`](Self::LINGER) remains separate and is
         /// used only to close cleanly after a response to an unread request payload.
         const DRAINING         = 0b1000_0000;
@@ -170,7 +168,8 @@ pin_project! {
         payload: Option<PayloadSender>,
         // true when current request uses chunked transfer encoding (drainable when payload is dropped)
         payload_drainable: bool,
-        messages: VecDeque<DispatcherMessage>,
+        upgrade: Option<Request>,
+        error_response: Option<Response<()>>,
 
         head_timer: TimerState,
         ka_timer: TimerState,
@@ -178,17 +177,11 @@ pin_project! {
         graceful_shutdown: Option<crate::config::GracefulShutdownFuture>,
 
         pub(super) io: Option<T>,
-        read_buf: BytesMut,
+        pub(super) read_buf: BytesMut,
         write_buf: BytesMut,
         h1_write_buffer_size: usize,
         codec: Codec,
     }
-}
-
-enum DispatcherMessage {
-    Item(Request),
-    Upgrade(Request),
-    Error(Response<()>),
 }
 
 pin_project! {
@@ -285,7 +278,8 @@ where
                     state: State::None,
                     payload: None,
                     payload_drainable: false,
-                    messages: VecDeque::new(),
+                    upgrade: None,
+                    error_response: None,
 
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
                     ka_timer: TimerState::new(config.keep_alive().enabled()),
@@ -570,7 +564,8 @@ where
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
                 StateProj::None if this.flags.contains(Flags::DRAINING) => {
-                    this.messages.clear();
+                    *this.upgrade = None;
+                    *this.error_response = None;
                     this.flags.remove(Flags::KEEP_ALIVE);
 
                     if !this.flags.contains(Flags::LINGER) {
@@ -580,44 +575,24 @@ where
                     return Ok(PollResponse::DoNothing);
                 }
 
-                // no future is in InnerDispatcher state; pop next message
-                StateProj::None => match this.messages.pop_front() {
-                    // handle request message
-                    Some(DispatcherMessage::Item(req)) => {
-                        // Handle `EXPECT: 100-Continue` header
-                        if req.head().expect() {
-                            // set InnerDispatcher state and continue loop to poll it
-                            let fut = this.flow.expect.call(req);
-                            this.state.set(State::ExpectCall { fut });
-                        } else {
-                            // set InnerDispatcher state and continue loop to poll it
-                            let fut = this.flow.service.call(req);
-                            this.state.set(State::ServiceCall { fut });
-                        };
+                // Start keep-alive only if the request payload is fully read or drained.
+                StateProj::None => {
+                    if let Some(req) = this.upgrade.take() {
+                        return Ok(PollResponse::Upgrade(req));
                     }
 
-                    // handle error message
-                    Some(DispatcherMessage::Error(res)) => {
-                        // send_response would update InnerDispatcher state to SendPayload or None
-                        // (If response body is empty)
-                        // continue loop to poll it
+                    if let Some(res) = this.error_response.take() {
                         self.as_mut().send_error_response(res, BoxBody::new(()))?;
+                        continue;
                     }
 
-                    // return with upgrade request and poll it exclusively
-                    Some(DispatcherMessage::Upgrade(req)) => return Ok(PollResponse::Upgrade(req)),
+                    this.flags.set(
+                        Flags::KEEP_ALIVE,
+                        this.payload.is_none() && this.codec.keep_alive(),
+                    );
 
-                    // all messages are dealt with
-                    None => {
-                        // start keep-alive only if request payload is fully read/drained
-                        this.flags.set(
-                            Flags::KEEP_ALIVE,
-                            this.payload.is_none() && this.codec.keep_alive(),
-                        );
-
-                        return Ok(PollResponse::DoNothing);
-                    }
-                },
+                    return Ok(PollResponse::DoNothing);
+                }
 
                 StateProj::ServiceCall { fut } => {
                     match fut.poll(cx) {
@@ -634,8 +609,7 @@ where
                             self.as_mut().send_error_response(res, body)?;
                         }
 
-                        // service call pending and could be waiting for more chunk messages
-                        // (pipeline message limit and/or payload can_read limit)
+                        // Service calls can be pending while waiting for request payload chunks.
                         Poll::Pending => {
                             // no new message is decoded and no new payload is fed
                             // nothing to do except waiting for new incoming data from client
@@ -660,21 +634,17 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // if we have not yet pipelined to the next request, then
-                                // this.payload was the payload for the request we just finished
-                                // responding to. We can check to see if we finished reading it
-                                // yet, and if not, shutdown the connection.
+                                // Check if the request payload was fully read before responding.
                                 let close_for_unread_payload = should_close_for_unread_payload(
                                     this.payload.as_ref(),
                                     *this.payload_drainable,
                                 );
-                                let not_pipelined = this.messages.is_empty();
 
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
 
-                                if not_pipelined && close_for_unread_payload {
+                                if close_for_unread_payload {
                                     if this.config.client_disconnect_deadline().is_some() {
                                         Self::enter_linger(this.flags);
                                     } else {
@@ -718,21 +688,17 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // if we have not yet pipelined to the next request, then
-                                // this.payload was the payload for the request we just finished
-                                // responding to. We can check to see if we finished reading it
-                                // yet, and if not, shutdown the connection.
+                                // Check if the request payload was fully read before responding.
                                 let close_for_unread_payload = should_close_for_unread_payload(
                                     this.payload.as_ref(),
                                     *this.payload_drainable,
                                 );
-                                let not_pipelined = this.messages.is_empty();
 
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
 
-                                if not_pipelined && close_for_unread_payload {
+                                if close_for_unread_payload {
                                     if this.config.client_disconnect_deadline().is_some() {
                                         Self::enter_linger(this.flags);
                                     } else {
@@ -880,19 +846,23 @@ where
             return Ok(false);
         }
 
-        let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
-        let can_not_read = !self.can_read(cx);
-
-        // limit amount of non-processed requests
-        if pipeline_queue_full || can_not_read {
+        if !self.can_read(cx) {
             return Ok(false);
         }
 
         let mut this = self.as_mut().project();
 
+        // Do not parse another request until the current response has been flushed. Request
+        // payload data remains readable while the service handles the current request.
+        if (!this.state.is_none() && this.payload.is_none())
+            || (this.state.is_none() && !this.write_buf.is_empty())
+        {
+            return Ok(false);
+        }
+
         let mut updated = false;
 
-        // decode from read buf as many full requests as possible
+        // Decode the current request and its payload only. Do not queue subsequent requests.
         loop {
             match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
@@ -907,6 +877,11 @@ where
 
                             req.conn_data.clone_from(this.conn_data);
 
+                            let has_payload = matches!(
+                                this.codec.message_type(),
+                                MessageType::Payload | MessageType::Stream
+                            );
+
                             match this.codec.message_type() {
                                 // request has no payload
                                 MessageType::None => *this.payload_drainable = false,
@@ -916,8 +891,8 @@ where
                                 // upgraded Request.
                                 MessageType::Stream if this.flow.upgrade.is_some() => {
                                     *this.payload_drainable = false;
-                                    this.messages.push_back(DispatcherMessage::Upgrade(req));
-                                    break;
+                                    *this.upgrade = Some(req);
+                                    return Ok(true);
                                 }
 
                                 // request is not upgradable
@@ -934,13 +909,15 @@ where
                                 }
                             }
 
-                            // handle request early when no future in InnerDispatcher state.
-                            if this.state.is_none() {
-                                self.as_mut().handle_request(req, cx)?;
-                                this = self.as_mut().project();
-                            } else {
-                                this.messages.push_back(DispatcherMessage::Item(req));
+                            self.as_mut().handle_request(req, cx)?;
+
+                            if !has_payload {
+                                return Ok(true);
                             }
+
+                            // Continue decoding this request's payload. Return after its EOF so
+                            // a subsequent request remains buffered until this response flushes.
+                            this = self.as_mut().project();
                         }
 
                         Message::Chunk(Some(chunk)) => {
@@ -949,9 +926,8 @@ where
                             } else {
                                 error!("Internal server error: unexpected payload chunk");
                                 this.flags.insert(Flags::READ_DISCONNECT);
-                                this.messages.push_back(DispatcherMessage::Error(
-                                    Response::internal_server_error().drop_body(),
-                                ));
+                                *this.error_response =
+                                    Some(Response::internal_server_error().drop_body());
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
                             }
@@ -961,12 +937,12 @@ where
                             if let Some(mut payload) = this.payload.take() {
                                 payload.feed_eof();
                                 *this.payload_drainable = false;
+                                return Ok(true);
                             } else {
                                 error!("Internal server error: unexpected eof");
                                 this.flags.insert(Flags::READ_DISCONNECT);
-                                this.messages.push_back(DispatcherMessage::Error(
-                                    Response::internal_server_error().drop_body(),
-                                ));
+                                *this.error_response =
+                                    Some(Response::internal_server_error().drop_body());
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
                             }
@@ -993,13 +969,10 @@ where
                         payload.set_error(PayloadError::Overflow);
                     }
 
-                    // request heads that overflow buffer size return a 431 error
-                    this.messages
-                        .push_back(DispatcherMessage::Error(Response::with_body(
-                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-                            (),
-                        )));
-
+                    *this.error_response = Some(Response::with_body(
+                        StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                        (),
+                    ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
 
@@ -1013,11 +986,7 @@ where
                         payload.set_error(PayloadError::EncodingCorrupted);
                     }
 
-                    // malformed requests should be responded with 400
-                    this.messages.push_back(DispatcherMessage::Error(
-                        Response::bad_request().drop_body(),
-                    ));
-
+                    *this.error_response = Some(Response::bad_request().drop_body());
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(err.into());
                     break;
@@ -1458,6 +1427,13 @@ where
                     );
 
                     if inner_p.flags.intersects(Flags::LINGER | Flags::SHUTDOWN) {
+                        cx.waker().wake_by_ref();
+                    } else if state_is_none
+                        && inner_p.write_buf.is_empty()
+                        && !inner_p.read_buf.is_empty()
+                    {
+                        // The next request was received before the previous response completed.
+                        // Process it only after that response is fully written.
                         cx.waker().wake_by_ref();
                     }
                     Poll::Pending
