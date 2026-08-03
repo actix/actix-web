@@ -3,14 +3,40 @@ extern crate tls_openssl as openssl;
 
 use std::{
     convert::Infallible,
-    sync::{mpsc, Arc},
+    io,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc,
+    },
     thread,
     time::Duration,
 };
 
-use actix_web::{rt::time::sleep, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{
+    rt::{
+        net::TcpStream,
+        time::{sleep, timeout},
+    },
+    web, App, HttpRequest, HttpResponse, HttpServer,
+};
 use bytes::Bytes;
 use futures_util::stream;
+use tokio::{
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    sync::{oneshot, Notify},
+};
+
+async fn read_http1_response_head(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+    let mut response = Vec::new();
+
+    loop {
+        response.push(stream.read_u8().await?);
+
+        if response.ends_with(b"\r\n\r\n") {
+            return Ok(response);
+        }
+    }
+}
 
 #[actix_rt::test]
 async fn test_start() {
@@ -147,6 +173,179 @@ async fn test_app_data_dropped_after_graceful_shutdown_with_slow_request() {
     }
 
     panic!("app data still referenced after graceful shutdown");
+}
+
+#[actix_rt::test]
+async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request() {
+    let request_started = Arc::new(Notify::new());
+    let finish_request = Arc::new(Notify::new());
+    let queued_request_started = Arc::new(AtomicBool::new(false));
+
+    let server_request_started = Arc::clone(&request_started);
+    let server_finish_request = Arc::clone(&finish_request);
+    let server_queued_request_started = Arc::clone(&queued_request_started);
+
+    let server = HttpServer::new(move || {
+        let request_started = Arc::clone(&server_request_started);
+        let finish_request = Arc::clone(&server_finish_request);
+        let queued_request_started = Arc::clone(&server_queued_request_started);
+
+        App::new()
+            .route(
+                "/idle",
+                web::get().to(|| async { HttpResponse::Ok().finish() }),
+            )
+            .route(
+                "/in-flight",
+                web::get().to(move || {
+                    let request_started = Arc::clone(&request_started);
+                    let finish_request = Arc::clone(&finish_request);
+
+                    async move {
+                        request_started.notify_one();
+                        finish_request.notified().await;
+                        HttpResponse::Ok().finish()
+                    }
+                }),
+            )
+            .route(
+                "/queued",
+                web::get().to(move || {
+                    queued_request_started.store(true, Ordering::SeqCst);
+                    async { HttpResponse::Ok().finish() }
+                }),
+            )
+    })
+    .workers(1)
+    .keep_alive(Duration::from_secs(30))
+    .shutdown_timeout(5)
+    .disable_signals()
+    .bind(("127.0.0.1", 0))
+    .unwrap();
+
+    let addr = server.addrs()[0];
+    let server = server.run();
+    let server_handle = server.handle();
+    let server_task = actix_web::rt::spawn(server);
+
+    let mut idle_connection = TcpStream::connect(addr).await.unwrap();
+    idle_connection
+        .write_all(b"GET /idle HTTP/1.1\r\nhost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+    let response = read_http1_response_head(&mut idle_connection)
+        .await
+        .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+
+    let mut in_flight_connection = TcpStream::connect(addr).await.unwrap();
+    in_flight_connection
+        .write_all(b"GET /idle HTTP/1.1\r\nhost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+    let response = read_http1_response_head(&mut in_flight_connection)
+        .await
+        .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+
+    in_flight_connection
+        .write_all(
+            b"GET /in-flight HTTP/1.1\r\nhost: localhost\r\n\r\n\
+              GET /queued HTTP/1.1\r\nhost: localhost\r\n\r\n",
+        )
+        .await
+        .unwrap();
+    request_started.notified().await;
+
+    let shutdown_task = actix_web::rt::spawn(async move {
+        server_handle.stop(true).await;
+    });
+
+    let mut buf = [0];
+    let idle_connection_closed =
+        timeout(Duration::from_millis(500), idle_connection.read(&mut buf)).await;
+
+    finish_request.notify_one();
+
+    let response = timeout(
+        Duration::from_millis(500),
+        read_http1_response_head(&mut in_flight_connection),
+    )
+    .await
+    .expect("in-flight request did not finish during graceful shutdown")
+    .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+
+    let in_flight_connection_closed = timeout(
+        Duration::from_millis(500),
+        in_flight_connection.read(&mut buf),
+    )
+    .await;
+
+    drop((idle_connection, in_flight_connection));
+
+    timeout(Duration::from_secs(2), shutdown_task)
+        .await
+        .expect("server did not stop after its connections closed")
+        .unwrap();
+    server_task.await.unwrap().unwrap();
+
+    assert!(
+        matches!(idle_connection_closed, Ok(Ok(0))),
+        "idle keep-alive connection did not close immediately"
+    );
+    assert!(
+        matches!(in_flight_connection_closed, Ok(Ok(0))),
+        "keep-alive connection did not close after its in-flight request"
+    );
+    assert!(
+        !queued_request_started.load(Ordering::SeqCst),
+        "queued request started during graceful shutdown"
+    );
+}
+
+#[actix_rt::test]
+async fn shutdown_signal_closes_idle_http1_connection() {
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+    let server = HttpServer::new(|| {
+        App::new().route("/", web::get().to(|| async { HttpResponse::Ok().finish() }))
+    })
+    .workers(1)
+    .keep_alive(Duration::from_secs(30))
+    .shutdown_timeout(5)
+    .shutdown_signal(async move {
+        let _ = shutdown_rx.await;
+    })
+    .bind(("127.0.0.1", 0))
+    .unwrap();
+
+    let addr = server.addrs()[0];
+    let server_task = actix_web::rt::spawn(server.run());
+
+    let mut connection = TcpStream::connect(addr).await.unwrap();
+    connection
+        .write_all(b"GET / HTTP/1.1\r\nhost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+    let response = read_http1_response_head(&mut connection).await.unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+
+    shutdown_tx.send(()).unwrap();
+
+    let mut buf = [0];
+    let connection_closed = timeout(Duration::from_millis(500), connection.read(&mut buf)).await;
+
+    timeout(Duration::from_secs(2), server_task)
+        .await
+        .expect("server did not stop after the shutdown signal")
+        .unwrap()
+        .unwrap();
+
+    assert!(
+        matches!(connection_closed, Ok(Ok(0))),
+        "idle keep-alive connection did not close after the shutdown signal"
+    );
 }
 
 #[cfg(feature = "openssl")]

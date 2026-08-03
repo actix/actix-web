@@ -61,6 +61,9 @@ bitflags! {
 
         /// Set while gracefully closing a connection after an early response.
         const LINGER           = 0b0100_0000;
+
+        /// Set when the server is draining this connection during graceful shutdown.
+        const DRAINING         = 0b1000_0000;
     }
 }
 
@@ -167,6 +170,7 @@ pin_project! {
         head_timer: TimerState,
         ka_timer: TimerState,
         shutdown_timer: TimerState,
+        graceful_shutdown: Option<crate::config::GracefulShutdownFuture>,
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
@@ -281,6 +285,7 @@ where
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
                     ka_timer: TimerState::new(config.keep_alive().enabled()),
                     shutdown_timer: TimerState::new(config.client_disconnect_deadline().is_some()),
+                    graceful_shutdown: config.graceful_shutdown(),
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
@@ -451,10 +456,16 @@ where
         mut res: Response<()>,
         body: B,
     ) -> Result<(), DispatchError> {
-        let close_after_response = !res.upgrade() && {
+        let is_upgrade = res.upgrade();
+        let (draining, close_for_unread_payload) = {
             let this = self.as_mut().project();
-            should_close_after_response(this.payload.as_ref(), *this.payload_drainable)
+            (
+                this.flags.contains(Flags::DRAINING),
+                !is_upgrade
+                    && should_close_after_response(this.payload.as_ref(), *this.payload_drainable),
+            )
         };
+        let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
 
         if close_after_response {
             res.head_mut().set_connection_type(ConnectionType::Close);
@@ -465,7 +476,7 @@ where
             BodySize::None | BodySize::Sized(0) => {
                 let mut this = self.as_mut().project();
 
-                if close_after_response {
+                if close_for_unread_payload {
                     if this.config.client_disconnect_deadline().is_some() {
                         Self::enter_linger(this.flags);
                     } else {
@@ -492,10 +503,16 @@ where
         mut res: Response<()>,
         body: BoxBody,
     ) -> Result<(), DispatchError> {
-        let close_after_response = !res.upgrade() && {
+        let is_upgrade = res.upgrade();
+        let (draining, close_for_unread_payload) = {
             let this = self.as_mut().project();
-            should_close_after_response(this.payload.as_ref(), *this.payload_drainable)
+            (
+                this.flags.contains(Flags::DRAINING),
+                !is_upgrade
+                    && should_close_after_response(this.payload.as_ref(), *this.payload_drainable),
+            )
         };
+        let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
 
         if close_after_response {
             res.head_mut().set_connection_type(ConnectionType::Close);
@@ -506,7 +523,7 @@ where
             BodySize::None | BodySize::Sized(0) => {
                 let mut this = self.as_mut().project();
 
-                if close_after_response {
+                if close_for_unread_payload {
                     if this.config.client_disconnect_deadline().is_some() {
                         Self::enter_linger(this.flags);
                     } else {
@@ -542,6 +559,17 @@ where
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
                 // no future is in InnerDispatcher state; pop next message
+                StateProj::None if this.flags.contains(Flags::DRAINING) => {
+                    this.messages.clear();
+                    this.flags.remove(Flags::KEEP_ALIVE);
+
+                    if !this.flags.contains(Flags::LINGER) {
+                        this.flags.insert(Flags::SHUTDOWN);
+                    }
+
+                    return Ok(PollResponse::DoNothing);
+                }
+
                 StateProj::None => match this.messages.pop_front() {
                     // handle request message
                     Some(DispatcherMessage::Item(req)) => {
@@ -1079,6 +1107,25 @@ where
         Ok(())
     }
 
+    fn poll_graceful_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) {
+        let this = self.as_mut().project();
+
+        let notified = this
+            .graceful_shutdown
+            .as_mut()
+            .is_some_and(|signal| signal.as_mut().poll(cx).is_ready());
+
+        if notified {
+            *this.graceful_shutdown = None;
+            this.flags.remove(Flags::KEEP_ALIVE);
+            this.flags.insert(Flags::DRAINING);
+
+            if this.ka_timer.is_enabled() {
+                this.ka_timer.clear(line!());
+            }
+        }
+    }
+
     /// Poll head, keep-alive, and disconnect timer.
     fn poll_timers(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         self.as_mut().poll_head_timer(cx)?;
@@ -1236,6 +1283,7 @@ where
                     &inner.shutdown_timer,
                 );
 
+                inner.as_mut().poll_graceful_shutdown(cx);
                 inner.as_mut().poll_timers(cx)?;
 
                 let poll = if inner.flags.contains(Flags::LINGER) {

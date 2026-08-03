@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Close idle HTTP/1 keep-alive connections during graceful server shutdown and close active connections after their current request finishes.
+
 ## 3.13.1
 
 - Fix HTTP/1 WebSocket upgrade responses being overwritten with `Connection: close` when the upgraded request payload remains open. [#4115]
