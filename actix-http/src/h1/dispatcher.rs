@@ -569,7 +569,6 @@ where
         'res: loop {
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
-                // no future is in InnerDispatcher state; pop next message
                 StateProj::None if this.flags.contains(Flags::DRAINING) => {
                     this.messages.clear();
                     this.flags.remove(Flags::KEEP_ALIVE);
@@ -581,6 +580,7 @@ where
                     return Ok(PollResponse::DoNothing);
                 }
 
+                // no future is in InnerDispatcher state; pop next message
                 StateProj::None => match this.messages.pop_front() {
                     // handle request message
                     Some(DispatcherMessage::Item(req)) => {

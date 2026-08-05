@@ -32,7 +32,8 @@ impl GracefulShutdownSignal {
 
 impl fmt::Debug for GracefulShutdownSignal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("GracefulShutdownSignal")
+        f.debug_struct("GracefulShutdownSignal")
+            .finish_non_exhaustive()
     }
 }
 
