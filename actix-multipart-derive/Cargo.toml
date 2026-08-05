@@ -18,10 +18,10 @@ proc-macro = true
 
 [dependencies]
 bytesize = "2"
-darling = "0.23"
+darling = "0.24"
 proc-macro2 = "1"
 quote = "1"
-syn = "2"
+syn = "3"
 
 [lints]
 workspace = true
