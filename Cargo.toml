@@ -48,6 +48,7 @@ awc = { path = "awc" }
 # actix-codec = { path = "../actix-net/actix-codec" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
+# actix-server = { path = "../actix-net/actix-server" }
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "deny" }
