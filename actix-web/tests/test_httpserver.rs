@@ -26,6 +26,7 @@ use tokio::{
     sync::{oneshot, Notify},
 };
 
+// Read the response head while retaining direct ownership of the connection.
 async fn read_http1_response_head(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     let mut response = Vec::new();
 
@@ -217,6 +218,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
             )
     })
     .workers(1)
+    // Keep these timeouts above the test assertions so they cannot cause EOF.
     .keep_alive(Duration::from_secs(30))
     .shutdown_timeout(5)
     .disable_signals()
@@ -228,6 +230,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
     let server_handle = server.handle();
     let server_task = actix_web::rt::spawn(server);
 
+    // Complete one request, leaving this connection idle and eligible for HTTP/1 keep-alive.
     let mut idle_connection = TcpStream::connect(addr).await.unwrap();
     idle_connection
         .write_all(b"GET /idle HTTP/1.1\r\nhost: localhost\r\n\r\n")
@@ -238,6 +241,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
         .unwrap();
     assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
 
+    // Establish keep-alive on a second connection before giving it active and queued work.
     let mut in_flight_connection = TcpStream::connect(addr).await.unwrap();
     in_flight_connection
         .write_all(b"GET /idle HTTP/1.1\r\nhost: localhost\r\n\r\n")
@@ -248,6 +252,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
         .unwrap();
     assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
 
+    // Pipeline one request that blocks in its handler and one request that must remain queued.
     in_flight_connection
         .write_all(
             b"GET /in-flight HTTP/1.1\r\nhost: localhost\r\n\r\n\
@@ -255,16 +260,20 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
         )
         .await
         .unwrap();
+
+    // Do not start shutdown until the first pipelined request is in flight.
     request_started.notified().await;
 
     let shutdown_task = actix_web::rt::spawn(async move {
         server_handle.stop(true).await;
     });
 
+    // The idle connection must close while the active request remains blocked.
     let mut buf = [0];
     let idle_connection_closed =
         timeout(Duration::from_millis(500), idle_connection.read(&mut buf)).await;
 
+    // Allow the current request, but not its queued successor, to finish during shutdown.
     finish_request.notify_one();
 
     let response = timeout(
@@ -276,12 +285,14 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
     .unwrap();
     assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
 
+    // The active connection must close instead of returning to keep-alive after its response.
     let in_flight_connection_closed = timeout(
         Duration::from_millis(500),
         in_flight_connection.read(&mut buf),
     )
     .await;
 
+    // Do not leave the server waiting on client sockets when an EOF assertion fails.
     drop((idle_connection, in_flight_connection));
 
     timeout(Duration::from_secs(2), shutdown_task)
@@ -306,6 +317,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
 
 #[actix_rt::test]
 async fn shutdown_signal_closes_idle_http1_connection() {
+    // Control the exact point at which the builder-configured shutdown signal resolves.
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
     let server = HttpServer::new(|| {
@@ -323,6 +335,7 @@ async fn shutdown_signal_closes_idle_http1_connection() {
     let addr = server.addrs()[0];
     let server_task = actix_web::rt::spawn(server.run());
 
+    // Complete a request and leave the connection idle in HTTP/1 keep-alive.
     let mut connection = TcpStream::connect(addr).await.unwrap();
     connection
         .write_all(b"GET / HTTP/1.1\r\nhost: localhost\r\n\r\n")
@@ -331,6 +344,7 @@ async fn shutdown_signal_closes_idle_http1_connection() {
     let response = read_http1_response_head(&mut connection).await.unwrap();
     assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
 
+    // Resolve HttpServer::shutdown_signal and expect it to reach the HTTP/1 dispatcher.
     shutdown_tx.send(()).unwrap();
 
     let mut buf = [0];
