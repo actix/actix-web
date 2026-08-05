@@ -228,8 +228,9 @@ dependencies = [
 
 [[package]]
 name = "actix-server"
-version = "2.6.0"
-source = "git+https://github.com/actix/actix-net.git?branch=fix%2Fgraceful-http1-shutdown#a50fc23b85c6dd0c2cad3a8a32d1e1cb286c8210"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3716aae056e2f869b7b5cfd8a08fcf98890f8455bec61d69c7dff5d8576f9d2b"
 dependencies = [
  "actix-rt",
  "actix-service",

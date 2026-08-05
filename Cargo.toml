@@ -48,7 +48,6 @@ awc = { path = "awc" }
 # actix-codec = { path = "../actix-net/actix-codec" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
-actix-server = { git = "https://github.com/actix/actix-net.git", branch = "fix/graceful-http1-shutdown" }
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "deny" }

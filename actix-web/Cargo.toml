@@ -132,12 +132,12 @@ experimental-introspection = ["serde/derive"]
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
-actix-server = "2.6"
+actix-server = "2.7"
 actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = "3.13.1"
+actix-http = { version = "3.13.1", path = "../actix-http" }
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
