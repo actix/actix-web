@@ -10,19 +10,19 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
+        - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
-        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
+        - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'actions/upload-code-coverage@a72ab75b4dee0e479386fb9bf33c8dcf64b9c772'
-        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
+        - 'actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1'
+        - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
     '.github/workflows/labeler.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
@@ -30,13 +30,13 @@ workflows:
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0'
-        - 'taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7'
-        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
-        - 'zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5'
+        - 'taiki-e/cache-cargo-install-action@9ee83daaa7b96a6fab930949ecf1122bba04a389'
+        - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
+        - 'zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7'
+        - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659':
         ref: 'v1.17.0'
@@ -45,9 +45,9 @@ dependencies:
         repo_id: 482610590
         uses:
             - 'swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4'
-    'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae':
-        ref: 'v5.0.5'
-        commit: 'sha1-27d5ce7f107fe9357f9df03efb73ab90386fccae'
+    'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9':
+        ref: 'v6.1.0'
+        commit: 'sha1-55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
         owner_id: 44036562
         repo_id: 215566462
     'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1':
@@ -60,9 +60,9 @@ dependencies:
         commit: 'sha1-bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
         owner_id: 44036562
         repo_id: 177139928
-    'actions/upload-code-coverage@a72ab75b4dee0e479386fb9bf33c8dcf64b9c772':
-        ref: 'v1.4.0'
-        commit: 'sha1-a72ab75b4dee0e479386fb9bf33c8dcf64b9c772'
+    'actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1':
+        ref: 'v1.4.1'
+        commit: 'sha1-1c15be36fc3733ba839b1dd643bd9556e4426dc1'
         owner_id: 44036562
         repo_id: 1220171870
     'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25':
@@ -75,9 +75,9 @@ dependencies:
         commit: 'sha1-13b9d32482f25d29ead141b79e7e04e7900281e0'
         owner_id: 17407489
         repo_id: 560300269
-    'github/codeql-action@99df26d4f13ea111d4ec1a7dddef6063f76b97e9':
-        ref: 'v4.37.0'
-        commit: 'sha1-99df26d4f13ea111d4ec1a7dddef6063f76b97e9'
+    'github/codeql-action@7188fc363630916deb702c7fdcf4e481b751f97a':
+        ref: 'v4.37.1'
+        commit: 'sha1-7188fc363630916deb702c7fdcf4e481b751f97a'
         owner_id: 9919
         repo_id: 259445878
     'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b':
@@ -95,22 +95,22 @@ dependencies:
         commit: 'sha1-c19371144df3bb44fab255c43d04cbc2ab54d1c4'
         owner_id: 580492
         repo_id: 298565987
-    'taiki-e/cache-cargo-install-action@417450f3c33ee20393705369577571770643d4c7':
-        ref: 'v3.0.7'
-        commit: 'sha1-417450f3c33ee20393705369577571770643d4c7'
+    'taiki-e/cache-cargo-install-action@9ee83daaa7b96a6fab930949ecf1122bba04a389':
+        ref: 'v3.0.8'
+        commit: 'sha1-9ee83daaa7b96a6fab930949ecf1122bba04a389'
         owner_id: 43724913
         repo_id: 588643148
         uses:
-            - 'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae'
-    'taiki-e/install-action@7572810d7dd469b651bb7793945692cf78da5dd7':
-        ref: 'v2.85.0'
-        commit: 'sha1-7572810d7dd469b651bb7793945692cf78da5dd7'
+            - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
+    'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8':
+        ref: 'v2.85.8'
+        commit: 'sha1-cb33e69fad06166ca28a42b2575e4dadabf62ee8'
         owner_id: 43724913
         repo_id: 442947557
-    'zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5':
-        ref: 'v0.6.1'
-        commit: 'sha1-6fc4b006235f201fdab3722e17240ab420d580e5'
+    'zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054':
+        ref: 'v0.6.2'
+        commit: 'sha1-3dc1ecc9bcb9e94e9b2c709687979e1298497054'
         owner_id: 210636713
         repo_id: 985558803
         uses:
-            - 'github/codeql-action@99df26d4f13ea111d4ec1a7dddef6063f76b97e9'
+            - 'github/codeql-action@7188fc363630916deb702c7fdcf4e481b751f97a'
