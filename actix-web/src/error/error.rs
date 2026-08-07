@@ -17,14 +17,24 @@ pub struct Error {
 }
 
 impl Error {
-    /// Returns the reference to the underlying `ResponseError`.
+    /// Returns a reference to the underlying `ResponseError`.
     pub fn as_response_error(&self) -> &dyn ResponseError {
         self.cause.as_ref()
+    }
+
+    /// Returns a mutable reference to the underlying `ResponseError`.
+    pub fn as_response_error_mut(&mut self) -> &mut dyn ResponseError {
+        self.cause.as_mut()
     }
 
     /// Similar to `as_response_error` but downcasts.
     pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
         <dyn ResponseError>::downcast_ref(self.cause.as_ref())
+    }
+
+    /// Similar to `as_response_error_mut` but downcasts.
+    pub fn as_error_mut<T: ResponseError + 'static>(&mut self) -> Option<&mut T> {
+        <dyn ResponseError>::downcast_mut(self.cause.as_mut())
     }
 
     /// Shortcut for creating an `HttpResponse`.
