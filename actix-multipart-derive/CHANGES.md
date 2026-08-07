@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Update `darling` dependency to `0.24`.
+- Update `syn` dependency to `0.3`.
+
 ## 0.8.0
 
 - Minimum supported Rust version (MSRV) is now 1.88.

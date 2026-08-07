@@ -20,7 +20,7 @@ compat-routing-macros-force-pub = []
 actix-router = { version = "0.5", default-features = false }
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "3", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
 actix-macros = "0.2.4"

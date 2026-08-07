@@ -458,8 +458,12 @@ mod foreign_impls {
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-            let string = mem::take(self.get_mut());
-            Poll::Ready(Some(Ok(string.into_bytes())))
+            if self.is_empty() {
+                Poll::Ready(None)
+            } else {
+                let string = mem::take(self.get_mut());
+                Poll::Ready(Some(Ok(string.into_bytes())))
+            }
         }
 
         #[inline]
@@ -664,6 +668,15 @@ mod tests {
         let pl = "test".to_owned();
         pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
+    }
+
+    #[actix_rt::test]
+    async fn test_byte_string() {
+        let pl = bytestring::ByteString::from_static("test");
+        assert_eq!(pl.size(), BodySize::Sized(4));
+        pin!(pl);
+        assert_poll_next!(pl, Bytes::from_static(b"test"));
+        assert_poll_next_none!(pl);
     }
 
     #[actix_rt::test]
