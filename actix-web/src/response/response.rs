@@ -8,6 +8,7 @@ use actix_http::{
     header::HeaderMap,
     Extensions, Response, ResponseHead, StatusCode,
 };
+use bytes::Bytes;
 #[cfg(feature = "cookies")]
 use {
     actix_http::{
@@ -77,6 +78,12 @@ impl<B> HttpResponse<B> {
     #[inline]
     pub fn error(&self) -> Option<&Error> {
         self.error.as_ref()
+    }
+
+    /// Retrieve the source `error` for this response, leaving a `None` in its place.
+    #[inline]
+    pub fn take_error(&mut self) -> Option<Error> {
+        self.error.take()
     }
 
     /// Get the response status code
@@ -319,6 +326,78 @@ impl From<Error> for HttpResponse {
     }
 }
 
+impl From<&'static str> for HttpResponse<&'static str> {
+    fn from(val: &'static str) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<&'static [u8]> for HttpResponse<&'static [u8]> {
+    fn from(val: &'static [u8]) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<String> for HttpResponse<String> {
+    fn from(val: String) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<&String> for HttpResponse<String> {
+    fn from(val: &String) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<Vec<u8>> for HttpResponse<Vec<u8>> {
+    fn from(val: Vec<u8>) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<&Vec<u8>> for HttpResponse<Vec<u8>> {
+    fn from(val: &Vec<u8>) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<Bytes> for HttpResponse<Bytes> {
+    fn from(val: Bytes) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
+impl From<bytestring::ByteString> for HttpResponse<bytestring::ByteString> {
+    fn from(val: bytestring::ByteString) -> Self {
+        HttpResponse {
+            res: Response::from(val),
+            error: None,
+        }
+    }
+}
+
 impl<B> From<HttpResponse<B>> for Response<B> {
     fn from(res: HttpResponse<B>) -> Self {
         // this impl will always be called as part of dispatcher
@@ -414,6 +493,17 @@ mod tests {
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("HttpResponse"));
+    }
+
+    #[test]
+    fn test_take_error() {
+        let err = crate::error::ErrorBadRequest("error");
+        let mut resp = HttpResponse::from_error(err);
+        assert!(resp.error().is_some());
+
+        let err = resp.take_error();
+        assert!(err.is_some());
+        assert!(resp.error().is_none());
     }
 }
 
