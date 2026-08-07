@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix `MessageBody` implementation for `ByteString` to signal completion after yielding its contents. [#4177]
+
+[#4177]: https://github.com/actix/actix-web/issues/4177
+
 ## 3.13.1
 
 - Fix HTTP/1 WebSocket upgrade responses being overwritten with `Connection: close` when the upgraded request payload remains open. [#4115]
