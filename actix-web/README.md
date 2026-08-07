@@ -41,13 +41,9 @@
 
 ### Experimental features
 
-To enable faster release iterations, we mark some features as experimental.
-These features are prefixed with `experimental` and a breaking change may happen at any release.
-Please use them in a production environment at your own risk.
+To enable faster release iterations, we mark some features as experimental. These features are prefixed with `experimental` and a breaking change may happen at any release. Please use them in a production environment at your own risk.
 
-- `experimental-introspection`: exposes route and method reporting helpers for local diagnostics
-  and tooling. See [`examples/introspection.rs`](examples/introspection.rs) and
-  [`examples/introspection_multi_servers.rs`](examples/introspection_multi_servers.rs).
+- `experimental-introspection`: exposes route and method reporting helpers for local diagnostics and tooling. See [`examples/introspection.rs`](examples/introspection.rs) and [`examples/introspection_multi_servers.rs`](examples/introspection_multi_servers.rs).
 
 ## Documentation
 
