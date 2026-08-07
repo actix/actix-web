@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.13.1"
+version = "3.13.2"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -183,7 +183,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -394,7 +394,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion-msrv",
- "syn 2.0.119",
+ "syn 3.0.3",
  "trybuild",
 ]
 
