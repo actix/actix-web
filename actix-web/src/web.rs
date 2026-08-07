@@ -101,6 +101,9 @@ pub fn route() -> Route {
 
 macro_rules! method_route {
     ($method_fn:ident, $method_const:ident) => {
+        method_route!($method_fn, $method_const, Method::$method_const);
+    };
+    ($method_fn:ident, $method_const:ident, $method:expr) => {
         #[doc = concat!(" Creates a new route with `", stringify!($method_const), "` method guard.")]
         ///
         /// # Examples
@@ -115,7 +118,7 @@ macro_rules! method_route {
         /// );
         /// ```
         pub fn $method_fn() -> Route {
-            method(Method::$method_const)
+            method($method)
         }
     };
 }
@@ -127,6 +130,9 @@ method_route!(patch, PATCH);
 method_route!(delete, DELETE);
 method_route!(head, HEAD);
 method_route!(trace, TRACE);
+// `QUERY` (RFC 10008) is a safe, idempotent method that carries a request body.
+// TODO: replace with `Method::QUERY` once the `http` dependency is bumped (see #3384).
+method_route!(query, QUERY, Method::from_bytes(b"QUERY").unwrap());
 
 /// Creates a new route with specified method guard.
 ///

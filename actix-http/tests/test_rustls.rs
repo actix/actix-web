@@ -193,6 +193,25 @@ async fn h2_1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
+async fn h2_squery() -> io::Result<()> {
+    let mut srv = test_server(move || {
+        HttpService::build()
+            .h2(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                assert_eq!(req.version(), Version::HTTP_2);
+                ok::<_, Error>(Response::ok())
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.squery("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    srv.stop().await;
+    Ok(())
+}
+
+#[actix_rt::test]
 async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()

@@ -216,6 +216,16 @@ impl TestServer {
         self.client.patch(self.surl(path.as_ref()).as_str())
     }
 
+    /// Create `QUERY` request
+    pub fn query<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create HTTPS `QUERY` request
+    pub fn squery<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.surl(path.as_ref()).as_str())
+    }
+
     /// Create `DELETE` request
     pub fn delete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.delete(self.url(path.as_ref()).as_str())
