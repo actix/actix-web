@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Parse comma-separated HTTP/1 `Connection` header options. [#2692]
+
+[#2692]: https://github.com/actix/actix-web/issues/2692
+
 ## 3.18.12
 
 - Flush compressed response bodies when the source is pending.
