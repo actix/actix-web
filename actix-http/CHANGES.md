@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Parse comma-separated HTTP/1 `Connection` header options. [#2692]
+- Only treat `Expect: 100-continue` as a continue expectation.
 
 [#2692]: https://github.com/actix/actix-web/issues/2692
 

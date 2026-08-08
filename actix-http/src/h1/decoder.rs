@@ -177,9 +177,12 @@ pub(crate) trait MessageType: Sized {
                     }
 
                     header::EXPECT => {
-                        let bytes = value.as_bytes();
-                        if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
-                            expect = true;
+                        if let Ok(value) = value.to_str() {
+                            expect = expect
+                                || value
+                                    .split(',')
+                                    .map(str::trim)
+                                    .any(|item| item.eq_ignore_ascii_case("100-continue"));
                         }
                     }
 
@@ -848,6 +851,21 @@ mod tests {
             .collect();
         assert_eq!(val[0], "c1=cookie1");
         assert_eq!(val[1], "c2=cookie2");
+    }
+
+    #[test]
+    fn test_expect_100_continue() {
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             expect: 100-continue, 100-Continue\r\n\r\n",
+        ));
+        assert!(req.head().expect());
+
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             expect: 100-custom\r\n\r\n",
+        ));
+        assert!(!req.head().expect());
     }
 
     #[test]
