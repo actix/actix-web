@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Close idle HTTP/1 keep-alive connections during graceful shutdown and let active connections finish only their current request before closing.
+
 ## 4.14.0
 
 - Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]

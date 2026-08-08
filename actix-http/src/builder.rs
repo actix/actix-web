@@ -1,4 +1,4 @@
-use std::{fmt, marker::PhantomData, net, rc::Rc, time::Duration};
+use std::{fmt, future::Future, marker::PhantomData, net, rc::Rc, time::Duration};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
@@ -6,7 +6,8 @@ use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use crate::{
     body::{BoxBody, MessageBody},
     config::{
-        DEFAULT_H1_WRITE_BUFFER_SIZE, DEFAULT_H2_CONN_WINDOW_SIZE, DEFAULT_H2_STREAM_WINDOW_SIZE,
+        GracefulShutdownSignal, DEFAULT_H1_WRITE_BUFFER_SIZE, DEFAULT_H2_CONN_WINDOW_SIZE,
+        DEFAULT_H2_STREAM_WINDOW_SIZE,
     },
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     service::HttpService,
@@ -27,6 +28,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
+    graceful_shutdown_signal: Option<GracefulShutdownSignal>,
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -53,6 +55,7 @@ where
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            graceful_shutdown_signal: None,
 
             // dispatcher parts
             expect: ExpectHandler,
@@ -174,6 +177,17 @@ where
         self
     }
 
+    /// Sets a factory for graceful shutdown notifications.
+    #[doc(hidden)]
+    pub fn graceful_shutdown_signal<F, Fut>(mut self, signal: F) -> Self
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.graceful_shutdown_signal = Some(GracefulShutdownSignal::new(signal));
+        self
+    }
+
     /// Sets initial stream-level flow control window size for HTTP/2 connections.
     ///
     /// See [`ServiceConfigBuilder::h2_initial_window_size`] for more details.
@@ -213,6 +227,7 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
@@ -242,6 +257,7 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
@@ -282,6 +298,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
         H1Service::with_config(cfg, service.into_factory())
@@ -312,6 +329,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
@@ -339,6 +357,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
         HttpService::with_config(cfg, service.into_factory())
