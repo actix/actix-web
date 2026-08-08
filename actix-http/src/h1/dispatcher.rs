@@ -876,6 +876,10 @@ where
     ///
     /// Returns true if any meaningful work was done.
     fn poll_request(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
+        if self.flags.contains(Flags::DRAINING) && self.state.is_none() {
+            return Ok(false);
+        }
+
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
