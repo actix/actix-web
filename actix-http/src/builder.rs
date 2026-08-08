@@ -192,7 +192,7 @@ where
 
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
-    /// Service get called with request that contains `EXPECT` header.
+    /// Service get called with request that contains `EXPECT: 100-Continue` header.
     /// Service must return request in case of success, in that case
     /// request will be forwarded to main service.
     pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
