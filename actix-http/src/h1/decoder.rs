@@ -151,19 +151,21 @@ pub(crate) trait MessageType: Sized {
 
                     // connection keep-alive state
                     header::CONNECTION => {
-                        ka = if let Ok(conn) = value.to_str().map(str::trim) {
-                            if conn.eq_ignore_ascii_case("keep-alive") {
-                                Some(ConnectionType::KeepAlive)
-                            } else if conn.eq_ignore_ascii_case("close") {
-                                Some(ConnectionType::Close)
-                            } else if conn.eq_ignore_ascii_case("upgrade") {
-                                Some(ConnectionType::Upgrade)
-                            } else {
-                                None
+                        if let Ok(conn) = value.to_str() {
+                            for option in conn.split(',').map(str::trim) {
+                                if option.eq_ignore_ascii_case("close") {
+                                    ka = Some(ConnectionType::Close);
+                                    break;
+                                } else if option.eq_ignore_ascii_case("upgrade")
+                                    && ka != Some(ConnectionType::Close)
+                                {
+                                    ka = Some(ConnectionType::Upgrade);
+                                } else if option.eq_ignore_ascii_case("keep-alive") && ka.is_none()
+                                {
+                                    ka = Some(ConnectionType::KeepAlive);
+                                }
                             }
-                        } else {
-                            None
-                        };
+                        }
                     }
 
                     header::UPGRADE => {
@@ -948,6 +950,27 @@ mod tests {
     }
 
     #[test]
+    fn test_conn_multi_value() {
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: keep-alive, Upgrade\r\n\r\n",
+        ));
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
+
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: close, upgrade\r\n\r\n",
+        ));
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
+
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade, close\r\n\r\n",
+        ));
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
+    }
+
+    #[test]
     fn test_conn_upgrade_connect_method() {
         let req = parse_ready!(&mut BytesMut::from(
             "CONNECT /test HTTP/1.1\r\n\
@@ -1032,12 +1055,7 @@ mod tests {
         );
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        // `connection: upgrade, http2-settings` doesn't work properly..
-        // see MessageType::set_headers().
-        //
-        // The line below should be:
-        // assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
-        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
         assert!(req.upgrade());
         assert!(!pl.is_unhandled());
     }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Parse comma-separated HTTP/1 `Connection` header options. [#2692]
+
+[#2692]: https://github.com/actix/actix-web/issues/2692
+
 ## 3.13.5
 
 - Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
