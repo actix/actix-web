@@ -572,6 +572,47 @@ async fn keep_alive_follow_up_req() {
 }
 
 #[actix_rt::test]
+async fn graceful_shutdown_does_not_start_buffered_request() {
+    use crate::config::{GracefulShutdownSignal, ServiceConfigBuilder};
+
+    let request_started = Rc::new(Cell::new(false));
+    let service_request_started = Rc::clone(&request_started);
+    let services = HttpFlow::new(
+        fn_service(move |_req: Request| {
+            service_request_started.set(true);
+            ready(Ok::<_, Error>(Response::ok()))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let config = ServiceConfigBuilder::new()
+        .graceful_shutdown_signal(Some(GracefulShutdownSignal::new(|| ready(()))))
+        .build();
+    let buf = TestBuffer::new("GET /buffered HTTP/1.1\r\n\r\n");
+    let dispatcher = Dispatcher::new(
+        buf.clone(),
+        services,
+        config,
+        None,
+        OnConnectData::default(),
+    );
+    pin!(dispatcher);
+
+    // The shutdown notification and request data are ready in the same dispatcher poll.
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    assert!(dispatcher.as_mut().poll(&mut cx).is_ready());
+
+    assert!(
+        !request_started.get(),
+        "buffered request started during graceful shutdown"
+    );
+    assert!(
+        buf.write_buf_slice().is_empty(),
+        "dispatcher wrote a response for the buffered request"
+    );
+}
+
+#[actix_rt::test]
 async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");

@@ -12,7 +12,7 @@ use std::{
 #[cfg(feature = "__tls")]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
-use actix_server::{Server, ServerBuilder};
+use actix_server::{GracefulShutdownSignal, Server, ServerBuilder};
 use actix_service::{
     map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
@@ -87,6 +87,7 @@ where
     backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
+    graceful_shutdown_signal: GracefulShutdownSignal,
     #[allow(clippy::type_complexity)]
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
     _phantom: PhantomData<(S, B)>,
@@ -114,6 +115,9 @@ where
     /// [`bind()`](Self::bind()) docs for more on how worker count and bind address resolution
     /// causes multiple server factory instantiations.
     pub fn new(factory: F) -> Self {
+        let builder = ServerBuilder::default();
+        let graceful_shutdown_signal = builder.graceful_shutdown_signal();
+
         HttpServer {
             factory,
             config: Arc::new(Mutex::new(Config {
@@ -130,7 +134,8 @@ where
             })),
             backlog: 1024,
             sockets: Vec::new(),
-            builder: ServerBuilder::default(),
+            builder,
+            graceful_shutdown_signal,
             on_connect_fn: None,
             _phantom: PhantomData,
         }
@@ -632,14 +637,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
@@ -693,14 +704,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
@@ -786,14 +803,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
@@ -853,14 +876,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
@@ -935,14 +964,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
@@ -1017,14 +1052,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed)
@@ -1099,14 +1140,20 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
@@ -1166,6 +1213,7 @@ where
 
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
 
@@ -1190,7 +1238,12 @@ where
                     .map_err(|err| err.into().error_response());
 
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                    let shutdown_signal = graceful_shutdown_signal.clone();
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
@@ -1228,6 +1281,7 @@ where
         let addr = lst.local_addr()?;
         let name = format!("actix-web-service-{:?}", addr);
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder = self.builder.listen_uds(name, lst, move || {
             let c = cfg.lock().unwrap();
@@ -1238,7 +1292,12 @@ where
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                let shutdown_signal = graceful_shutdown_signal.clone();
                 let mut svc = HttpService::build()
+                    .graceful_shutdown_signal(move || {
+                        let signal = shutdown_signal.clone();
+                        async move { signal.notified().await }
+                    })
                     .keep_alive(c.keep_alive)
                     .client_request_timeout(c.client_request_timeout)
                     .h1_allow_half_closed(c.h1_allow_half_closed)

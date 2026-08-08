@@ -1,5 +1,8 @@
 use std::{
+    fmt,
+    future::Future,
     net::SocketAddr,
+    pin::Pin,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -7,6 +10,32 @@ use std::{
 use bytes::BytesMut;
 
 use crate::{date::DateService, KeepAlive};
+
+pub(crate) type GracefulShutdownFuture = Pin<Box<dyn Future<Output = ()>>>;
+
+#[derive(Clone)]
+pub(crate) struct GracefulShutdownSignal(Rc<dyn Fn() -> GracefulShutdownFuture>);
+
+impl GracefulShutdownSignal {
+    pub(crate) fn new<F, Fut>(signal: F) -> Self
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = ()> + 'static,
+    {
+        Self(Rc::new(move || Box::pin(signal())))
+    }
+
+    fn notified(&self) -> GracefulShutdownFuture {
+        (self.0)()
+    }
+}
+
+impl fmt::Debug for GracefulShutdownSignal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GracefulShutdownSignal")
+            .finish_non_exhaustive()
+    }
+}
 
 /// Default HTTP/2 initial connection-level flow control window size.
 ///
@@ -108,6 +137,14 @@ impl ServiceConfigBuilder {
         self
     }
 
+    pub(crate) fn graceful_shutdown_signal(
+        mut self,
+        signal: Option<GracefulShutdownSignal>,
+    ) -> Self {
+        self.inner.graceful_shutdown_signal = signal;
+        self
+    }
+
     /// Sets initial stream-level flow control window size for HTTP/2 connections.
     ///
     /// Higher values can improve upload performance on high-latency links at the cost of higher
@@ -153,6 +190,7 @@ struct Inner {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
+    graceful_shutdown_signal: Option<GracefulShutdownSignal>,
 }
 
 impl Default for Inner {
@@ -169,6 +207,7 @@ impl Default for Inner {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            graceful_shutdown_signal: None,
         }
     }
 }
@@ -194,6 +233,7 @@ impl ServiceConfig {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            graceful_shutdown_signal: None,
         }))
     }
 
@@ -256,6 +296,13 @@ impl ServiceConfig {
     /// HTTP/1 response write buffer size (in bytes).
     pub fn h1_write_buffer_size(&self) -> usize {
         self.0.h1_write_buffer_size
+    }
+
+    pub(crate) fn graceful_shutdown(&self) -> Option<GracefulShutdownFuture> {
+        self.0
+            .graceful_shutdown_signal
+            .as_ref()
+            .map(GracefulShutdownSignal::notified)
     }
 
     /// Returns configured `TCP_NODELAY` setting for accepted TCP connections.

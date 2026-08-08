@@ -132,7 +132,7 @@ experimental-introspection = ["serde/derive"]
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
-actix-server = "2.6"
+actix-server = "2.7"
 actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
