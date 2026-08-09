@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.14.1
+
 - Close idle HTTP/1 keep-alive connections during graceful shutdown and let active connections finish only their current request before closing.
 
 ## 4.14.0
