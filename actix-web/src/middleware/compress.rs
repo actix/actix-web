@@ -110,14 +110,22 @@ where
 
     #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&self, req: ServiceRequest) -> Self::Future {
+        if req.extensions().get::<Encoding>().is_some() {
+            return Either::left(CompressResponse {
+                fut: self.service.call(req),
+                _phantom: PhantomData,
+            });
+        }
+
         // negotiate content-encoding
         let accept_encoding = req.get_header::<AcceptEncoding>();
 
         let accept_encoding = match accept_encoding {
             // missing header; fallback to identity
             None => {
+                req.extensions_mut().insert::<Encoding>(Encoding::identity());
+
                 return Either::left(CompressResponse {
-                    encoding: Encoding::identity(),
                     fut: self.service.call(req),
                     _phantom: PhantomData,
                 })
@@ -143,11 +151,14 @@ where
                     .map_into_right_body()))
             }
 
-            Some(encoding) => Either::left(CompressResponse {
-                fut: self.service.call(req),
-                encoding,
-                _phantom: PhantomData,
-            }),
+            Some(encoding) => {
+                req.extensions_mut().insert::<Encoding>(encoding);
+
+                Either::left(CompressResponse {
+                    fut: self.service.call(req),
+                    _phantom: PhantomData,
+                })
+            },
         }
     }
 }
@@ -159,7 +170,6 @@ pin_project! {
     {
         #[pin]
         fut: S::Future,
-        encoding: Encoding,
         _phantom: PhantomData<B>,
     }
 }
@@ -176,8 +186,19 @@ where
 
         match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = match this.encoding {
-                    Encoding::Known(enc) => *enc,
+                let request_encoding = resp.request().extensions().get::<Encoding>().cloned();
+
+                let encoding = match request_encoding {
+                    Some(enc) => enc.clone(),
+                    None => {
+                        return Poll::Ready(Ok(resp.map_body(move |head, body| {
+                            EitherBody::left(Encoder::response(ContentEncoding::Identity, head, body))
+                        })));
+                    }
+                };
+
+                let enc = match encoding {
+                    Encoding::Known(enc) => enc,
                     Encoding::Unknown(enc) => {
                         unimplemented!("encoding '{enc}' should not be here");
                     }
