@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Include inner error in `MultipartError::Payload` and `MultipartError::Parse` display strings. [#4168]
+- Include inner error in `MultipartError::Payload`, `MultipartError::Parse`, and `MultipartError::Field` display strings. [#4168]
+- Fix `MultipartError::ContentDispositionNameMissing` display string to indicate missing name parameter.
+- Improve `JsonFieldError::ContentType` and `TextError::ContentType` error messages.
 
 [#4168]: https://github.com/actix/actix-web/issues/4168
 

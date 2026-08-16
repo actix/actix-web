@@ -70,7 +70,7 @@ pub enum JsonFieldError {
     Deserialize(serde_json::Error),
 
     /// Content type error.
-    #[display("Content type error")]
+    #[display("Field Content-Type is not application/json")]
     ContentType,
 }
 
@@ -137,7 +137,7 @@ mod tests {
     use actix_web::{http::StatusCode, web, web::Bytes, App, HttpResponse, Responder};
 
     use crate::form::{
-        json::{Json, JsonConfig},
+        json::{Json, JsonConfig, JsonFieldError},
         MultipartForm,
     };
 
@@ -207,5 +207,13 @@ mod tests {
         *req.headers_mut() = headers;
         let res = req.send_body(body).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_json_field_error_display() {
+        assert_eq!(
+            JsonFieldError::ContentType.to_string(),
+            "Field Content-Type is not application/json"
+        );
     }
 }
