@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Include inner error in `MultipartError::Payload` and `MultipartError::Parse` display strings. [#4168]
+
+[#4168]: https://github.com/actix/actix-web/issues/4168
+
 ## 0.8.0
 
 - Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]

@@ -60,11 +60,11 @@ pub enum Error {
     Incomplete,
 
     /// Field parsing failed.
-    #[display("Error during field parsing")]
+    #[display("Error during field parsing: {_0}")]
     Parse(ParseError),
 
     /// HTTP payload error.
-    #[display("Payload error")]
+    #[display("Payload error: {_0}")]
     Payload(PayloadError),
 
     /// Stream is not consumed.
@@ -113,5 +113,14 @@ mod tests {
     fn test_multipart_error() {
         let resp = Error::BoundaryMissing.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let err = Error::Payload(PayloadError::Overflow);
+        assert_eq!(err.to_string(), "Payload error: payload reached size limit");
+
+        let err = Error::Parse(ParseError::Incomplete);
+        assert_eq!(
+            err.to_string(),
+            "Error during field parsing: message is incomplete"
+        );
     }
 }
