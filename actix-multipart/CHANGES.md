@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+- Fix multipart field parsing when boundary delimiter is split across payload chunks. [#3635]
 - Improve detail in some error messages.
+
+[#3635]: https://github.com/actix/actix-web/issues/3635
 
 ## 0.8.0
 
