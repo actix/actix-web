@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix multipart field parsing when boundary delimiter is split across payload chunks. [#3635]
+
+[#3635]: https://github.com/actix/actix-web/issues/3635
+
 ## 0.8.0
 
 - Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]

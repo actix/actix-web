@@ -301,23 +301,37 @@ impl InnerField {
             };
         }
 
-        // check boundary
-        if len > 4 && payload.buf[0] == b'\r' {
-            let b_len = if payload.buf.starts_with(b"\r\n") && &payload.buf[2..4] == b"--" {
+        // check boundary at the beginning of the buffer
+        if payload.buf[0] == b'\r' {
+            let b_len = if payload.buf.starts_with(b"\r\n--") {
                 Some(4)
-            } else if &payload.buf[1..3] == b"--" {
+            } else if payload.buf.starts_with(b"\r--") {
                 Some(3)
+            } else if !payload.eof
+                && (payload.buf.starts_with(b"\r\n-")
+                    || payload.buf.starts_with(b"\r\n")
+                    || payload.buf.starts_with(b"\r-")
+                    || payload.buf.len() == 1)
+            {
+                return Poll::Pending;
             } else {
                 None
             };
 
             if let Some(b_len) = b_len {
                 let b_size = boundary.len() + b_len;
-                if len < b_size {
-                    return Poll::Pending;
-                } else if &payload.buf[b_len..b_size] == boundary.as_bytes() {
-                    // found boundary
-                    return Poll::Ready(None);
+                let available = len - b_len;
+                let check_len = cmp::min(available, boundary.len());
+
+                if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
+                    match (len >= b_size, payload.eof) {
+                        // full boundary delimiter found
+                        (true, _) => return Poll::Ready(None),
+                        // partial boundary prefix with stream still open; wait for more chunks
+                        (false, false) => return Poll::Pending,
+                        // partial match at EOF is not a boundary; fall through to yield as payload data
+                        (false, true) => {}
+                    }
                 }
             }
         }
@@ -326,32 +340,25 @@ impl InnerField {
             return if let Some(idx) = memchr::memmem::find(&payload.buf[pos..], b"\r") {
                 let cur = pos + idx;
 
-                // check if we have enough data for boundary detection
-                if cur + 4 > len {
-                    if cur > 0 {
+                if cur > 0 {
+                    let rem = &payload.buf[cur..];
+                    let is_boundary_prefix = rem.starts_with(b"\r\n--")
+                        || rem.starts_with(b"\r--")
+                        || (!payload.eof
+                            && (rem.starts_with(b"\r\n-")
+                                || rem.starts_with(b"\r\n")
+                                || rem.starts_with(b"\r-")
+                                || rem.len() == 1));
+
+                    if is_boundary_prefix {
                         Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
                     } else {
-                        Poll::Pending
-                    }
-                } else {
-                    // check boundary
-                    if (&payload.buf[cur..cur + 2] == b"\r\n"
-                        && &payload.buf[cur + 2..cur + 4] == b"--")
-                        || (&payload.buf[cur..=cur] == b"\r"
-                            && &payload.buf[cur + 1..cur + 3] == b"--")
-                    {
-                        if cur != 0 {
-                            // return buffer
-                            Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
-                        } else {
-                            pos = cur + 1;
-                            continue;
-                        }
-                    } else {
-                        // not boundary
                         pos = cur + 1;
                         continue;
                     }
+                } else {
+                    pos = cur + 1;
+                    continue;
                 }
             } else {
                 Poll::Ready(Some(Ok(payload.buf.split().freeze())))
@@ -497,5 +504,235 @@ mod tests {
             .expect("field data should not be size limited")
             .expect("reading field data should not error");
         assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn boundary_split_at_dashes() {
+        let (mut sender, payload) = actix_http::h1::Payload::create(false);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        sender.feed_data(Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             one+one+one\r\n--",
+        ));
+
+        let mut field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted");
+
+        let mut field_data = actix_web::web::BytesMut::new();
+        let chunk = field.next().await.expect("field data").unwrap();
+        field_data.extend_from_slice(&chunk);
+
+        // Send chunk 2 starting with boundary name
+        sender.feed_data(Bytes::from(
+            "abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             two+two+two\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        ));
+        sender.feed_eof();
+
+        while let Some(chunk) = field.next().await {
+            field_data.extend_from_slice(&chunk.unwrap());
+        }
+        drop(field);
+
+        assert_eq!(field_data.freeze(), "one+one+one");
+
+        let field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted")
+            .bytes(usize::MAX)
+            .await
+            .expect("field data should not be size limited")
+            .expect("reading field data should not error");
+        assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn boundary_split_at_crlf() {
+        let (mut sender, payload) = actix_http::h1::Payload::create(false);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        sender.feed_data(Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             one+one+one\r\n",
+        ));
+
+        let mut field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted");
+
+        let mut field_data = actix_web::web::BytesMut::new();
+        let chunk = field.next().await.expect("field data").unwrap();
+        field_data.extend_from_slice(&chunk);
+
+        // Send chunk 2 starting with -- and boundary
+        sender.feed_data(Bytes::from(
+            "--abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             two+two+two\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        ));
+        sender.feed_eof();
+
+        while let Some(chunk) = field.next().await {
+            field_data.extend_from_slice(&chunk.unwrap());
+        }
+        drop(field);
+
+        assert_eq!(field_data.freeze(), "one+one+one");
+
+        let field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted")
+            .bytes(usize::MAX)
+            .await
+            .expect("field data should not be size limited")
+            .expect("reading field data should not error");
+        assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn boundary_split_inside_boundary() {
+        let (mut sender, payload) = actix_http::h1::Payload::create(false);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        sender.feed_data(Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             one+one+one\r\n--abbc761f",
+        ));
+
+        let mut field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted");
+
+        let mut field_data = actix_web::web::BytesMut::new();
+        let chunk = field.next().await.expect("field data").unwrap();
+        field_data.extend_from_slice(&chunk);
+
+        // Send chunk 2 with remaining boundary bytes
+        sender.feed_data(Bytes::from(
+            "78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             two+two+two\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        ));
+        sender.feed_eof();
+
+        while let Some(chunk) = field.next().await {
+            field_data.extend_from_slice(&chunk.unwrap());
+        }
+        drop(field);
+
+        assert_eq!(field_data.freeze(), "one+one+one");
+
+        let field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted")
+            .bytes(usize::MAX)
+            .await
+            .expect("field data should not be size limited")
+            .expect("reading field data should not error");
+        assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn field_data_containing_fake_boundary_prefix() {
+        let (mut sender, payload) = actix_http::h1::Payload::create(false);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        sender.feed_data(Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             \r\n\
+             one\r\n--not_the_boundary\r\none\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+        ));
+        sender.feed_eof();
+
+        let mut field = multipart
+            .next()
+            .await
+            .expect("multipart should have field")
+            .expect("multipart body should be well formatted");
+
+        let mut field_data = actix_web::web::BytesMut::new();
+        while let Some(chunk) = field.next().await {
+            field_data.extend_from_slice(&chunk.unwrap());
+        }
+        drop(field);
+
+        assert_eq!(field_data.freeze(), "one\r\n--not_the_boundary\r\none");
+        assert!(multipart.next().await.is_none());
     }
 }
