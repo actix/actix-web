@@ -111,8 +111,14 @@ impl AsyncRead for TestBuffer {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         let dst = buf.initialize_unfilled();
-        let res = self.get_mut().read(dst).map(|n| buf.advance(n));
-        Poll::Ready(res)
+        match self.get_mut().read(dst) {
+            Ok(n) => {
+                buf.advance(n);
+                Poll::Ready(Ok(()))
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
     }
 }
 
@@ -191,11 +197,19 @@ mod tests {
         let mut empty = TestBuffer::empty();
         let mut read = [];
         let mut read_buf = ReadBuf::new(&mut read);
+        assert!(Pin::new(&mut empty)
+            .poll_read(&mut cx, &mut read_buf)
+            .is_pending());
+
+        let mut error = TestBuffer::empty();
+        error.err = Some(Rc::new(io::Error::other("error")));
+        let mut read = [];
+        let mut read_buf = ReadBuf::new(&mut read);
         assert_eq!(
-            Pin::new(&mut empty)
+            Pin::new(&mut error)
                 .poll_read(&mut cx, &mut read_buf)
-                .map(|result| result.unwrap_err().kind()),
-            Poll::Ready(io::ErrorKind::WouldBlock)
+                .map(|result| result.unwrap_err().to_string()),
+            Poll::Ready("error".to_owned())
         );
 
         let mut buffer = TestBuffer::empty();
