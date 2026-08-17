@@ -49,17 +49,20 @@ impl MessageBody for ReadyChunkBody {
     }
 }
 
+/// Creates a service that responds with an empty `200 OK` response.
 pub(crate) fn ok_service(
 ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
     status_service(StatusCode::OK)
 }
 
+/// Creates a service that responds with the given status and an empty body.
 fn status_service(
     status: StatusCode,
 ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
     fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
+/// Creates a service that echoes the request path in the response body.
 pub(crate) fn echo_path_service(
 ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
     fn_service(|req: Request| {
@@ -70,6 +73,7 @@ pub(crate) fn echo_path_service(
     })
 }
 
+/// Creates a service that drops the request payload and returns a `200 OK` response.
 pub(crate) fn drop_payload_service(
 ) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
     fn_service(|mut req: Request| async move {
@@ -78,11 +82,13 @@ pub(crate) fn drop_payload_service(
     })
 }
 
+/// Creates a service that ignores the request payload and returns a `200 OK` response.
 pub(crate) fn ignore_payload_service(
 ) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
     fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
 }
 
+/// Creates a service that echoes the request payload in the response body.
 pub(crate) fn echo_payload_service(
 ) -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
     fn_service(|mut req: Request| {
@@ -100,6 +106,7 @@ pub(crate) fn echo_payload_service(
     })
 }
 
+/// Creates a service that returns a configurable ready chunk body.
 pub(crate) fn ready_chunk_body_service(
     chunk_polls: Rc<Cell<usize>>,
     chunk_count: usize,
@@ -112,6 +119,7 @@ pub(crate) fn ready_chunk_body_service(
     })
 }
 
+/// Creates a service that returns a `101 Switching Protocols` response.
 pub(crate) fn upgrade_response_service(
 ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
     fn_service(|_req: Request| {
