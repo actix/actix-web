@@ -202,16 +202,18 @@ mod tests {
         error.err = Some(Rc::new(io::Error::other("error")));
         let mut read = [];
         let mut read_buf = ReadBuf::new(&mut read);
-        assert_eq!(
-            assert_ready_err!(Pin::new(&mut error).poll_read(&mut cx, &mut read_buf)).to_string(),
-            "error"
+        let error = assert_ready_err!(
+            Pin::new(&mut error).poll_read(&mut cx, &mut read_buf),
+            "expected a ready error"
         );
+        assert_eq!(error.to_string(), "error");
 
         let mut buffer = TestBuffer::empty();
-        assert_eq!(
-            assert_ready_ok!(Pin::new(&mut buffer).poll_write(&mut cx, b"write")),
-            5
+        let written = assert_ready_ok!(
+            Pin::new(&mut buffer).poll_write(&mut cx, b"write"),
+            "expected a successful write"
         );
+        assert_eq!(written, 5);
         assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));
         assert_ready_ok!(Pin::new(&mut buffer).poll_shutdown(&mut cx));
     }

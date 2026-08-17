@@ -110,10 +110,11 @@ mod tests {
         assert_eq!(read_buf.filled(), b"read");
 
         assert_pending!(Pin::new(&mut buffer).poll_write(&mut cx, b"write"));
-        assert_eq!(
-            assert_ready_ok!(Pin::new(&mut buffer).poll_write(&mut cx, b"write")),
-            5
+        let written = assert_ready_ok!(
+            Pin::new(&mut buffer).poll_write(&mut cx, b"write"),
+            "expected a successful write"
         );
+        assert_eq!(written, 5);
         assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));
         assert_ready_ok!(Pin::new(&mut buffer).poll_shutdown(&mut cx));
     }
