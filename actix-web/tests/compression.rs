@@ -326,3 +326,128 @@ async fn deny_identity_for_manual_coding() {
 
     srv.stop().await;
 }
+
+#[actix_rt::test]
+async fn gzip_flushes_small_streaming_chunks() {
+    // Regression: small chunks (SSE events, for example) produce no compressed
+    // output on their own; the encoders buffer them internally. Without a
+    // flush when a write yields no output, the whole body only reaches the
+    // client when the stream ends.
+    use futures_util::{stream, StreamExt};
+    use std::{
+        convert::Infallible,
+        sync::{Arc, Mutex},
+    };
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    // The server factory must be Clone; only the (single) worker's handler
+    // takes the receiver out of the shared slot.
+    let rx = Arc::new(Mutex::new(Some(rx)));
+
+    // The first two events are produced back to back; the third one is held
+    // back behind the gate. The encoder's first write only emits the gzip
+    // header, so streaming starts with the second write's flush.
+    let srv = actix_test::start(move || {
+        let rx = Arc::clone(&rx);
+        App::new().wrap(Compress::default()).route(
+            "/gated",
+            web::to(move || {
+                let rx = Arc::clone(&rx);
+                async move {
+                    let rx = rx.lock().unwrap().take();
+
+                    let body = stream::unfold((rx, 0u8), |(rx, step)| async move {
+                        match step {
+                            0 => Some((
+                                Ok::<_, Infallible>(Bytes::from_static(b"data: first\n\n")),
+                                (rx, 1),
+                            )),
+                            1 => Some((
+                                Ok::<_, Infallible>(Bytes::from_static(b"data: second\n\n")),
+                                (rx, 2),
+                            )),
+                            2 => {
+                                let _ = rx.unwrap().await;
+                                Some((
+                                    Ok::<_, Infallible>(Bytes::from_static(b"data: third\n\n")),
+                                    (None, 3),
+                                ))
+                            }
+                            _ => None,
+                        }
+                    });
+
+                    HttpResponse::Ok()
+                        .content_type("text/event-stream")
+                        .streaming(Box::pin(body))
+                }
+            }),
+        )
+    });
+
+    let mut res = srv
+        .post("/gated")
+        .no_decompress()
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+
+    // The gate has not been released yet. Keep reading with a timeout: with
+    // the flush in place the first two events arrive as compressed data; a
+    // buffering encoder only ever sends the bare 10-byte gzip header here.
+    use std::io::Read as _;
+
+    let mut raw = Vec::new();
+    let first_events: &[u8] = b"data: first\n\ndata: second\n\n";
+    let mut decompressed = Vec::new();
+
+    loop {
+        let chunk = actix_rt::time::timeout(std::time::Duration::from_secs(3), res.next())
+            .await
+            .expect("compressed data for the first events was not flushed before the stream ended")
+            .unwrap()
+            .unwrap();
+        raw.extend_from_slice(&chunk);
+
+        let mut decoder = flate2::read::GzDecoder::new(&raw[..]);
+        let mut buf = [0u8; 128];
+        loop {
+            let n = decoder.read(&mut buf).unwrap_or(0);
+            if n == 0 {
+                break;
+            }
+            decompressed.extend_from_slice(&buf[..n]);
+            if decompressed.len() >= first_events.len() {
+                break;
+            }
+        }
+
+        if !decompressed.is_empty() {
+            break;
+        }
+    }
+
+    assert_eq!(
+        &decompressed[..],
+        &first_events[..],
+        "first flushed chunk did not decompress to the first two events"
+    );
+
+    // Release the last event and collect the rest of the body.
+    tx.send(()).unwrap();
+
+    while let Some(chunk) = res.next().await {
+        raw.extend_from_slice(&chunk.unwrap());
+    }
+
+    assert_eq!(
+        utils::gzip::decode(raw),
+        &b"data: first\n\ndata: second\n\ndata: third\n\n"[..]
+    );
+
+    srv.stop().await;
+}
