@@ -25,7 +25,7 @@ use crate::{
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{TestBuffer, TestSeqBuffer},
+    test::{services::ok_service, TestBuffer, TestSeqBuffer},
     Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
 
@@ -165,16 +165,6 @@ fn stabilize_date_header(payload: &mut [u8]) {
             .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
         from += 35;
     }
-}
-
-fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    status_service(StatusCode::OK)
-}
-
-fn status_service(
-    status: StatusCode,
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
 fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
