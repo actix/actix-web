@@ -145,7 +145,7 @@ mod tests {
     use std::{io, task::Context};
 
     use futures_util::task::noop_waker_ref;
-    use tokio_test::{assert_pending, assert_ready_eq, assert_ready_ok};
+    use tokio_test::{assert_pending, assert_ready_err, assert_ready_ok};
 
     use super::*;
 
@@ -202,18 +202,14 @@ mod tests {
         error.err = Some(Rc::new(io::Error::other("error")));
         let mut read = [];
         let mut read_buf = ReadBuf::new(&mut read);
-        assert_ready_eq!(
-            Pin::new(&mut error)
-                .poll_read(&mut cx, &mut read_buf)
-                .map(|result| result.unwrap_err().to_string()),
-            "error".to_owned()
+        assert_eq!(
+            assert_ready_err!(Pin::new(&mut error).poll_read(&mut cx, &mut read_buf)).to_string(),
+            "error"
         );
 
         let mut buffer = TestBuffer::empty();
-        assert_ready_eq!(
-            Pin::new(&mut buffer)
-                .poll_write(&mut cx, b"write")
-                .map(|result| result.unwrap()),
+        assert_eq!(
+            assert_ready_ok!(Pin::new(&mut buffer).poll_write(&mut cx, b"write")),
             5
         );
         assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));

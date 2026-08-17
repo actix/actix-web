@@ -83,7 +83,7 @@ mod tests {
 
     use bytes::Bytes;
     use futures_util::task::noop_waker_ref;
-    use tokio_test::{assert_pending, assert_ready_eq, assert_ready_ok};
+    use tokio_test::{assert_pending, assert_ready_ok};
 
     use super::*;
 
@@ -110,10 +110,8 @@ mod tests {
         assert_eq!(read_buf.filled(), b"read");
 
         assert_pending!(Pin::new(&mut buffer).poll_write(&mut cx, b"write"));
-        assert_ready_eq!(
-            Pin::new(&mut buffer)
-                .poll_write(&mut cx, b"write")
-                .map(|result| result.unwrap()),
+        assert_eq!(
+            assert_ready_ok!(Pin::new(&mut buffer).poll_write(&mut cx, b"write")),
             5
         );
         assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));
