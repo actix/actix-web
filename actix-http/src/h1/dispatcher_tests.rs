@@ -1,7 +1,6 @@
 use std::{
     cell::Cell,
     future::Future,
-    io,
     pin::Pin,
     rc::Rc,
     str,
@@ -26,6 +25,7 @@ use crate::{
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{
+        pending_once_write_buf::PendingOnceWriteBuf,
         test_services::{
             drop_payload_service, echo_path_service, echo_payload_service, ignore_payload_service,
             ok_service, ready_chunk_body_service, upgrade_response_service,
@@ -52,73 +52,6 @@ impl Service<Request> for YieldService {
             actix_rt::task::yield_now().await;
             Ok(Response::ok())
         })
-    }
-}
-
-struct PendingOnceWriteBuf {
-    io: TestBuffer,
-    block_next_write: bool,
-}
-
-impl PendingOnceWriteBuf {
-    fn new<T>(data: T) -> Self
-    where
-        T: Into<BytesMut>,
-    {
-        Self {
-            io: TestBuffer::new(data),
-            block_next_write: true,
-        }
-    }
-}
-
-impl io::Read for PendingOnceWriteBuf {
-    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        self.io.read(dst)
-    }
-}
-
-impl io::Write for PendingOnceWriteBuf {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.io.flush()
-    }
-}
-
-impl actix_codec::AsyncRead for PendingOnceWriteBuf {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut actix_codec::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_read(cx, buf)
-    }
-}
-
-impl actix_codec::AsyncWrite for PendingOnceWriteBuf {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.block_next_write {
-            self.block_next_write = false;
-            cx.waker().wake_by_ref();
-            return Poll::Pending;
-        }
-
-        Pin::new(&mut self.io).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_flush(cx)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }
 

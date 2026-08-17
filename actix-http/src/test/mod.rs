@@ -1,6 +1,8 @@
 //! Various testing helpers for use in internal and app tests.
 
 #[cfg(test)]
+pub(crate) mod pending_once_write_buf;
+#[cfg(test)]
 mod ready_chunk_body;
 mod test_buffer;
 mod test_request;
