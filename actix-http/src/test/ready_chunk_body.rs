@@ -1,0 +1,48 @@
+use std::{
+    cell::Cell,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
+
+use bytes::Bytes;
+
+use crate::{body::MessageBody, Error};
+
+pub(crate) struct ReadyChunkBody {
+    chunk_polls: Rc<Cell<usize>>,
+    remaining: usize,
+    chunk_len: usize,
+}
+
+impl ReadyChunkBody {
+    pub(crate) fn new(chunk_polls: Rc<Cell<usize>>, remaining: usize, chunk_len: usize) -> Self {
+        Self {
+            chunk_polls,
+            remaining,
+            chunk_len,
+        }
+    }
+}
+
+impl MessageBody for ReadyChunkBody {
+    type Error = Error;
+
+    fn size(&self) -> crate::body::BodySize {
+        crate::body::BodySize::Stream
+    }
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        if self.remaining == 0 {
+            return Poll::Ready(None);
+        }
+
+        self.remaining -= 1;
+        self.chunk_polls.set(self.chunk_polls.get() + 1);
+
+        Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
+    }
+}

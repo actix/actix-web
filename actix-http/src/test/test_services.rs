@@ -1,53 +1,11 @@
-use std::{
-    cell::Cell,
-    pin::Pin,
-    rc::Rc,
-    task::{Context, Poll},
-};
+use std::{cell::Cell, rc::Rc};
 
 use actix_service::{fn_service, Service};
 use actix_utils::future::ready;
 use bytes::{Buf, Bytes, BytesMut};
 
+use super::ready_chunk_body::ReadyChunkBody;
 use crate::{body::MessageBody, Error, Request, Response, StatusCode};
-
-pub(crate) struct ReadyChunkBody {
-    chunk_polls: Rc<Cell<usize>>,
-    remaining: usize,
-    chunk_len: usize,
-}
-
-impl ReadyChunkBody {
-    fn new(chunk_polls: Rc<Cell<usize>>, remaining: usize, chunk_len: usize) -> Self {
-        Self {
-            chunk_polls,
-            remaining,
-            chunk_len,
-        }
-    }
-}
-
-impl MessageBody for ReadyChunkBody {
-    type Error = Error;
-
-    fn size(&self) -> crate::body::BodySize {
-        crate::body::BodySize::Stream
-    }
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        if self.remaining == 0 {
-            return Poll::Ready(None);
-        }
-
-        self.remaining -= 1;
-        self.chunk_polls.set(self.chunk_polls.get() + 1);
-
-        Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
-    }
-}
 
 /// Creates a service that responds with an empty `200 OK` response.
 pub(crate) fn ok_service(
