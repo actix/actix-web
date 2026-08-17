@@ -25,7 +25,7 @@ use crate::{
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{services::ok_service, TestBuffer, TestSeqBuffer},
+    test::{test_services::ok_service, TestBuffer, TestSeqBuffer},
     Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
 
