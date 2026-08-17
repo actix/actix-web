@@ -18,6 +18,7 @@ use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
 use bytes::{Buf, Bytes, BytesMut};
 use futures_util::future::lazy;
+use tracing_test::traced_test;
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
@@ -25,7 +26,7 @@ use crate::{
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{TestBuffer, TestSeqBuffer},
+    test::{ok_service, FailingWriteBuf, TestBuffer, TestSeqBuffer},
     Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
 
@@ -165,16 +166,6 @@ fn stabilize_date_header(payload: &mut [u8]) {
             .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
         from += 35;
     }
-}
-
-fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    status_service(StatusCode::OK)
-}
-
-fn status_service(
-    status: StatusCode,
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
 fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
@@ -610,6 +601,91 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
         buf.write_buf_slice().is_empty(),
         "dispatcher wrote a response for the buffered request"
     );
+}
+
+#[actix_rt::test]
+#[traced_test]
+async fn peer_eof_logs_warn() {
+    let buf = TestSeqBuffer::empty();
+    buf.close_read();
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let dispatcher = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(dispatcher);
+
+    lazy(|cx| assert!(dispatcher.as_mut().poll(cx).is_ready())).await;
+
+    assert!(logs_contain("peer disconnected"));
+}
+
+#[actix_rt::test]
+#[traced_test]
+async fn peer_read_error_logs_warn() {
+    let mut buf = TestBuffer::empty();
+    buf.err = Some(Rc::new(io::Error::new(
+        io::ErrorKind::ConnectionReset,
+        "peer reset the connection",
+    )));
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let dispatcher = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(dispatcher);
+
+    lazy(|cx| assert!(dispatcher.as_mut().poll(cx).is_ready())).await;
+
+    assert!(logs_contain("peer disconnected"));
+}
+
+#[actix_rt::test]
+#[traced_test]
+async fn peer_reset_after_request_logs_warn() {
+    let mut buf = TestBuffer::new("GET / HTTP/1.1\r\n\r\n");
+    buf.err = Some(Rc::new(io::Error::new(
+        io::ErrorKind::ConnectionReset,
+        "peer reset the connection",
+    )));
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let dispatcher = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(dispatcher);
+
+    lazy(|cx| assert!(dispatcher.as_mut().poll(cx).is_ready())).await;
+
+    assert!(logs_contain("peer disconnected"));
+}
+
+#[actix_rt::test]
+#[traced_test]
+async fn peer_write_error_logs_warn() {
+    let buf = FailingWriteBuf::new("GET / HTTP/1.1\r\n\r\n");
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let dispatcher = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    pin!(dispatcher);
+
+    lazy(|cx| assert!(dispatcher.as_mut().poll(cx).is_ready())).await;
+
+    assert!(logs_contain("peer disconnected"));
 }
 
 #[actix_rt::test]

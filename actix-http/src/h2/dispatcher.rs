@@ -111,8 +111,12 @@ where
         let this = self.get_mut();
 
         loop {
-            match Pin::new(&mut this.connection).poll_accept(cx)? {
-                Poll::Ready(Some((req, tx))) => {
+            match Pin::new(&mut this.connection).poll_accept(cx) {
+                Poll::Ready(Some(Err(err))) => {
+                    tracing::warn!("HTTP/2 peer disconnected: {err:?}");
+                    return Poll::Ready(Err(err.into()));
+                }
+                Poll::Ready(Some(Ok((req, tx)))) => {
                     let (parts, body) = req.into_parts();
                     let payload = crate::h2::Payload::new(body);
                     let pl = Payload::H2 { payload };
@@ -146,10 +150,14 @@ where
                         if let Err(err) = res {
                             match err {
                                 DispatchError::SendResponse(err) => {
-                                    tracing::trace!("Error sending response: {err:?}");
+                                    tracing::warn!(
+                                        "HTTP/2 peer disconnected while sending response: {err:?}"
+                                    );
                                 }
                                 DispatchError::SendData(err) => {
-                                    tracing::warn!("Send data error: {err:?}");
+                                    tracing::warn!(
+                                        "HTTP/2 peer disconnected while sending response data: {err:?}"
+                                    );
                                 }
                                 DispatchError::ResponseBody(err) => {
                                     tracing::error!("Response payload stream error: {err:?}");
@@ -158,7 +166,10 @@ where
                         }
                     });
                 }
-                Poll::Ready(None) => return Poll::Ready(Ok(())),
+                Poll::Ready(None) => {
+                    tracing::warn!("HTTP/2 peer disconnected");
+                    return Poll::Ready(Ok(()));
+                }
 
                 Poll::Pending => match this.ping_pong.as_mut() {
                     Some(ping_pong) => loop {
@@ -166,8 +177,12 @@ where
                             // When there is an in-flight ping-pong, poll pong and keep-alive
                             // timer. On successful pong received, update keep-alive timer to
                             // determine the next timing of ping pong.
-                            match ping_pong.ping_pong.poll_pong(cx)? {
-                                Poll::Ready(_) => {
+                            match ping_pong.ping_pong.poll_pong(cx) {
+                                Poll::Ready(Err(err)) => {
+                                    tracing::warn!("HTTP/2 peer disconnected: {err:?}");
+                                    return Poll::Ready(Err(err.into()));
+                                }
+                                Poll::Ready(Ok(_)) => {
                                     ping_pong.in_flight = false;
 
                                     let dead_line = this.config.keep_alive_deadline().unwrap();
@@ -183,7 +198,10 @@ where
                             // as an interval instead.
                             ready!(ping_pong.timer.as_mut().poll(cx));
 
-                            ping_pong.ping_pong.send_ping(Ping::opaque())?;
+                            if let Err(err) = ping_pong.ping_pong.send_ping(Ping::opaque()) {
+                                tracing::warn!("HTTP/2 peer disconnected: {err:?}");
+                                return Poll::Ready(Err(err.into()));
+                            }
 
                             let dead_line = this.config.keep_alive_deadline().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line.into());
@@ -243,7 +261,10 @@ where
 
             match poll_fn(|cx| stream.poll_capacity(cx)).await {
                 // No capacity left. drop body and return.
-                None => return Ok(()),
+                None => {
+                    tracing::warn!("HTTP/2 peer disconnected while sending response");
+                    return Ok(());
+                }
 
                 Some(Err(err)) => return Err(DispatchError::SendData(err)),
 
@@ -352,4 +373,51 @@ fn prepare_response(
     }
 
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+
+    use actix_rt::net::{TcpListener, TcpStream};
+    use futures_util::future::{poll_fn, try_join};
+    use tracing_test::traced_test;
+
+    use super::Dispatcher;
+    use crate::{
+        body::BoxBody, config::ServiceConfig, service::HttpFlow, test::ok_service, OnConnectData,
+    };
+
+    #[actix_rt::test]
+    #[traced_test]
+    async fn peer_eof_logs_warn() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let client = actix_rt::spawn(async move { TcpStream::connect(addr).await.unwrap() });
+        let (server_io, _) = listener.accept().await.unwrap();
+        let client_io = client.await.unwrap();
+
+        let ((_, client_conn), server_conn) = try_join(
+            h2::client::handshake(client_io),
+            h2::server::handshake(server_io),
+        )
+        .await
+        .unwrap();
+        drop(client_conn);
+
+        let flow = HttpFlow::new(ok_service(), (), None::<()>);
+        let dispatcher = Dispatcher::<_, _, BoxBody, _, _>::new(
+            server_conn,
+            flow,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+            None,
+        );
+
+        let mut dispatcher = Box::pin(dispatcher);
+        let _ = poll_fn(|cx| dispatcher.as_mut().poll(cx)).await;
+
+        assert!(logs_contain("peer disconnected"));
+    }
 }
