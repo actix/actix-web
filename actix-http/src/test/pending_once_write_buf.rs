@@ -9,6 +9,7 @@ use bytes::BytesMut;
 
 use super::TestBuffer;
 
+/// Test I/O buffer that returns `Poll::Pending` on its first write.
 pub(crate) struct PendingOnceWriteBuf {
     io: TestBuffer,
     block_next_write: bool,

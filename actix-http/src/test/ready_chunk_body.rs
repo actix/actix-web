@@ -9,6 +9,7 @@ use bytes::Bytes;
 
 use crate::{body::MessageBody, Error};
 
+/// Test body that yields fixed-size chunks for a configured number of polls.
 pub(crate) struct ReadyChunkBody {
     chunk_polls: Rc<Cell<usize>>,
     remaining: usize,
