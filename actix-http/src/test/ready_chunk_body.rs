@@ -53,6 +53,7 @@ mod tests {
     use std::task::Context;
 
     use futures_util::task::noop_waker_ref;
+    use tokio_test::assert_ready_eq;
 
     use super::*;
 
@@ -63,23 +64,23 @@ mod tests {
         let mut cx = Context::from_waker(noop_waker_ref());
 
         assert_eq!(body.size(), crate::body::BodySize::Stream);
-        assert_eq!(
+        assert_ready_eq!(
             Pin::new(&mut body)
                 .poll_next(&mut cx)
                 .map(|chunk| chunk.unwrap().unwrap()),
-            Poll::Ready(Bytes::from_static(b"xxx"))
+            Bytes::from_static(b"xxx")
         );
-        assert_eq!(
+        assert_ready_eq!(
             Pin::new(&mut body)
                 .poll_next(&mut cx)
                 .map(|chunk| chunk.unwrap().unwrap()),
-            Poll::Ready(Bytes::from_static(b"xxx"))
+            Bytes::from_static(b"xxx")
         );
-        assert_eq!(
+        assert_ready_eq!(
             Pin::new(&mut body)
                 .poll_next(&mut cx)
                 .map(|chunk| chunk.is_none()),
-            Poll::Ready(true)
+            true
         );
         assert_eq!(chunk_polls.get(), 2);
     }

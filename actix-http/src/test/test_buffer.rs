@@ -145,6 +145,7 @@ mod tests {
     use std::{io, task::Context};
 
     use futures_util::task::noop_waker_ref;
+    use tokio_test::{assert_pending, assert_ready_eq, assert_ready_ok};
 
     use super::*;
 
@@ -189,37 +190,33 @@ mod tests {
         let mut read = [0; 4];
         let mut read_buf = ReadBuf::new(&mut read);
 
-        assert!(Pin::new(&mut buffer)
-            .poll_read(&mut cx, &mut read_buf)
-            .is_ready());
+        assert_ready_ok!(Pin::new(&mut buffer).poll_read(&mut cx, &mut read_buf));
         assert_eq!(read_buf.filled(), b"read");
 
         let mut empty = TestBuffer::empty();
         let mut read = [];
         let mut read_buf = ReadBuf::new(&mut read);
-        assert!(Pin::new(&mut empty)
-            .poll_read(&mut cx, &mut read_buf)
-            .is_pending());
+        assert_pending!(Pin::new(&mut empty).poll_read(&mut cx, &mut read_buf));
 
         let mut error = TestBuffer::empty();
         error.err = Some(Rc::new(io::Error::other("error")));
         let mut read = [];
         let mut read_buf = ReadBuf::new(&mut read);
-        assert_eq!(
+        assert_ready_eq!(
             Pin::new(&mut error)
                 .poll_read(&mut cx, &mut read_buf)
                 .map(|result| result.unwrap_err().to_string()),
-            Poll::Ready("error".to_owned())
+            "error".to_owned()
         );
 
         let mut buffer = TestBuffer::empty();
-        assert_eq!(
+        assert_ready_eq!(
             Pin::new(&mut buffer)
                 .poll_write(&mut cx, b"write")
                 .map(|result| result.unwrap()),
-            Poll::Ready(5)
+            5
         );
-        assert!(Pin::new(&mut buffer).poll_flush(&mut cx).is_ready());
-        assert!(Pin::new(&mut buffer).poll_shutdown(&mut cx).is_ready());
+        assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));
+        assert_ready_ok!(Pin::new(&mut buffer).poll_shutdown(&mut cx));
     }
 }
