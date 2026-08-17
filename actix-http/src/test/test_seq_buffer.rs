@@ -146,3 +146,95 @@ impl AsyncWrite for TestSeqBuffer {
         Poll::Ready(Ok(()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{io, task::Context};
+
+    use futures_util::task::noop_waker_ref;
+
+    use super::*;
+
+    #[test]
+    fn buffer_read_write() {
+        let mut buffer = TestSeqBuffer::new("read");
+        let clone = buffer.clone();
+
+        assert_eq!(buffer.read_buf().as_ref(), b"read");
+        assert!(buffer.err().is_none());
+        buffer.extend_read_buf("!");
+
+        let mut read = [0; 5];
+        assert_eq!(io::Read::read(&mut buffer, &mut read).unwrap(), 5);
+        assert_eq!(&read, b"read!");
+
+        io::Write::write_all(&mut buffer, b"write").unwrap();
+        io::Write::flush(&mut buffer).unwrap();
+        assert_eq!(buffer.write_buf().as_ref(), b"write");
+        assert_eq!(clone.take_write_buf(), Bytes::from_static(b"write"));
+        assert!(buffer.write_buf().is_empty());
+
+        assert_eq!(
+            io::Read::read(&mut buffer, &mut []).unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+        buffer.close_read();
+        assert_eq!(io::Read::read(&mut buffer, &mut []).unwrap(), 0);
+
+        let mut error = TestSeqBuffer::empty();
+        error.0.borrow_mut().err = Some(io::Error::other("error"));
+        assert_eq!(
+            io::Read::read(&mut error, &mut []).unwrap_err().to_string(),
+            "error"
+        );
+    }
+
+    #[test]
+    fn buffer_async_io() {
+        let mut cx = Context::from_waker(noop_waker_ref());
+
+        let mut pending = TestSeqBuffer::empty();
+        let mut read = [];
+        let mut read_buf = ReadBuf::new(&mut read);
+        assert!(Pin::new(&mut pending)
+            .poll_read(&mut cx, &mut read_buf)
+            .is_pending());
+
+        let mut buffer = TestSeqBuffer::new("read");
+        let mut read = [0; 4];
+        let mut read_buf = ReadBuf::new(&mut read);
+        assert!(Pin::new(&mut buffer)
+            .poll_read(&mut cx, &mut read_buf)
+            .is_ready());
+        assert_eq!(read_buf.filled(), b"read");
+
+        let mut error = TestSeqBuffer::empty();
+        error.0.borrow_mut().err = Some(io::Error::other("error"));
+        let mut read = [];
+        let mut read_buf = ReadBuf::new(&mut read);
+        assert_eq!(
+            Pin::new(&mut error)
+                .poll_read(&mut cx, &mut read_buf)
+                .map(|result| result.unwrap_err().to_string()),
+            Poll::Ready("error".to_owned())
+        );
+
+        let mut buffer = TestSeqBuffer::empty();
+        assert_eq!(
+            Pin::new(&mut buffer)
+                .poll_write(&mut cx, b"write")
+                .map(|result| result.unwrap()),
+            Poll::Ready(5)
+        );
+        assert!(Pin::new(&mut buffer).poll_flush(&mut cx).is_ready());
+        assert!(Pin::new(&mut buffer).poll_shutdown(&mut cx).is_ready());
+    }
+
+    #[test]
+    #[should_panic(expected = "Tried to extend the read buffer")]
+    fn extend_read_buf_after_close_panics() {
+        let mut buffer = TestSeqBuffer::empty();
+        buffer.close_read();
+        buffer.extend_read_buf("data");
+    }
+}

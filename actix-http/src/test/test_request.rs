@@ -127,3 +127,50 @@ impl TestRequest {
 fn parts(parts: &mut Option<Inner>) -> &mut Inner {
     parts.as_mut().expect("cannot reuse test request builder")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_builder() {
+        let mut request = TestRequest::with_uri("/initial");
+        request
+            .version(Version::HTTP_10)
+            .method(Method::POST)
+            .uri("/final")
+            .insert_header(("x-test", "one"))
+            .append_header(("x-test", "two"));
+
+        let request = request.finish();
+        assert_eq!(request.head().uri, Uri::from_static("/final"));
+        assert_eq!(request.head().method, Method::POST);
+        assert_eq!(request.head().version, Version::HTTP_10);
+        assert_eq!(request.head().headers.get_all("x-test").count(), 2);
+
+        let mut request = TestRequest::default();
+        request.set_payload("body");
+        let request = request.finish();
+        assert_eq!(
+            request.head().headers.get(header::CONTENT_LENGTH).unwrap(),
+            "4"
+        );
+
+        let mut request = TestRequest::default();
+        let request = request.take();
+        let mut request = request;
+        assert_eq!(request.finish().head().uri, Uri::from_static("/"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Error inserting test header")]
+    fn insert_header_rejects_invalid_header() {
+        TestRequest::default().insert_header(("invalid name", "value"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Error inserting test header")]
+    fn append_header_rejects_invalid_header() {
+        TestRequest::default().append_header(("invalid name", "value"));
+    }
+}

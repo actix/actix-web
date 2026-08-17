@@ -133,3 +133,79 @@ impl AsyncWrite for TestBuffer {
         Poll::Ready(Ok(()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{io, task::Context};
+
+    use futures_util::task::noop_waker_ref;
+
+    use super::*;
+
+    #[test]
+    fn buffer_read_write() {
+        let mut buffer = TestBuffer::new("read");
+        let clone = buffer.clone();
+
+        assert_eq!(&*buffer.read_buf_slice(), b"read");
+        buffer.read_buf_slice_mut()[0] = b'R';
+        assert_eq!(&*buffer.read_buf_slice(), b"Read");
+
+        io::Write::write_all(&mut buffer, b"write").unwrap();
+        assert_eq!(&*buffer.write_buf_slice(), b"write");
+        buffer.write_buf_slice_mut()[0] = b'W';
+        assert_eq!(&*buffer.write_buf_slice(), b"Write");
+        io::Write::flush(&mut buffer).unwrap();
+        assert_eq!(clone.take_write_buf(), Bytes::from_static(b"Write"));
+        assert!(buffer.write_buf_slice().is_empty());
+
+        buffer.extend_read_buf("!");
+        let mut read = [0; 5];
+        assert_eq!(io::Read::read(&mut buffer, &mut read).unwrap(), 5);
+        assert_eq!(&read, b"Read!");
+        assert_eq!(
+            io::Read::read(&mut buffer, &mut read).unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+
+        let mut empty = TestBuffer::empty();
+        empty.err = Some(Rc::new(io::Error::other("error")));
+        assert_eq!(
+            io::Read::read(&mut empty, &mut []).unwrap_err().to_string(),
+            "error"
+        );
+    }
+
+    #[test]
+    fn buffer_async_io() {
+        let mut cx = Context::from_waker(noop_waker_ref());
+        let mut buffer = TestBuffer::new("read");
+        let mut read = [0; 4];
+        let mut read_buf = ReadBuf::new(&mut read);
+
+        assert!(Pin::new(&mut buffer)
+            .poll_read(&mut cx, &mut read_buf)
+            .is_ready());
+        assert_eq!(read_buf.filled(), b"read");
+
+        let mut empty = TestBuffer::empty();
+        let mut read = [];
+        let mut read_buf = ReadBuf::new(&mut read);
+        assert_eq!(
+            Pin::new(&mut empty)
+                .poll_read(&mut cx, &mut read_buf)
+                .map(|result| result.unwrap_err().kind()),
+            Poll::Ready(io::ErrorKind::WouldBlock)
+        );
+
+        let mut buffer = TestBuffer::empty();
+        assert_eq!(
+            Pin::new(&mut buffer)
+                .poll_write(&mut cx, b"write")
+                .map(|result| result.unwrap()),
+            Poll::Ready(5)
+        );
+        assert!(Pin::new(&mut buffer).poll_flush(&mut cx).is_ready());
+        assert!(Pin::new(&mut buffer).poll_shutdown(&mut cx).is_ready());
+    }
+}
