@@ -10,14 +10,25 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
+#[cfg(test)]
+use actix_service::{fn_service, Service};
+#[cfg(test)]
+use actix_utils::future::ready;
 use bytes::{Bytes, BytesMut};
 use http::{header, Method, Uri, Version};
 
+#[cfg(test)]
+use crate::{body::BoxBody, Error, Response};
 use crate::{
     header::{HeaderMap, TryIntoHeaderPair},
     payload::Payload,
     Request,
 };
+
+#[cfg(test)]
+pub(crate) fn ok_service() -> impl Service<Request, Response = Response<BoxBody>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
+}
 
 /// Test `Request` builder.
 pub struct TestRequest(Option<Inner>);
@@ -252,6 +263,54 @@ impl AsyncWrite for TestBuffer {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Poll::Ready(self.get_mut().write(buf))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+/// Async I/O buffer that reads supplied data and fails every write with `BrokenPipe`.
+#[cfg(test)]
+pub(crate) struct FailingWriteBuf {
+    io: TestBuffer,
+}
+
+#[cfg(test)]
+impl FailingWriteBuf {
+    /// Creates a buffer with the given readable data.
+    pub(crate) fn new<T>(data: T) -> Self
+    where
+        T: Into<BytesMut>,
+    {
+        Self {
+            io: TestBuffer::new(data),
+        }
+    }
+}
+
+#[cfg(test)]
+impl AsyncRead for FailingWriteBuf {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+
+#[cfg(test)]
+impl AsyncWrite for FailingWriteBuf {
+    fn poll_write(self: Pin<&mut Self>, _: &mut Context<'_>, _: &[u8]) -> Poll<io::Result<usize>> {
+        Poll::Ready(Err(io::Error::new(
+            io::ErrorKind::BrokenPipe,
+            "peer closed the connection",
+        )))
     }
 
     fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {

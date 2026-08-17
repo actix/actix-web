@@ -17,7 +17,7 @@ use futures_core::ready;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder as _, Encoder as _};
-use tracing::{error, trace};
+use tracing::{error, trace, warn};
 
 use super::{
     codec::Codec,
@@ -354,13 +354,19 @@ where
         let mut written = 0;
 
         while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..])? {
-                Poll::Ready(0) => {
-                    error!("write zero; closing");
-                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
+            match io.as_mut().poll_write(cx, &write_buf[written..]) {
+                Poll::Ready(Ok(0)) => {
+                    let err = io::Error::new(io::ErrorKind::WriteZero, "");
+                    warn!("HTTP/1 peer disconnected while writing: {err}");
+                    return Poll::Ready(Err(err));
                 }
 
-                Poll::Ready(n) => written += n,
+                Poll::Ready(Ok(n)) => written += n,
+
+                Poll::Ready(Err(err)) => {
+                    warn!("HTTP/1 peer disconnected while writing: {err}");
+                    return Poll::Ready(Err(err));
+                }
 
                 Poll::Pending => {
                     write_buf.advance(written);
@@ -373,7 +379,11 @@ where
         write_buf.clear();
 
         // flush the I/O and check if get blocked
-        io.poll_flush(cx)
+        let poll = io.poll_flush(cx);
+        if let Poll::Ready(Err(err)) = &poll {
+            warn!("HTTP/1 peer disconnected while flushing: {err}");
+        }
+        poll
     }
 
     fn enter_linger(flags: &mut Flags) {
@@ -1216,6 +1226,7 @@ where
                     }
 
                     if n == 0 {
+                        warn!("HTTP/1 peer disconnected while reading");
                         return Ok(true);
                     }
 
@@ -1232,9 +1243,15 @@ where
                         io::ErrorKind::WouldBlock => Ok(false),
 
                         // connection reset after partial read
-                        io::ErrorKind::ConnectionReset if read_some => Ok(true),
+                        io::ErrorKind::ConnectionReset if read_some => {
+                            warn!("HTTP/1 peer disconnected while reading: {err}");
+                            Ok(true)
+                        }
 
-                        _ => Err(DispatchError::Io(err)),
+                        _ => {
+                            warn!("HTTP/1 peer disconnected while reading: {err}");
+                            Err(DispatchError::Io(err))
+                        }
                     };
                 }
             }
@@ -1317,7 +1334,10 @@ where
                         ready!(inner.as_mut().poll_flush(cx))?;
                         Pin::new(inner.as_mut().project().io.as_mut().unwrap())
                             .poll_shutdown(cx)
-                            .map_err(DispatchError::from)
+                            .map_err(|err| {
+                                warn!("HTTP/1 peer disconnected while shutting down: {err}");
+                                DispatchError::from(err)
+                            })
                     }
                 } else {
                     // read from I/O stream and fill read buffer
