@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   zizmor:
-    if: github.head_ref != 'diagnose-io-uring-head-flake'
+    if: github.event.pull_request.head.ref != 'diagnose-io-uring-head-flake'
     name: zizmor
     permissions:
       actions: read
@@ -34,7 +34,7 @@ jobs:
           version: v1.24.1
 
   fmt:
-    if: github.head_ref != 'diagnose-io-uring-head-flake'
+    if: github.event.pull_request.head.ref != 'diagnose-io-uring-head-flake'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +51,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   clippy:
-    if: github.head_ref != 'diagnose-io-uring-head-flake'
+    if: github.event.pull_request.head.ref != 'diagnose-io-uring-head-flake'
     permissions:
       contents: read
       checks: write # to add clippy checks to PR diffs
@@ -77,7 +77,7 @@ jobs:
             -A unknown_lints -D clippy::todo -D clippy::dbg_macro
 
   lint-docs:
-    if: github.head_ref != 'diagnose-io-uring-head-flake'
+    if: github.event.pull_request.head.ref != 'diagnose-io-uring-head-flake'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
