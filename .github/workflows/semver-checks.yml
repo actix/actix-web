@@ -8,6 +8,7 @@ on:
 
 jobs:
   semver-checks:
+    if: github.head_ref != 'diagnose-io-uring-head-flake'
     runs-on: ubuntu-latest
     permissions:
       contents: read

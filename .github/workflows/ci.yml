@@ -19,12 +19,12 @@ concurrency:
 
 jobs:
   read_msrv:
-    if: github.event_name != 'pull_request'
+    if: github.head_ref != 'diagnose-io-uring-head-flake'
     name: Read MSRV
     uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@b95a3a81b0efee6438b858b41a84aff627e01351 # v0.1.1
 
   build_and_test:
-    if: github.event_name != 'pull_request'
+    if: github.head_ref != 'diagnose-io-uring-head-flake'
     needs: read_msrv
 
     strategy:
@@ -96,7 +96,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
 
   io-uring:
-    if: github.event_name != 'pull_request'
+    if: github.head_ref != 'diagnose-io-uring-head-flake'
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
@@ -115,7 +115,7 @@ jobs:
           sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
 
   io-uring-diagnostics:
-    if: github.event_name == 'pull_request'
+    if: github.head_ref == 'diagnose-io-uring-head-flake'
     name: io-uring diagnostics / ${{ matrix.metadata }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -147,7 +147,7 @@ jobs:
           -p=actix-files --all-features test_head_content_length_headers
 
   rustdoc:
-    if: github.event_name != 'pull_request'
+    if: github.head_ref != 'diagnose-io-uring-head-flake'
     name: doc tests
     runs-on: ubuntu-latest
     steps:
