@@ -27,6 +27,8 @@ use actix_web::{
 use mime_guess::from_ext;
 
 mod chunked;
+#[cfg(feature = "experimental-io-uring")]
+mod diagnostic;
 mod directory;
 mod encoding;
 mod error;
@@ -586,6 +588,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
+        #[cfg(feature = "experimental-io-uring")]
+        crate::diagnostic::log(format_args!(
+            "head_test_start body_consumed=false server_shutdown=implicit-drop"
+        ));
+
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         let response = srv.head("/tests/test.binary").send().await.unwrap();
@@ -598,6 +605,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(content_length, "100");
+
+        #[cfg(feature = "experimental-io-uring")]
+        crate::diagnostic::log(format_args!(
+            "head_test_headers_received body_consumed=false server_shutdown=implicit-drop"
+        ));
     }
 
     #[actix_rt::test]

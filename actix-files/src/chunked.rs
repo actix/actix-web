@@ -1,3 +1,5 @@
+#[cfg(feature = "experimental-io-uring")]
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::{
     cmp, fmt,
     future::Future,
@@ -18,6 +20,64 @@ use super::named::File;
 pub(crate) enum ReadMode {
     Sync,
     Async,
+}
+
+#[cfg(feature = "experimental-io-uring")]
+struct ReadOperation {
+    id: u64,
+    stream_id: u64,
+    fd: RawFd,
+    offset: u64,
+    requested: usize,
+    completed: bool,
+}
+
+#[cfg(feature = "experimental-io-uring")]
+impl ReadOperation {
+    fn new(stream_id: u64, file: &File, offset: u64, requested: usize) -> Self {
+        let operation = Self {
+            id: crate::diagnostic::next_id(),
+            stream_id,
+            fd: file.as_raw_fd(),
+            offset,
+            requested,
+            completed: false,
+        };
+
+        crate::diagnostic::log(format_args!(
+            "read_start id={} stream={} fd={} offset={} requested={}",
+            operation.id, operation.stream_id, operation.fd, operation.offset, operation.requested
+        ));
+
+        operation
+    }
+
+    fn complete(&mut self, result: &io::Result<usize>, buffer_len: usize) {
+        self.completed = true;
+
+        match result {
+            Ok(read) => crate::diagnostic::log(format_args!(
+                "read_complete id={} stream={} fd={} offset={} read={} buffer_len={buffer_len}",
+                self.id, self.stream_id, self.fd, self.offset, read
+            )),
+            Err(err) => crate::diagnostic::log(format_args!(
+                "read_error id={} stream={} fd={} offset={} error={err}",
+                self.id, self.stream_id, self.fd, self.offset
+            )),
+        }
+    }
+}
+
+#[cfg(feature = "experimental-io-uring")]
+impl Drop for ReadOperation {
+    fn drop(&mut self) {
+        if !self.completed {
+            crate::diagnostic::log(format_args!(
+                "read_cancelled id={} stream={} fd={} offset={} requested={}",
+                self.id, self.stream_id, self.fd, self.offset, self.requested
+            ));
+        }
+    }
 }
 
 pin_project! {
@@ -66,6 +126,23 @@ pub(crate) fn new_chunked_read(
     file: File,
     read_mode_threshold: u64,
 ) -> impl Stream<Item = Result<Bytes, Error>> {
+    #[cfg(feature = "experimental-io-uring")]
+    let diagnostic_id = crate::diagnostic::next_id();
+
+    #[cfg(feature = "experimental-io-uring")]
+    crate::diagnostic::log(format_args!(
+        "stream_start id={diagnostic_id} fd={} size={size} offset={offset}",
+        file.as_raw_fd()
+    ));
+
+    #[cfg(feature = "experimental-io-uring")]
+    let callback = move |file, offset, max_bytes, bytes_mut| {
+        chunked_read_file_callback(diagnostic_id, file, offset, max_bytes, bytes_mut)
+    };
+
+    #[cfg(not(feature = "experimental-io-uring"))]
+    let callback = chunked_read_file_callback;
+
     ChunkedReadFile {
         size,
         offset,
@@ -76,7 +153,7 @@ pub(crate) fn new_chunked_read(
             file: Some((file, BytesMut::new())),
         },
         counter: 0,
-        callback: chunked_read_file_callback,
+        callback,
         read_mode: if size < read_mode_threshold {
             ReadMode::Sync
         } else {
@@ -127,6 +204,7 @@ async fn chunked_read_file_callback(
 
 #[cfg(feature = "experimental-io-uring")]
 async fn chunked_read_file_callback(
+    stream_id: u64,
     file: File,
     offset: u64,
     max_bytes: usize,
@@ -134,7 +212,9 @@ async fn chunked_read_file_callback(
 ) -> io::Result<(File, Bytes, BytesMut)> {
     bytes_mut.reserve(max_bytes);
 
+    let mut operation = ReadOperation::new(stream_id, &file, offset, max_bytes);
     let (res, mut bytes_mut) = file.read_at(bytes_mut, offset).await;
+    operation.complete(&res, bytes_mut.len());
     let n_bytes = res?;
 
     if n_bytes == 0 {
@@ -167,6 +247,10 @@ where
                 } else {
                     let max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
 
+                    crate::diagnostic::log(format_args!(
+                        "read_request offset={offset} requested={max_bytes}"
+                    ));
+
                     let (file, bytes_mut) = file
                         .take()
                         .expect("ChunkedReadFile polled after completion");
@@ -188,6 +272,13 @@ where
 
                 *this.offset += bytes.len() as u64;
                 *this.counter += bytes.len() as u64;
+
+                crate::diagnostic::log(format_args!(
+                    "read_yield offset={} bytes={} total={}",
+                    *this.offset - bytes.len() as u64,
+                    bytes.len(),
+                    *this.counter
+                ));
 
                 Poll::Ready(Some(Ok(bytes)))
             }

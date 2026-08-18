@@ -91,6 +91,46 @@ pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
 
+#[cfg(feature = "experimental-io-uring")]
+fn file_metadata(file: &File, path: &Path) -> io::Result<Metadata> {
+    use std::os::unix::prelude::{AsRawFd, FromRawFd};
+
+    let fd = file.as_raw_fd();
+    let metadata_id = crate::diagnostic::next_id();
+    let use_path = crate::diagnostic::use_path_metadata();
+    let source = if use_path { "path" } else { "borrowed-fd" };
+
+    crate::diagnostic::log(format_args!(
+        "metadata_start id={metadata_id} source={source} fd={fd} path={path:?}"
+    ));
+
+    let result = if use_path {
+        std::fs::metadata(path)
+    } else {
+        // SAFETY: fd is borrowed and lives longer than the unsafe block.
+        unsafe {
+            let file = std::fs::File::from_raw_fd(fd);
+            let result = file.metadata();
+            // SAFETY: forget the fd before exiting the block in success or error cases, but do not
+            // run the destructor, which would close the file handle.
+            std::mem::forget(file);
+            result
+        }
+    };
+
+    match &result {
+        Ok(metadata) => crate::diagnostic::log(format_args!(
+            "metadata_complete id={metadata_id} source={source} fd={fd} len={}",
+            metadata.len()
+        )),
+        Err(err) => crate::diagnostic::log(format_args!(
+            "metadata_error id={metadata_id} source={source} fd={fd} error={err}"
+        )),
+    }
+
+    result
+}
+
 pub(crate) fn get_content_type_and_disposition(
     path: &Path,
 ) -> Result<(mime::Mime, ContentDisposition), io::Error> {
@@ -197,19 +237,7 @@ impl NamedFile {
 
             #[cfg(feature = "experimental-io-uring")]
             {
-                use std::os::unix::prelude::{AsRawFd, FromRawFd};
-
-                let fd = file.as_raw_fd();
-
-                // SAFETY: fd is borrowed and lives longer than the unsafe block
-                unsafe {
-                    let file = std::fs::File::from_raw_fd(fd);
-                    let md = file.metadata();
-                    // SAFETY: forget the fd before exiting block in success or error case but don't
-                    // run destructor (that would close file handle)
-                    std::mem::forget(file);
-                    md?
-                }
+                file_metadata(&file, &path)?
             }
         };
 

@@ -19,10 +19,12 @@ concurrency:
 
 jobs:
   read_msrv:
+    if: github.event_name != 'pull_request'
     name: Read MSRV
     uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@b95a3a81b0efee6438b858b41a84aff627e01351 # v0.1.1
 
   build_and_test:
+    if: github.event_name != 'pull_request'
     needs: read_msrv
 
     strategy:
@@ -94,6 +96,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
 
   io-uring:
+    if: github.event_name != 'pull_request'
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
@@ -111,7 +114,40 @@ jobs:
         run: >
           sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
 
+  io-uring-diagnostics:
+    if: github.event_name == 'pull_request'
+    name: io-uring diagnostics / ${{ matrix.metadata }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        metadata: [borrowed-fd, path]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2.85.8
+        with:
+          tool: cargo-nextest
+
+      - name: Stress HEAD response
+        env:
+          ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
+          ACTIX_FILES_IO_URING_USE_PATH_METADATA: ${{ matrix.metadata == 'path' && '1' || '0' }}
+        run: >
+          cargo nextest run --locked --no-tests=warn --no-capture --stress-count=100
+          -p=actix-files --all-features test_head_content_length_headers
+
   rustdoc:
+    if: github.event_name != 'pull_request'
     name: doc tests
     runs-on: ubuntu-latest
     steps:
