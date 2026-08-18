@@ -602,14 +602,25 @@ mod tests {
             .get(header::CONTENT_LENGTH)
             .unwrap()
             .to_str()
-            .unwrap();
+            .unwrap()
+            .to_owned();
 
         assert_eq!(content_length, "100");
 
         #[cfg(feature = "experimental-io-uring")]
-        crate::diagnostic::log(format_args!(
-            "head_test_headers_received body_consumed=false server_shutdown=implicit-drop"
-        ));
+        if crate::diagnostic::use_explicit_server_stop() {
+            crate::diagnostic::log(format_args!(
+                "head_test_headers_received body_consumed=false server_shutdown=explicit-stop"
+            ));
+            drop(response);
+            crate::diagnostic::log(format_args!("head_test_stop_start"));
+            srv.stop().await;
+            crate::diagnostic::log(format_args!("head_test_stop_complete"));
+        } else {
+            crate::diagnostic::log(format_args!(
+                "head_test_headers_received body_consumed=false server_shutdown=implicit-drop"
+            ));
+        }
     }
 
     #[actix_rt::test]

@@ -116,13 +116,22 @@ jobs:
 
   io-uring-diagnostics:
     if: github.event.pull_request.head.ref == 'diagnose-io-uring-head-flake'
-    name: io-uring diagnostics / ${{ matrix.metadata }}
+    name: io-uring diagnostics / ${{ matrix.metadata }} / ${{ matrix.scope }} / ${{ matrix.teardown }}
     continue-on-error: true
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        metadata: [borrowed-fd, path]
+        include:
+          - metadata: borrowed-fd
+            scope: workspace
+            teardown: implicit
+          - metadata: path
+            scope: head
+            teardown: implicit
+          - metadata: borrowed-fd
+            scope: head
+            teardown: explicit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,7 +148,7 @@ jobs:
           tool: cargo-nextest
 
       - name: Stress original workspace
-        if: matrix.metadata == 'borrowed-fd'
+        if: matrix.scope == 'workspace'
         env:
           ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
           ACTIX_FILES_IO_URING_USE_PATH_METADATA: ${{ matrix.metadata == 'path' && '1' || '0' }}
@@ -150,7 +159,7 @@ jobs:
           status=0
           for iteration in 1 2 3 4 5 6 7 8 9 10; do
             echo "diagnostic iteration ${iteration}"
-            cargo nextest run --locked --no-tests=warn --no-capture \
+            cargo nextest run --locked --no-tests=warn \
               --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive \
               --all-features \
               --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)" || status=1
@@ -162,6 +171,19 @@ jobs:
         env:
           ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
           ACTIX_FILES_IO_URING_USE_PATH_METADATA: "1"
+          MALLOC_CHECK_: "3"
+          MALLOC_PERTURB_: "165"
+          RUST_BACKTRACE: "1"
+        run: >
+          cargo nextest run --locked --no-tests=warn --no-capture --stress-count=100
+          -p=actix-files --all-features test_head_content_length_headers
+
+      - name: Stress HEAD response with explicit stop
+        if: matrix.teardown == 'explicit'
+        env:
+          ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
+          ACTIX_FILES_IO_URING_USE_PATH_METADATA: "0"
+          ACTIX_FILES_IO_URING_EXPLICIT_SERVER_STOP: "1"
           MALLOC_CHECK_: "3"
           MALLOC_PERTURB_: "165"
           RUST_BACKTRACE: "1"
