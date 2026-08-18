@@ -412,6 +412,7 @@ mod test {
 
         drop(conn);
 
+        /// Periodically polls a retained sender until it observes the closed H2 connection.
         struct DropCheck {
             sender: h2::client::SendRequest<Bytes>,
             interval: Interval,
@@ -430,8 +431,9 @@ mod test {
                         } else {
                             match this.interval.poll_tick(cx) {
                                 Poll::Ready(_) => {
-                                    // prevents spurious test hang
                                     this.interval.reset();
+                                    // `reset` does not register this task's waker. Poll again.
+                                    cx.waker().wake_by_ref();
 
                                     Poll::Pending
                                 }
