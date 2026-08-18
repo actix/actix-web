@@ -460,7 +460,7 @@ impl Files {
     ///     .index_file("index.html")
     ///     .default_handler(fn_service(|req: ServiceRequest| async {
     ///         let (req, _) = req.into_parts();
-    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let file = NamedFile::open("./static/404.html")?;
     ///         let res = file.into_response(&req);
     ///         Ok(ServiceResponse::new(req, res))
     ///     }));

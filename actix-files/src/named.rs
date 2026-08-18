@@ -50,8 +50,8 @@ impl Default for Flags {
 /// use actix_web::App;
 /// use actix_files::NamedFile;
 ///
-/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let file = NamedFile::open_async("./static/index.html").await?;
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = NamedFile::open("./static/index.html")?;
 /// let app = App::new().service(file);
 /// # Ok(())
 /// # }
@@ -64,7 +64,7 @@ impl Default for Flags {
 ///
 /// #[get("/")]
 /// async fn index() -> impl Responder {
-///     NamedFile::open_async("./static/index.html").await
+///     NamedFile::open("./static/index.html")
 /// }
 /// ```
 #[derive(Debug, Deref, DerefMut)]
@@ -216,21 +216,6 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    /// Attempts to open a file in read-only mode.
-    ///
-    /// This currently behaves like [`NamedFile::open`].
-    ///
-    /// # Examples
-    /// ```
-    /// use actix_files::NamedFile;
-    /// # async fn open() {
-    /// let file = NamedFile::open_async("foo.txt").await.unwrap();
-    /// # }
-    /// ```
-    pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        Self::open(path)
-    }
-
     /// Returns reference to the underlying file object.
     #[inline]
     pub fn file(&self) -> &File {
@@ -244,8 +229,8 @@ impl NamedFile {
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
-    /// # async fn path() -> io::Result<()> {
-    /// let file = NamedFile::open_async("test.txt").await?;
+    /// # fn path() -> io::Result<()> {
+    /// let file = NamedFile::open("test.txt")?;
     /// assert_eq!(file.path().as_os_str(), "foo.txt");
     /// # Ok(())
     /// # }
@@ -687,7 +672,7 @@ impl Service<ServiceRequest> for NamedFileService {
 
         let path = self.path.clone();
         Box::pin(async move {
-            let file = NamedFile::open_async(path).await?;
+            let file = NamedFile::open(path)?;
             let res = file.into_response(&req);
             Ok(ServiceResponse::new(req, res))
         })
