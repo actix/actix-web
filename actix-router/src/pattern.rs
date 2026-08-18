@@ -90,3 +90,66 @@ array_patterns_multiple!(&str, |&v| v.to_owned(), 2 3 4 5 6 7 8 9 10 11 12 13 14
 
 array_patterns_single!(String);
 array_patterns_multiple!(String, |v| v.clone(), 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16);
+
+#[cfg(test)]
+mod tests {
+    use bytestring::ByteString;
+
+    use super::*;
+
+    #[test]
+    fn empty_patterns_are_distinguished_from_single_patterns() {
+        assert!(!Patterns::Single("/one".to_owned()).is_empty());
+        assert!(Patterns::List(Vec::new()).is_empty());
+        assert!(!Patterns::List(vec!["/one".to_owned()]).is_empty());
+    }
+
+    #[test]
+    fn supported_inputs_convert_to_patterns() {
+        let owned = "/owned".to_owned();
+        assert_eq!(owned.patterns(), Patterns::Single("/owned".to_owned()));
+        let owned_ref = &owned;
+        assert_eq!(owned_ref.patterns(), Patterns::Single("/owned".to_owned()));
+
+        let str_value: &str = "/str";
+        assert_eq!(
+            <str as IntoPatterns>::patterns(str_value),
+            Patterns::Single("/str".to_owned())
+        );
+        let ref_value: &str = "/ref";
+        assert_eq!(
+            <&str as IntoPatterns>::patterns(&ref_value),
+            Patterns::Single("/ref".to_owned())
+        );
+
+        let bytes = ByteString::from("/bytes");
+        assert_eq!(bytes.patterns(), Patterns::Single("/bytes".to_owned()));
+
+        let original = Patterns::List(vec!["/first".to_owned(), "/second".to_owned()]);
+        assert_eq!(original.patterns(), original);
+
+        assert_eq!(vec!["/one"].patterns(), Patterns::Single("/one".to_owned()));
+        assert_eq!(
+            vec!["/one", "/two"].patterns(),
+            Patterns::List(vec!["/one".to_owned(), "/two".to_owned()])
+        );
+        assert_eq!(
+            vec!["/one".to_owned()].patterns(),
+            Patterns::Single("/one".to_owned())
+        );
+
+        assert_eq!(["/one"].patterns(), Patterns::Single("/one".to_owned()));
+        assert_eq!(
+            ["/one", "/two"].patterns(),
+            Patterns::List(vec!["/one".to_owned(), "/two".to_owned()])
+        );
+        assert_eq!(
+            ["/one".to_owned()].patterns(),
+            Patterns::Single("/one".to_owned())
+        );
+        assert_eq!(
+            ["/one".to_owned(), "/two".to_owned()].patterns(),
+            Patterns::List(vec!["/one".to_owned(), "/two".to_owned()])
+        );
+    }
+}
