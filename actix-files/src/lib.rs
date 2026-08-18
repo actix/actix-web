@@ -589,6 +589,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
         #[cfg(feature = "experimental-io-uring")]
+        crate::diagnostic::focus();
+
+        #[cfg(feature = "experimental-io-uring")]
         crate::diagnostic::log(format_args!(
             "head_test_start body_consumed=false server_shutdown=implicit-drop"
         ));
