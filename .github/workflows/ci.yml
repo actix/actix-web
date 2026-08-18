@@ -138,13 +138,15 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: Stress HEAD response
+      - name: Stress actix-files package
         env:
           ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
           ACTIX_FILES_IO_URING_USE_PATH_METADATA: ${{ matrix.metadata == 'path' && '1' || '0' }}
+          MALLOC_CHECK_: "3"
+          MALLOC_PERTURB_: "165"
         run: >
-          cargo nextest run --locked --no-tests=warn --no-capture --stress-count=100
-          -p=actix-files --all-features test_head_content_length_headers
+          cargo nextest run --locked --no-tests=warn --no-capture --no-fail-fast --stress-count=100
+          -p=actix-files --all-features
 
   rustdoc:
     if: github.event.pull_request.head.ref != 'diagnose-io-uring-head-flake'
