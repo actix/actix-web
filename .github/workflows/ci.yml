@@ -150,7 +150,7 @@ jobs:
           status=0
           for iteration in 1 2 3 4 5 6 7 8 9 10; do
             echo "diagnostic iteration ${iteration}"
-            cargo nextest run --locked --no-tests=warn --no-capture --no-fail-fast \
+            cargo nextest run --locked --no-tests=warn --no-capture \
               --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive \
               --all-features \
               --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)" || status=1
