@@ -7,7 +7,6 @@ use std::{
 
 const ENABLE_ENV: &str = "ACTIX_FILES_IO_URING_DIAGNOSTICS";
 const PATH_METADATA_ENV: &str = "ACTIX_FILES_IO_URING_USE_PATH_METADATA";
-const EXPLICIT_STOP_ENV: &str = "ACTIX_FILES_IO_URING_EXPLICIT_SERVER_STOP";
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -19,8 +18,12 @@ pub(crate) fn use_path_metadata() -> bool {
     cfg!(test) && matches!(std::env::var(PATH_METADATA_ENV).as_deref(), Ok("1"))
 }
 
+#[cfg(test)]
 pub(crate) fn use_explicit_server_stop() -> bool {
-    cfg!(test) && matches!(std::env::var(EXPLICIT_STOP_ENV).as_deref(), Ok("1"))
+    matches!(
+        std::env::var("ACTIX_FILES_IO_URING_EXPLICIT_SERVER_STOP").as_deref(),
+        Ok("1")
+    )
 }
 
 pub(crate) fn next_id() -> u64 {
