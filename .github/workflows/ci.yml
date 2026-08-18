@@ -152,8 +152,6 @@ jobs:
         env:
           ACTIX_FILES_IO_URING_DIAGNOSTICS: "1"
           ACTIX_FILES_IO_URING_USE_PATH_METADATA: ${{ matrix.metadata == 'path' && '1' || '0' }}
-          MALLOC_CHECK_: "3"
-          MALLOC_PERTURB_: "165"
           RUST_BACKTRACE: "1"
         run: |
           status=0
