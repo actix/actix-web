@@ -598,6 +598,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(content_length, "100");
+
+        drop(response);
+        srv.stop().await;
     }
 
     #[actix_rt::test]

@@ -1,12 +1,15 @@
 use std::{
+    convert::Infallible,
     fs::Metadata,
     io,
     path::{Path, PathBuf},
+    pin::Pin,
+    task::{Context, Poll},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use actix_web::{
-    body::{self, BoxBody, SizedStream},
+    body::{self, BodySize, BoxBody, MessageBody, SizedStream},
     dev::{
         self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory, ServiceRequest,
         ServiceResponse,
@@ -16,11 +19,12 @@ use actix_web::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
             ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
+use bytes::Bytes;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use mime::Mime;
@@ -40,6 +44,24 @@ bitflags! {
 impl Default for Flags {
     fn default() -> Self {
         Flags::from_bits_truncate(0b0000_1111)
+    }
+}
+
+/// Empty response body that reports the representation length of a HEAD request.
+struct HeadBody(u64);
+
+impl MessageBody for HeadBody {
+    type Error = Infallible;
+
+    fn size(&self) -> BodySize {
+        BodySize::Sized(self.0)
+    }
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        Poll::Ready(None)
     }
 }
 
@@ -514,6 +536,10 @@ impl NamedFile {
                 res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
+            if req.method() == Method::HEAD {
+                return res.body(HeadBody(self.md.len()));
+            }
+
             let reader =
                 chunked::new_chunked_read(self.md.len(), 0, self.file, self.read_mode_threshold);
 
@@ -636,11 +662,15 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
-
         if ranged_req {
             res.status(StatusCode::PARTIAL_CONTENT);
         }
+
+        if req.method() == Method::HEAD {
+            return res.body(HeadBody(length));
+        }
+
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
         res.body(SizedStream::new(length, reader))
     }
