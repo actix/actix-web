@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove the experimental `experimental-io-uring` crate feature and its implementation.
 - Add support for passing multiple root directories to `Files::new`. [#3402]
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`

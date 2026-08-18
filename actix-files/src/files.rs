@@ -368,8 +368,6 @@ impl Files {
     /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
-    ///
     /// Default is 0, meaning all files are read asynchronously.
     pub fn read_mode_threshold(mut self, size: u64) -> Self {
         self.read_mode_threshold = size;

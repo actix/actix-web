@@ -25,7 +25,6 @@ version = "0.6.10"
 dependencies = [
  "actix-http",
  "actix-rt",
- "actix-server",
  "actix-service",
  "actix-test",
  "actix-utils",
@@ -43,7 +42,6 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "tempfile",
- "tokio-uring",
  "v_htmlescape",
 ]
 
@@ -3434,7 +3432,6 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "748482e3e13584a34664a710168ad5068e8cb1d968aa4ffa887e83ca6dd27967"
 dependencies = [
- "bytes",
  "futures-util",
  "io-uring",
  "libc",

@@ -83,11 +83,7 @@ pub struct NamedFile {
     pub(crate) read_mode_threshold: u64,
 }
 
-#[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
-
-#[cfg(feature = "experimental-io-uring")]
-pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
 
@@ -189,29 +185,7 @@ impl NamedFile {
         // and Content-Disposition values
         let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
-        let md = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                file.metadata()?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                use std::os::unix::prelude::{AsRawFd, FromRawFd};
-
-                let fd = file.as_raw_fd();
-
-                // SAFETY: fd is borrowed and lives longer than the unsafe block
-                unsafe {
-                    let file = std::fs::File::from_raw_fd(fd);
-                    let md = file.metadata();
-                    // SAFETY: forget the fd before exiting block in success or error case but don't
-                    // run destructor (that would close file handle)
-                    std::mem::forget(file);
-                    md?
-                }
-            }
-        };
+        let md = file.metadata()?;
 
         let modified = md.modified().ok();
         let encoding = None;
@@ -237,16 +211,14 @@ impl NamedFile {
     /// use actix_files::NamedFile;
     /// let file = NamedFile::open("foo.txt");
     /// ```
-    #[cfg(not(feature = "experimental-io-uring"))]
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         let file = File::open(&path)?;
         Self::from_file(file, path)
     }
 
-    /// Attempts to open a file asynchronously in read-only mode.
+    /// Attempts to open a file in read-only mode.
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
-    /// will behave just like `open`.
+    /// This currently behaves like [`NamedFile::open`].
     ///
     /// # Examples
     /// ```
@@ -256,19 +228,7 @@ impl NamedFile {
     /// # }
     /// ```
     pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        let file = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                File::open(&path)?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                File::open(&path).await?
-            }
-        };
-
-        Self::from_file(file, path)
+        Self::open(path)
     }
 
     /// Returns reference to the underlying file object.
@@ -388,8 +348,6 @@ impl NamedFile {
     ///
     /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
-    ///
-    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
     ///
     /// Default is 0, meaning all files are read asynchronously.
     pub fn read_mode_threshold(mut self, size: u64) -> Self {
