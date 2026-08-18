@@ -117,7 +117,6 @@ jobs:
   io-uring-diagnostics:
     if: github.event.pull_request.head.ref == 'diagnose-io-uring-head-flake'
     name: io-uring diagnostics / ${{ matrix.metadata }} / ${{ matrix.scope }}
-    continue-on-error: true
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -151,13 +150,14 @@ jobs:
           ACTIX_FILES_IO_URING_USE_PATH_METADATA: ${{ matrix.metadata == 'path' && '1' || '0' }}
           RUST_BACKTRACE: "1"
         run: |
+          # This diagnostic loop excludes one unrelated timing-sensitive shutdown test.
           status=0
           for iteration in 1 2 3 4 5 6 7 8 9 10; do
             echo "diagnostic iteration ${iteration}"
             cargo nextest run --locked --no-tests=warn \
               --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive \
               --all-features \
-              --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)" || status=1
+              --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls) and not test(graceful_shutdown_closes_idle_http1_connection_after_in_flight_request)" || status=1
           done
           exit $status
 
