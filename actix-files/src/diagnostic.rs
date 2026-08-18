@@ -19,14 +19,6 @@ pub(crate) fn use_path_metadata() -> bool {
     cfg!(test) && matches!(std::env::var(PATH_METADATA_ENV).as_deref(), Ok("1"))
 }
 
-#[cfg(test)]
-pub(crate) fn use_explicit_server_stop() -> bool {
-    matches!(
-        std::env::var("ACTIX_FILES_IO_URING_EXPLICIT_SERVER_STOP").as_deref(),
-        Ok("1")
-    )
-}
-
 pub(crate) fn next_id() -> u64 {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }

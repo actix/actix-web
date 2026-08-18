@@ -593,7 +593,7 @@ mod tests {
 
         #[cfg(feature = "experimental-io-uring")]
         crate::diagnostic::log(format_args!(
-            "head_test_start body_consumed=false server_shutdown=implicit-drop"
+            "head_test_start body_consumed=false server_shutdown=explicit-stop"
         ));
 
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
@@ -611,19 +611,19 @@ mod tests {
         assert_eq!(content_length, "100");
 
         #[cfg(feature = "experimental-io-uring")]
-        if crate::diagnostic::use_explicit_server_stop() {
-            crate::diagnostic::log(format_args!(
-                "head_test_headers_received body_consumed=false server_shutdown=explicit-stop"
-            ));
-            drop(response);
-            crate::diagnostic::log(format_args!("head_test_stop_start"));
-            srv.stop().await;
-            crate::diagnostic::log(format_args!("head_test_stop_complete"));
-        } else {
-            crate::diagnostic::log(format_args!(
-                "head_test_headers_received body_consumed=false server_shutdown=implicit-drop"
-            ));
-        }
+        crate::diagnostic::log(format_args!(
+            "head_test_headers_received body_consumed=false server_shutdown=explicit-stop"
+        ));
+
+        drop(response);
+
+        #[cfg(feature = "experimental-io-uring")]
+        crate::diagnostic::log(format_args!("head_test_stop_start"));
+
+        srv.stop().await;
+
+        #[cfg(feature = "experimental-io-uring")]
+        crate::diagnostic::log(format_args!("head_test_stop_complete"));
     }
 
     #[actix_rt::test]
