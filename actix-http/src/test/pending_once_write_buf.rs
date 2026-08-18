@@ -76,3 +76,46 @@ impl AsyncWrite for PendingOnceWriteBuf {
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{io, task::Context};
+
+    use bytes::Bytes;
+    use futures_util::task::noop_waker_ref;
+    use tokio_test::{assert_pending, assert_ready_ok};
+
+    use super::*;
+
+    #[test]
+    fn io_operations() {
+        let mut buffer = PendingOnceWriteBuf::new("read");
+        let mut read = [0; 4];
+        assert_eq!(io::Read::read(&mut buffer, &mut read).unwrap(), 4);
+        assert_eq!(&read, b"read");
+
+        assert_eq!(io::Write::write(&mut buffer, b"write").unwrap(), 5);
+        io::Write::flush(&mut buffer).unwrap();
+        assert_eq!(buffer.io.take_write_buf(), Bytes::from_static(b"write"));
+    }
+
+    #[test]
+    fn async_operations() {
+        let mut cx = Context::from_waker(noop_waker_ref());
+        let mut buffer = PendingOnceWriteBuf::new("read");
+
+        let mut read = [0; 4];
+        let mut read_buf = ReadBuf::new(&mut read);
+        assert_ready_ok!(Pin::new(&mut buffer).poll_read(&mut cx, &mut read_buf));
+        assert_eq!(read_buf.filled(), b"read");
+
+        assert_pending!(Pin::new(&mut buffer).poll_write(&mut cx, b"write"));
+        let written = assert_ready_ok!(
+            Pin::new(&mut buffer).poll_write(&mut cx, b"write"),
+            "expected a successful write"
+        );
+        assert_eq!(written, 5);
+        assert_ready_ok!(Pin::new(&mut buffer).poll_flush(&mut cx));
+        assert_ready_ok!(Pin::new(&mut buffer).poll_shutdown(&mut cx));
+    }
+}

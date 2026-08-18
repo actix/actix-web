@@ -47,3 +47,34 @@ impl MessageBody for ReadyChunkBody {
         Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::task::Context;
+
+    use futures_util::task::noop_waker_ref;
+    use tokio_test::{assert_ok, assert_ready};
+
+    use super::*;
+
+    #[test]
+    fn yields_configured_chunks() {
+        let chunk_polls = Rc::new(Cell::new(0));
+        let mut body = ReadyChunkBody::new(chunk_polls.clone(), 2, 3);
+        let mut cx = Context::from_waker(noop_waker_ref());
+
+        assert_eq!(body.size(), crate::body::BodySize::Stream);
+        let chunk = assert_ready!(Pin::new(&mut body).poll_next(&mut cx))
+            .expect("ready chunk body should yield a chunk");
+        let chunk = assert_ok!(chunk, "expected a successful chunk");
+        assert_eq!(chunk, Bytes::from_static(b"xxx"));
+
+        let chunk = assert_ready!(Pin::new(&mut body).poll_next(&mut cx))
+            .expect("ready chunk body should yield a chunk");
+        let chunk = assert_ok!(chunk, "expected a successful chunk");
+        assert_eq!(chunk, Bytes::from_static(b"xxx"));
+
+        assert!(assert_ready!(Pin::new(&mut body).poll_next(&mut cx)).is_none());
+        assert_eq!(chunk_polls.get(), 2);
+    }
+}
