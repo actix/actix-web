@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-- Remove the experimental `experimental-io-uring` crate feature and its implementation.
-- Remove the `NamedFile::open_async` method. Use `NamedFile::open` instead. This breaking API change requires the next major Actix Files release (`0.7`).
+- Remove the experimental `experimental-io-uring` crate feature and its implementation, including the `NamedFile::open_async()` method.
 - Add support for passing multiple root directories to `Files::new`. [#3402]
 - Add `Files::try_compressed()` to support serving pre-compressed static files [#2615]
 - Fix handling of `bytes=0-`
