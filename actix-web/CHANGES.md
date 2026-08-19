@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent. [#2979]
+- Remove the experimental `experimental-io-uring` crate feature.
 
 [#2979]: https://github.com/actix/actix-web/pull/2979
 
