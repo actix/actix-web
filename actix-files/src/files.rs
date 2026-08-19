@@ -368,8 +368,6 @@ impl Files {
     /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
-    ///
     /// Default is 0, meaning all files are read asynchronously.
     pub fn read_mode_threshold(mut self, size: u64) -> Self {
         self.read_mode_threshold = size;
@@ -462,7 +460,7 @@ impl Files {
     ///     .index_file("index.html")
     ///     .default_handler(fn_service(|req: ServiceRequest| async {
     ///         let (req, _) = req.into_parts();
-    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let file = NamedFile::open("./static/404.html")?;
     ///         let res = file.into_response(&req);
     ///         Ok(ServiceResponse::new(req, res))
     ///     }));
