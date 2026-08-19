@@ -142,6 +142,7 @@ mod tests {
     use crate::{
         path::Path,
         router::{ResourceId, Router},
+        ResourceDef,
     };
 
     #[allow(clippy::cognitive_complexity)]
@@ -279,5 +280,76 @@ mod tests {
         let (h, _) = router.recognize_mut(&mut path).unwrap();
         assert_eq!(*h, 11);
         assert_eq!(&path["val"], "ttt");
+    }
+
+    #[test]
+    fn builder_methods_expose_mutable_registration_parts() {
+        let mut builder = Router::<u8, bool>::build();
+        let (resource, value, context) = builder.prefix("/prefix", 1);
+        resource.set_id(7);
+        *value = 2;
+        *context = true;
+
+        let (resource, value, context) = builder.rdef(ResourceDef::new("/exact"), 3);
+        resource.set_id(8);
+        *value = 4;
+        assert!(!*context);
+
+        let router = builder.finish();
+
+        let mut path = Path::new("/prefix/child");
+        let (value, id) = router.recognize(&mut path).unwrap();
+        assert_eq!(*value, 2);
+        assert_eq!(id, ResourceId(7));
+        assert_eq!(path.unprocessed(), "/child");
+
+        let mut path = Path::new("/exact");
+        let (value, id) = router.recognize(&mut path).unwrap();
+        assert_eq!(*value, 4);
+        assert_eq!(id, ResourceId(8));
+    }
+
+    #[test]
+    fn recognize_fn_filters_matches_using_context() {
+        let mut builder = Router::<u8, bool>::build();
+        *builder.prefix("/prefix", 2).2 = true;
+        builder.path("/exact", 4);
+        let router = builder.finish();
+
+        let mut path = Path::new("/prefix/child");
+        let (value, _) = router
+            .recognize_fn(&mut path, |resource, allowed| {
+                resource.as_str().starts_with("/prefix") && *allowed
+            })
+            .unwrap();
+        assert_eq!(*value, 2);
+        assert_eq!(path.unprocessed(), "/child");
+
+        let mut path = Path::new("/exact");
+        assert!(router
+            .recognize_fn(&mut path, |_, allowed| *allowed)
+            .is_none());
+        assert_eq!(path.unprocessed(), "/exact");
+    }
+
+    #[test]
+    fn recognize_mut_fn_returns_mutable_values() {
+        let mut builder = Router::<u8, bool>::build();
+        let (resource, _, context) = builder.prefix("/prefix", 2);
+        resource.set_id(7);
+        *context = true;
+        let mut router = builder.finish();
+
+        let mut path = Path::new("/prefix/child");
+        let (value, id) = router
+            .recognize_mut_fn(&mut path, |_, allowed| *allowed)
+            .unwrap();
+        *value = 9;
+        assert_eq!(id, ResourceId(7));
+        assert_eq!(path.unprocessed(), "/child");
+
+        let mut path = Path::new("/prefix/child");
+        let (value, _) = router.recognize(&mut path).unwrap();
+        assert_eq!(*value, 9);
     }
 }
