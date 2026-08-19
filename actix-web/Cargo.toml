@@ -169,7 +169,7 @@ tracing = "0.1.30"
 url = "2.5.4"
 
 [dev-dependencies]
-actix-files = "0.6"
+actix-files = "0.7"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
