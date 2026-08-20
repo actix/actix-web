@@ -85,7 +85,7 @@ pub enum TextError {
     Deserialize(serde_plain::Error),
 
     /// Content type error.
-    #[display("Content type error")]
+    #[display("Field Content-Type is not text/plain")]
     ContentType,
 }
 
@@ -158,7 +158,7 @@ mod tests {
 
     use crate::form::{
         tests::send_form,
-        text::{Text, TextConfig},
+        text::{Text, TextConfig, TextError},
         MultipartForm,
     };
 
@@ -193,5 +193,13 @@ mod tests {
         form.add_reader_file_with_mime("number", bytes, "", mime::TEXT_PLAIN);
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_text_error_display() {
+        assert_eq!(
+            TextError::ContentType.to_string(),
+            "Field Content-Type is not text/plain"
+        );
     }
 }
