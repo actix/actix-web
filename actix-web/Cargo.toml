@@ -116,9 +116,6 @@ __compress = []
 # Don't rely on these whatsoever. They may disappear at anytime.
 __tls = []
 
-# io-uring feature only available for Linux OSes.
-experimental-io-uring = ["actix-server/io-uring"]
-
 # Feature group which, when disabled, helps migrate code to v5.0.
 compat = ["compat-routing-macros-force-pub"]
 

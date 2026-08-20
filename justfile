@@ -24,7 +24,7 @@ non_linux_all_features_list := ```
     cargo metadata --format-version=1 \
     | jq '.packages[] | select(.source == null) | .features | keys' \
     | jq -r --slurp \
-        --arg exclusions "__tls,__compress,tokio-uring,io-uring,experimental-io-uring" \
+        --arg exclusions "__tls,__compress" \
         'add | unique | . - ($exclusions | split(",")) | join(",")'
 ```
 all_crate_features := if os() == "linux" { "--all-features" } else { "--features='" + non_linux_all_features_list + "'" }
@@ -109,7 +109,7 @@ update-readmes: && fmt
     cd ./actix-multipart && cargo rdme --force
     cd ./actix-test && cargo rdme --force
 
-feature_combo_skip_list := if os() == "linux" { "__tls,__compress" } else { "__tls,__compress,experimental-io-uring" }
+feature_combo_skip_list := "__tls,__compress"
 
 # Checks compatibility of feature combinations.
 check-feature-combinations:
