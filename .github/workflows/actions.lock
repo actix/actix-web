@@ -14,7 +14,6 @@ workflows:
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
         - 'rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444'
         - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
@@ -29,6 +28,7 @@ workflows:
     '.github/workflows/lint.yml':
         - 'actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         - 'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0'
         - 'taiki-e/cache-cargo-install-action@9ee83daaa7b96a6fab930949ecf1122bba04a389'
         - 'taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8'
