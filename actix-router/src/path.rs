@@ -299,6 +299,7 @@ mod tests {
     use std::cell::RefCell;
 
     use super::*;
+    use crate::ResourceDef;
 
     #[allow(clippy::needless_borrow)]
     #[test]
@@ -308,5 +309,99 @@ mod tests {
 
         let foo = RefCell::new(foo);
         let _ = foo.borrow_mut().resource_path();
+    }
+
+    #[test]
+    #[expect(deprecated)]
+    fn path_accessors_reflect_processed_state() {
+        let mut path = Path::new("/user/alice".to_owned());
+
+        assert_eq!(path.get_ref(), "/user/alice");
+        assert_eq!(path.as_str(), "/user/alice");
+        assert_eq!(path.unprocessed(), "/user/alice");
+
+        path.skip(6);
+        assert_eq!(path.unprocessed(), "alice");
+        assert_eq!(path.path(), "alice");
+
+        path.get_mut().push_str("/profile");
+        assert_eq!(path.as_str(), "/user/alice/profile");
+        assert_eq!(path.unprocessed(), "alice/profile");
+    }
+
+    #[test]
+    fn captured_static_segments_are_queryable() {
+        let mut path = Path::new("/user/alice");
+
+        path.add_static("kind", "user");
+        assert!(!path.is_empty());
+        assert_eq!(path.segment_count(), 1);
+        assert_eq!(path.get("kind"), Some("user"));
+        assert_eq!(path.query("kind"), "user");
+        assert_eq!(path.query("missing"), "");
+        assert_eq!(&path["kind"], "user");
+        assert_eq!(&path[0], "user");
+        assert_eq!(path.iter().collect::<Vec<_>>(), vec![("kind", "user")]);
+        assert!(path.iter().nth(1).is_none());
+    }
+
+    #[test]
+    fn set_replaces_path_state() {
+        let mut path = Path::new("/user/alice".to_owned());
+        path.skip(6);
+        path.add_static("kind", "user");
+
+        path.set("/new".to_owned());
+        assert_eq!(path.as_str(), "/new");
+        assert_eq!(path.unprocessed(), "/new");
+        assert!(path.is_empty());
+        assert_eq!(path.segment_count(), 0);
+    }
+
+    #[test]
+    fn reset_clears_captured_state() {
+        let mut path = Path::new("/new");
+        path.skip(1);
+        path.add_static("kind", "new");
+
+        path.reset();
+        assert!(path.is_empty());
+        assert_eq!(path.unprocessed(), "/new");
+    }
+
+    #[test]
+    #[expect(deprecated)]
+    fn deprecated_path_clamps_oversized_skip() {
+        let mut path = Path::new("/new");
+        path.skip(100);
+        assert_eq!(path.path(), "");
+    }
+
+    #[test]
+    fn remapping_preserves_valid_utf8_boundaries() {
+        let resource = ResourceDef::new("/{id}/{kind}");
+        let mut path = Path::new("/abc/def".to_owned());
+        assert!(resource.capture_match_info(&mut path));
+
+        path.update_with_reindex("/é".to_owned(), |index| match index {
+            1 => 3,
+            4 => 2,
+            5 => 1,
+            index => index,
+        });
+
+        assert_eq!(path.unprocessed(), "");
+        assert_eq!(path.get("id"), Some(""));
+        assert_eq!(path.get("kind"), Some("é"));
+    }
+
+    #[test]
+    fn path_load_deserializes_captured_values() {
+        let resource = ResourceDef::new("/{id}");
+        let mut path = Path::new("/123");
+        assert!(resource.capture_match_info(&mut path));
+
+        let id: u32 = path.load().unwrap();
+        assert_eq!(id, 123);
     }
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 4.15.0
+
+- Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent.
+- Remove the experimental `experimental-io-uring` crate feature.
+
 ## 4.14.1
 
 - Close idle HTTP/1 keep-alive connections during graceful shutdown and let active connections finish only their current request before closing.

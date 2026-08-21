@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.14.1"
+version = "4.15.0"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -116,9 +116,6 @@ __compress = []
 # Don't rely on these whatsoever. They may disappear at anytime.
 __tls = []
 
-# io-uring feature only available for Linux OSes.
-experimental-io-uring = ["actix-server/io-uring"]
-
 # Feature group which, when disabled, helps migrate code to v5.0.
 compat = ["compat-routing-macros-force-pub"]
 
@@ -169,7 +166,7 @@ tracing = "0.1.30"
 url = "2.5.4"
 
 [dev-dependencies]
-actix-files = "0.6"
+actix-files = "0.7"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 

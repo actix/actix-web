@@ -48,7 +48,9 @@ pub enum Error {
     /// always include a "name" parameter.
     ///
     /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
-    #[display("Content-Disposition header was not found when parsing a \"form-data\" field")]
+    #[display(
+        "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
+    )]
     ContentDispositionNameMissing,
 
     /// Nested multipart is not supported.
@@ -60,11 +62,11 @@ pub enum Error {
     Incomplete,
 
     /// Field parsing failed.
-    #[display("Error during field parsing")]
+    #[display("Error during field parsing: {_0}")]
     Parse(ParseError),
 
     /// HTTP payload error.
-    #[display("Payload error")]
+    #[display("Payload error: {_0}")]
     Payload(PayloadError),
 
     /// Stream is not consumed.
@@ -72,7 +74,7 @@ pub enum Error {
     NotConsumed,
 
     /// Form field handler raised error.
-    #[display("An error occurred processing field: {name}")]
+    #[display("An error occurred processing field '{name}': {source}")]
     Field {
         name: String,
         source: actix_web::Error,
@@ -113,5 +115,29 @@ mod tests {
     fn test_multipart_error() {
         let resp = Error::BoundaryMissing.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let err = Error::Payload(PayloadError::Overflow);
+        assert_eq!(err.to_string(), "Payload error: payload reached size limit");
+
+        let err = Error::Parse(ParseError::Incomplete);
+        assert_eq!(
+            err.to_string(),
+            "Error during field parsing: message is incomplete"
+        );
+
+        let err = Error::ContentDispositionNameMissing;
+        assert_eq!(
+            err.to_string(),
+            "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
+        );
+
+        let err = Error::Field {
+            name: "avatar".to_owned(),
+            source: actix_web::error::ErrorBadRequest("invalid file format"),
+        };
+        assert_eq!(
+            err.to_string(),
+            "An error occurred processing field 'avatar': invalid file format"
+        );
     }
 }

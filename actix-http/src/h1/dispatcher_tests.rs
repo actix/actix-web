@@ -1,7 +1,6 @@
 use std::{
     cell::Cell,
     future::Future,
-    io,
     pin::Pin,
     rc::Rc,
     str,
@@ -16,17 +15,24 @@ use actix_rt::{
 };
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::BytesMut;
 use futures_util::future::lazy;
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
-    body::{BoxBody, MessageBody},
+    body::BoxBody,
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{TestBuffer, TestSeqBuffer},
-    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
+    test::{
+        pending_once_write_buf::PendingOnceWriteBuf,
+        test_services::{
+            drop_payload_service, echo_path_service, echo_payload_service, ignore_payload_service,
+            ok_service, ready_chunk_body_service, upgrade_response_service,
+        },
+        TestBuffer, TestSeqBuffer,
+    },
+    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response,
 };
 
 struct YieldService;
@@ -49,111 +55,6 @@ impl Service<Request> for YieldService {
     }
 }
 
-struct ReadyChunkBody {
-    chunk_polls: Rc<Cell<usize>>,
-    remaining: usize,
-    chunk_len: usize,
-}
-
-impl ReadyChunkBody {
-    fn new(chunk_polls: Rc<Cell<usize>>, remaining: usize, chunk_len: usize) -> Self {
-        Self {
-            chunk_polls,
-            remaining,
-            chunk_len,
-        }
-    }
-}
-
-impl MessageBody for ReadyChunkBody {
-    type Error = Error;
-
-    fn size(&self) -> crate::body::BodySize {
-        crate::body::BodySize::Stream
-    }
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        if self.remaining == 0 {
-            return Poll::Ready(None);
-        }
-
-        self.remaining -= 1;
-        self.chunk_polls.set(self.chunk_polls.get() + 1);
-
-        Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
-    }
-}
-
-struct PendingOnceWriteBuf {
-    io: TestBuffer,
-    block_next_write: bool,
-}
-
-impl PendingOnceWriteBuf {
-    fn new<T>(data: T) -> Self
-    where
-        T: Into<BytesMut>,
-    {
-        Self {
-            io: TestBuffer::new(data),
-            block_next_write: true,
-        }
-    }
-}
-
-impl io::Read for PendingOnceWriteBuf {
-    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        self.io.read(dst)
-    }
-}
-
-impl io::Write for PendingOnceWriteBuf {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.io.flush()
-    }
-}
-
-impl actix_codec::AsyncRead for PendingOnceWriteBuf {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut actix_codec::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_read(cx, buf)
-    }
-}
-
-impl actix_codec::AsyncWrite for PendingOnceWriteBuf {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.block_next_write {
-            self.block_next_write = false;
-            cx.waker().wake_by_ref();
-            return Poll::Pending;
-        }
-
-        Pin::new(&mut self.io).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_flush(cx)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_shutdown(cx)
-    }
-}
-
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     memchr::memmem::find(&haystack[from..], needle)
 }
@@ -165,78 +66,6 @@ fn stabilize_date_header(payload: &mut [u8]) {
             .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
         from += 35;
     }
-}
-
-fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    status_service(StatusCode::OK)
-}
-
-fn status_service(
-    status: StatusCode,
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
-}
-
-fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
-{
-    fn_service(|req: Request| {
-        let path = req.path().as_bytes();
-        ready(Ok::<_, Error>(
-            Response::ok().set_body(Bytes::copy_from_slice(path)),
-        ))
-    })
-}
-
-fn drop_payload_service() -> impl Service<Request, Response = Response<&'static str>, Error = Error>
-{
-    fn_service(|mut req: Request| async move {
-        let _ = req.take_payload();
-        Ok::<_, Error>(Response::with_body(StatusCode::OK, "payload dropped"))
-    })
-}
-
-fn ignore_payload_service(
-) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
-    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
-}
-
-fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
-    fn_service(|mut req: Request| {
-        Box::pin(async move {
-            use futures_util::StreamExt as _;
-
-            let mut pl = req.take_payload();
-            let mut body = BytesMut::new();
-            while let Some(chunk) = pl.next().await {
-                body.extend_from_slice(chunk.unwrap().chunk())
-            }
-
-            Ok::<_, Error>(Response::ok().set_body(body.freeze()))
-        })
-    })
-}
-
-fn ready_chunk_body_service(
-    chunk_polls: Rc<Cell<usize>>,
-    chunk_count: usize,
-    chunk_len: usize,
-) -> impl Service<Request, Response = Response<ReadyChunkBody>, Error = Error> {
-    fn_service(move |_req: Request| {
-        ready(Ok::<_, Error>(Response::ok().set_body(
-            ReadyChunkBody::new(chunk_polls.clone(), chunk_count, chunk_len),
-        )))
-    })
-}
-
-fn upgrade_response_service(
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(|_req: Request| {
-        ready(Ok::<_, Error>(
-            Response::build(StatusCode::SWITCHING_PROTOCOLS)
-                .upgrade("websocket")
-                .finish(),
-        ))
-    })
 }
 
 #[actix_rt::test]

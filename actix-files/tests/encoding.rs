@@ -207,7 +207,7 @@ async fn test_compression_encodings_multiple_directories() {
 #[actix_web::test]
 async fn partial_range_response_encoding() {
     let srv = test::init_service(App::new().default_service(web::to(|| async {
-        NamedFile::open_async("./tests/test.binary").await.unwrap()
+        NamedFile::open("./tests/test.binary").unwrap()
     })))
     .await;
 

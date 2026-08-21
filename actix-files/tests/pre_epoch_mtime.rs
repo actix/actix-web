@@ -28,7 +28,7 @@ async fn serves_file_with_pre_epoch_mtime() {
         let path = path.clone();
         test::init_service(App::new().default_service(web::to(move || {
             let path = path.clone();
-            async move { NamedFile::open_async(path).await.unwrap() }
+            async move { NamedFile::open(path).unwrap() }
         })))
         .await
     };
