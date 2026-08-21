@@ -30,6 +30,19 @@ type Guards = Vec<Box<dyn Guard>>;
 /// requests using the [`Path`](crate::web::Path) extractor or
 /// with [`HttpRequest::match_info()`](crate::HttpRequest::match_info).
 ///
+/// # Route Matching
+///
+/// Scopes are matched independently during routing. Once a request matches a
+/// scope's path prefix, routing continues only within that scope. If no route
+/// inside the matched scope can handle the request, Actix Web does not continue
+/// searching sibling scopes or services.
+///
+/// Consequently, overlapping scopes do not behave the same as an equivalent
+/// flat route structure.
+///
+/// If your goal is to organize routes into separate modules without changing
+/// routing behavior, consider using `App::configure` or `Scope::configure`.
+///
 /// # Avoid Trailing Slashes
 /// Avoid using trailing slashes in the scope prefix (e.g., `web::scope("/scope/")`). It will almost
 /// certainly not have the expected behavior. See the [documentation on resource definitions][pat]
