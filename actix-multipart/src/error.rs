@@ -62,11 +62,11 @@ pub enum Error {
     Incomplete,
 
     /// Field parsing failed.
-    #[display("Error during field parsing: {_0}")]
+    #[display("Error during field parsing")]
     Parse(ParseError),
 
     /// HTTP payload error.
-    #[display("Payload error: {_0}")]
+    #[display("Payload error")]
     Payload(PayloadError),
 
     /// Stream is not consumed.
@@ -74,29 +74,28 @@ pub enum Error {
     NotConsumed,
 
     /// Form field handler raised error.
-    #[display("An error occurred processing field '{name}': {source}")]
+    #[display("An error occurred processing field \"{name}\"")]
     Field {
         name: String,
         source: actix_web::Error,
     },
 
     /// Duplicate field found (for structure that opted-in to denying duplicate fields).
-    #[display("Duplicate field found: {_0}")]
+    #[display("Duplicate field found \"{_0}\"")]
     #[from(ignore)]
     DuplicateField(#[error(not(source))] String),
 
     /// Required field is missing.
-    #[display("Required field is missing: {_0}")]
+    #[display("Required field is missing \"{_0}\"")]
     #[from(ignore)]
     MissingField(#[error(not(source))] String),
 
     /// Unknown field (for structure that opted-in to denying unknown fields).
-    #[display("Unknown field: {_0}")]
+    #[display("Unknown field \"{_0}\"")]
     #[from(ignore)]
     UnknownField(#[error(not(source))] String),
 }
 
-/// Return `BadRequest` for `MultipartError`.
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
