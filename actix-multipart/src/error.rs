@@ -108,6 +108,8 @@ impl ResponseError for Error {
 
 #[cfg(test)]
 mod tests {
+    use err_report::Report;
+
     use super::*;
 
     #[test]
@@ -116,17 +118,20 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err = Error::Payload(PayloadError::Overflow);
-        assert_eq!(err.to_string(), "Payload error: payload reached size limit");
+        assert_eq!(
+            Report::new(&err).to_string(),
+            "Payload error: payload reached size limit",
+        );
 
         let err = Error::Parse(ParseError::Incomplete);
         assert_eq!(
-            err.to_string(),
+            Report::new(&err).to_string(),
             "Error during field parsing: message is incomplete"
         );
 
         let err = Error::ContentDispositionNameMissing;
         assert_eq!(
-            err.to_string(),
+            Report::new(&err).to_string(),
             "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
         );
 
@@ -135,8 +140,8 @@ mod tests {
             source: actix_web::error::ErrorBadRequest("invalid file format"),
         };
         assert_eq!(
-            err.to_string(),
-            "An error occurred processing field 'avatar': invalid file format"
+            Report::new(&err).to_string(),
+            "An error occurred processing field \"avatar\": invalid file format"
         );
     }
 }
