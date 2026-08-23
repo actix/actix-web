@@ -302,7 +302,7 @@ impl InnerField {
         }
 
         // check boundary
-        if len > 4 && payload.buf[0] == b'\r' {
+        if len >= 4 && payload.buf[0] == b'\r' {
             let b_len = if payload.buf.starts_with(b"\r\n") && &payload.buf[2..4] == b"--" {
                 Some(4)
             } else if &payload.buf[1..3] == b"--" {
@@ -411,7 +411,8 @@ impl InnerField {
 
 #[cfg(test)]
 mod tests {
-    use futures_util::{stream, StreamExt as _};
+    use actix_http::h1;
+    use futures_util::{stream, FutureExt as _, StreamExt as _};
 
     use super::*;
     use crate::Multipart;
@@ -487,6 +488,48 @@ mod tests {
             .expect_err("field data should be size limited");
 
         // next field still readable
+        let field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted")
+            .bytes(usize::MAX)
+            .await
+            .expect("field data should not be size limited")
+            .expect("reading field data should not error");
+        assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn boundary_marker_split_across_chunks() {
+        let (body, headers) = create_double_request_with_header();
+        let boundary_start = memchr::memmem::find_iter(&body, b"\r\n--")
+            .nth(1)
+            .expect("body should contain a boundary between its fields");
+        let boundary_marker_end = boundary_start + 4;
+
+        let (mut tx, rx) = h1::Payload::create(false);
+        tx.feed_data(body.slice(..boundary_start));
+        tx.feed_data(body.slice(boundary_start..boundary_marker_end));
+
+        let mut multipart = Multipart::new(&headers, rx);
+
+        let mut field = multipart
+            .next()
+            .await
+            .expect("multipart should have two fields")
+            .expect("multipart body should be well formatted");
+        assert_eq!(field.next().await.unwrap().unwrap(), "one+one+one");
+        let next = field.next().now_or_never();
+        assert!(
+            next.is_none(),
+            "partial boundary marker should not be emitted as field data: {next:?}",
+        );
+
+        tx.feed_data(body.slice(boundary_marker_end..));
+        assert!(field.next().await.is_none());
+        drop(field);
+
         let field = multipart
             .next()
             .await
