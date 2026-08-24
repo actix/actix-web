@@ -42,8 +42,8 @@ check: && clippy
     fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --check
 
 # Run Clippy over workspace.
-clippy:
-    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
+clippy *args:
+    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }} {{ args }}
 
 # Run Clippy over workspace using MSRV.
 clippy-msrv: downgrade-for-msrv

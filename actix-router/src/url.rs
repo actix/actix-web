@@ -127,7 +127,7 @@ mod tests {
     fn valid_utf8_multi_byte() {
         let test = ('\u{FF00}'..='\u{FFFF}').collect::<String>();
         let encoded = percent_encode(test.as_bytes());
-        let path = match_url("/a/{id}/b", format!("/a/{}/b", &encoded));
+        let path = match_url("/a/{id}/b", format!("/a/{encoded}/b"));
         assert_eq!(path.get("id").unwrap(), &test);
     }
 

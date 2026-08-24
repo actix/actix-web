@@ -117,8 +117,8 @@ impl fmt::Debug for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner.cause.as_ref() {
-            Some(err) => write!(f, "{}: {}", &self.inner.kind, err),
-            None => write!(f, "{}", &self.inner.kind),
+            Some(err) => write!(f, "{}: {err}", self.inner.kind),
+            None => write!(f, "{}", self.inner.kind),
         }
     }
 }

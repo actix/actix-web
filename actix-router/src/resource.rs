@@ -953,7 +953,7 @@ impl ResourceDef {
         };
 
         let segment = PatternSegment::Var(name.to_string());
-        let regex = format!(r"(?P<{}>{})", &name, &pattern);
+        let regex = format!(r"(?P<{name}>{pattern})");
 
         (segment, regex, unprocessed, tail)
     }
@@ -1784,7 +1784,7 @@ mod tests {
         join_test!("",  "/user" => "", "/user", "foo", "/user11", "user", "user/123");
         join_test!("/user",  "/xx" => "", "",  "/", "/user", "/xx", "/userxx", "/user/xx");
 
-        join_test!(["/ver/{v}", "/v{v}"], ["/req/{req}", "/{req}"] => "/v1/abc", 
+        join_test!(["/ver/{v}", "/v{v}"], ["/req/{req}", "/{req}"] => "/v1/abc",
                    "/ver/1/abc", "/v1/req/abc", "/ver/1/req/abc", "/v1/abc/def",
                    "/ver1/req/abc/def", "", "/", "/v1/");
     }

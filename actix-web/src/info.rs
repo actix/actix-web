@@ -128,7 +128,7 @@ impl ConnectionInfo {
         let scheme = scheme
             .or_else(|| first_header_value(req, &X_FORWARDED_PROTO))
             .or_else(|| req.uri.scheme().map(Scheme::as_str))
-            .or_else(|| Some("https").filter(|_| cfg.secure()))
+            .or_else(|| cfg.secure().then_some("https"))
             .unwrap_or("http")
             .to_owned();
 

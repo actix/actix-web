@@ -414,7 +414,7 @@ impl IntrospectionCollector {
         let externals = std::mem::take(&mut self.externals);
         let mut root = IntrospectionNode::new(ResourceType::App, "".into(), "".into());
 
-        for (full_path, _) in detail_registry.iter() {
+        for full_path in detail_registry.keys() {
             let parts = split_path_segments(full_path);
             let mut current_node = &mut root;
             let mut assembled = String::new();
