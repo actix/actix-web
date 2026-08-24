@@ -410,6 +410,10 @@ impl InnerField {
 }
 
 #[cfg(test)]
+#[path = "field-proptest.rs"]
+mod field_proptest;
+
+#[cfg(test)]
 mod tests {
     use actix_http::h1;
     use futures_util::{stream, FutureExt as _, StreamExt as _};

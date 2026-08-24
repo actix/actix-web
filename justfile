@@ -2,6 +2,7 @@ _list:
     @just --list
 
 toolchain := ""
+export QUICKCHECK_TESTS := "10000"
 
 # Format workspace.
 fmt:

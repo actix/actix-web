@@ -532,6 +532,10 @@ impl Drop for Inner {
 }
 
 #[cfg(test)]
+#[path = "multipart-proptest.rs"]
+mod multipart_proptest;
+
+#[cfg(test)]
 mod tests {
     use std::time::Duration;
 
