@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, pin::pin};
 
 use actix_http::{
     body::{BodySize, MessageBody},
@@ -142,7 +142,7 @@ where
 {
     let mut buf = None;
 
-    actix_rt::pin!(body);
+    let mut body = pin!(body);
 
     loop {
         if buf.is_none() {

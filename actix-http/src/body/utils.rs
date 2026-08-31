@@ -1,6 +1,5 @@
-use std::task::Poll;
+use std::{pin::pin, task::Poll};
 
-use actix_rt::pin;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
@@ -85,7 +84,7 @@ pub async fn to_bytes_limited<B: MessageBody>(
     let mut exceeded_limit = false;
     let mut buf = BytesMut::with_capacity(cap);
 
-    pin!(body);
+    let mut body = pin!(body);
 
     match poll_fn(|cx| loop {
         let body = body.as_mut();
