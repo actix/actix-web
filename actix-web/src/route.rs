@@ -317,10 +317,10 @@ impl Route {
 mod tests {
     use std::{convert::Infallible, time::Duration};
 
-    use actix_rt::time::sleep;
     use bytes::Bytes;
     use futures_core::future::LocalBoxFuture;
     use serde::Serialize;
+    use tokio::time::sleep;
 
     use crate::{
         dev::{always_ready, fn_factory, fn_service, Service},

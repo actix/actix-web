@@ -7,12 +7,12 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
+use tokio::net::TcpStream;
 use tracing::error;
 
 use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};

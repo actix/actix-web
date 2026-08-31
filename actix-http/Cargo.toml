@@ -93,7 +93,6 @@ __tls = []
 
 [dependencies]
 actix-codec = "0.5"
-actix-rt = { version = "2.2", default-features = false }
 actix-service = "2"
 actix-utils = "3"
 
@@ -113,7 +112,7 @@ mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
-tokio = { version = "1.38.2", features = [] }
+tokio = { version = "1.38.2", features = ["net", "rt", "time"] }
 tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
@@ -136,6 +135,7 @@ zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
+actix-rt = "2.2"
 actix-server = "2"
 actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23-webpki-roots"] }
 actix-web = "4"
@@ -157,7 +157,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls_023 = { package = "rustls", version = "0.23" }
-tokio = { version = "1.38.2", features = ["net", "rt", "macros", "sync"] }
+tokio = { version = "1.38.2", features = ["net", "rt", "macros", "sync", "time"] }
 tokio-test = "0.4"
 
 [lints]

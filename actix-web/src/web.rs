@@ -21,6 +21,7 @@ use std::{borrow::Cow, future::Future};
 
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
+use tokio::task::spawn_blocking;
 
 pub use crate::{
     config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData,
@@ -210,6 +211,6 @@ where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
-    let fut = actix_rt::task::spawn_blocking(f);
+    let fut = spawn_blocking(f);
     async { fut.await.map_err(|_| BlockingError) }
 }

@@ -8,13 +8,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
 use derive_more::Display;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
 use pin_project_lite::pin_project;
+use tokio::task::{spawn_blocking, JoinHandle};
 use tracing::trace;
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;

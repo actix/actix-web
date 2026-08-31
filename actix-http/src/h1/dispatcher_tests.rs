@@ -1,7 +1,7 @@
 use std::{
     cell::Cell,
     future::Future,
-    pin::Pin,
+    pin::{pin, Pin},
     rc::Rc,
     str,
     task::{Context, Poll},
@@ -9,14 +9,11 @@ use std::{
 };
 
 use actix_codec::Framed;
-use actix_rt::{
-    pin,
-    time::{sleep, timeout},
-};
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
 use bytes::BytesMut;
 use futures_util::future::lazy;
+use tokio::time::{sleep, timeout};
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
@@ -48,8 +45,8 @@ impl Service<Request> for YieldService {
         Box::pin(async {
             // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
             // once in `handle_request` and another in `poll_response`
-            actix_rt::task::yield_now().await;
-            actix_rt::task::yield_now().await;
+            tokio::task::yield_now().await;
+            tokio::task::yield_now().await;
             Ok(Response::ok())
         })
     }
@@ -88,7 +85,7 @@ async fn late_request() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -155,7 +152,7 @@ async fn oneshot_connection() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -216,7 +213,7 @@ async fn keep_alive_timeout() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -295,7 +292,7 @@ async fn keep_alive_follow_up_req() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -425,7 +422,7 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
         None,
         OnConnectData::default(),
     );
-    pin!(dispatcher);
+    let mut dispatcher = pin!(dispatcher);
 
     // The shutdown notification and request data are ready in the same dispatcher poll.
     let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
@@ -456,7 +453,7 @@ async fn req_parse_err() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => panic!(),
@@ -502,7 +499,7 @@ async fn pipelining_ok_then_ok() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -572,7 +569,7 @@ async fn early_response_with_payload_lingers_before_closing() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -644,7 +641,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -771,7 +768,7 @@ async fn pipelining_ok_then_bad() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -843,7 +840,7 @@ async fn expect_handling() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_pending());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -920,7 +917,7 @@ async fn expect_eager() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -1003,7 +1000,7 @@ async fn upgrade_handling() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Upgrade { .. }));
@@ -1040,7 +1037,7 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1101,7 +1098,7 @@ async fn handler_drop_payload() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1245,7 +1242,7 @@ async fn handler_drop_payload_drains_body() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1352,7 +1349,7 @@ async fn allow_half_closed() {
         None,
         OnConnectData::default(),
     );
-    pin!(disptacher);
+    let mut disptacher = pin!(disptacher);
 
     assert!(disptacher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(disptacher.poll_count, 1);
@@ -1405,7 +1402,7 @@ async fn disallow_half_closed() {
         None,
         OnConnectData::default(),
     );
-    pin!(disptacher);
+    let mut disptacher = pin!(disptacher);
 
     assert!(disptacher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(disptacher.poll_count, 1);
@@ -1441,7 +1438,7 @@ async fn h1_write_buffer_size_limits_buffering() {
         None,
         OnConnectData::default(),
     );
-    pin!(default_dispatcher);
+    let mut default_dispatcher = pin!(default_dispatcher);
 
     let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
     assert!(default_dispatcher.as_mut().poll(&mut cx).is_pending());
@@ -1463,7 +1460,7 @@ async fn h1_write_buffer_size_limits_buffering() {
         None,
         OnConnectData::default(),
     );
-    pin!(custom_dispatcher);
+    let mut custom_dispatcher = pin!(custom_dispatcher);
 
     assert!(custom_dispatcher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(custom_polls.get(), 1);

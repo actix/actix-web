@@ -277,11 +277,14 @@ impl Inner {
 mod tests {
     use std::{task::Poll, time::Duration};
 
-    use actix_rt::time::timeout;
     use actix_utils::future::poll_fn;
     use futures_util::{FutureExt, StreamExt};
     use static_assertions::{assert_impl_all, assert_not_impl_any};
-    use tokio::sync::oneshot;
+    use tokio::{
+        sync::oneshot,
+        task::{spawn_local, JoinHandle},
+        time::timeout,
+    };
 
     use super::*;
 
@@ -295,10 +298,10 @@ mod tests {
     fn prepare_waking_test(
         mut payload: Payload,
         expected: Option<Result<(), ()>>,
-    ) -> (oneshot::Receiver<()>, actix_rt::task::JoinHandle<()>) {
+    ) -> (oneshot::Receiver<()>, JoinHandle<()>) {
         let (tx, rx) = oneshot::channel();
 
-        let handle = actix_rt::spawn(async move {
+        let handle = spawn_local(async move {
             // Make sure to poll once to set the waker
             poll_fn(|cx| {
                 assert!(payload.poll_next_unpin(cx).is_pending());
@@ -307,7 +310,7 @@ mod tests {
             .await;
             tx.send(()).unwrap();
 
-            // actix-rt is single-threaded, so this won't race with `rx.await`
+            // The test runtime is single-threaded, so this won't race with `rx.await`.
             let mut pend_once = false;
             poll_fn(|_| {
                 if pend_once {

@@ -71,9 +71,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
+    use std::{convert::Infallible, pin::pin};
 
-    use actix_rt::pin;
     use actix_utils::future::poll_fn;
     use futures_util::stream;
     use static_assertions::{assert_impl_all, assert_not_impl_any};
@@ -103,7 +102,7 @@ mod tests {
             ),
         );
 
-        pin!(body);
+        let mut body = pin!(body);
 
         assert_eq!(
             poll_fn(|cx| body.as_mut().poll_next(cx))

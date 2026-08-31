@@ -7,13 +7,13 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{sleep_until, Sleep};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 use h2::{
     server::{Builder, Connection, Handshake},
     RecvStream,
 };
+use tokio::time::{sleep_until, Sleep};
 
 use crate::{
     config::ServiceConfig,

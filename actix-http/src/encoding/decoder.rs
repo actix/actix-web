@@ -7,11 +7,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures_core::{ready, Stream};
+use tokio::task::{spawn_blocking, JoinHandle};
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Decoder as ZstdDecoder;
 
