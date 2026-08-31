@@ -48,9 +48,9 @@ struct Config {
 ///
 /// There are two ways to select the HTTP version of an incoming connection:
 ///
-/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
-///   versions are supported automatically when using either of the `.bind_rustls()` or
-///   `.bind_openssl()` methods.
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); HTTP/1.x is
+///   always supported, and HTTP/2 is supported when the `http2` feature is enabled. Use either of
+///   the `.bind_rustls()` or `.bind_openssl()` methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
 ///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
 ///   the `.bind_auto_h2c()` method to enable this behavior.
@@ -530,7 +530,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_20")]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
@@ -549,7 +550,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_21")]
     pub fn bind_rustls_021<A: net::ToSocketAddrs>(
         mut self,
@@ -568,7 +570,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_22")]
     pub fn bind_rustls_0_22<A: net::ToSocketAddrs>(
         mut self,
@@ -587,7 +590,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_23")]
     pub fn bind_rustls_0_23<A: net::ToSocketAddrs>(
         mut self,
@@ -606,7 +610,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "openssl")]
     pub fn bind_openssl<A>(mut self, addrs: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
@@ -763,7 +768,8 @@ where
     ///
     /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_20")]
     pub fn listen_rustls(
         self,
@@ -778,7 +784,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_21")]
     pub fn listen_rustls_0_21(
         self,
@@ -939,7 +946,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_22")]
     pub fn listen_rustls_0_22(
         self,
@@ -1027,7 +1035,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_23")]
     pub fn listen_rustls_0_23(
         self,
@@ -1114,7 +1123,8 @@ where
     ///
     /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "openssl")]
     pub fn listen_openssl(
         self,
@@ -1403,19 +1413,29 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
 #[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
-        const H2: &[u8] = b"\x02h2";
         const H11: &[u8] = b"\x08http/1.1";
 
-        if protocols.windows(3).any(|window| window == H2) {
-            Ok(b"h2")
-        } else if protocols.windows(9).any(|window| window == H11) {
+        #[cfg(feature = "http2")]
+        {
+            const H2: &[u8] = b"\x02h2";
+
+            if protocols.windows(3).any(|window| window == H2) {
+                return Ok(b"h2");
+            }
+        }
+
+        if protocols.windows(9).any(|window| window == H11) {
             Ok(b"http/1.1")
         } else {
             Err(AlpnError::NOACK)
         }
     });
 
-    builder.set_alpn_protos(b"\x08http/1.1\x02h2")?;
+    #[cfg(feature = "http2")]
+    let protos = b"\x08http/1.1\x02h2";
+    #[cfg(not(feature = "http2"))]
+    let protos = b"\x08http/1.1";
+    builder.set_alpn_protos(protos)?;
 
     Ok(builder.build())
 }
