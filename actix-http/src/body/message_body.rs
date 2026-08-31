@@ -533,7 +533,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_rt::pin;
+    use std::pin::pin;
+
     use actix_utils::future::poll_fn;
     use futures_util::stream;
 
@@ -566,7 +567,7 @@ mod tests {
         assert_eq!(().size(), Box::pin(()).size());
 
         let pl = Box::new(());
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let mut pl = Box::pin(());
@@ -579,11 +580,11 @@ mod tests {
         assert_eq!(().size(), (&(&mut ())).size());
 
         let pl = &mut ();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let pl = &mut Box::new(());
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let mut body = body::SizedStream::new(
@@ -595,7 +596,7 @@ mod tests {
         );
         let body = &mut body;
         assert_eq!(body.size(), BodySize::Sized(8));
-        pin!(body);
+        let mut body = pin!(body);
         assert_poll_next!(body, Bytes::from_static(b"1234"));
         assert_poll_next!(body, Bytes::from_static(b"5678"));
         assert_poll_next_none!(body);
@@ -606,7 +607,7 @@ mod tests {
     async fn test_unit() {
         let pl = ();
         assert_eq!(pl.size(), BodySize::Sized(0));
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
     }
 
@@ -616,7 +617,7 @@ mod tests {
         assert_eq!("test".size(), BodySize::Sized(4));
 
         let pl = "test";
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -626,7 +627,7 @@ mod tests {
         assert_eq!(b"test".as_ref().size(), BodySize::Sized(4));
 
         let pl = b"test".as_ref();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -636,7 +637,7 @@ mod tests {
         assert_eq!(Vec::from("test").size(), BodySize::Sized(4));
 
         let pl = Vec::from("test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -646,7 +647,7 @@ mod tests {
         assert_eq!(Bytes::from_static(b"test").size(), BodySize::Sized(4));
 
         let pl = Bytes::from_static(b"test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -656,7 +657,7 @@ mod tests {
         assert_eq!(BytesMut::from(b"test".as_ref()).size(), BodySize::Sized(4));
 
         let pl = BytesMut::from("test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -666,7 +667,7 @@ mod tests {
         assert_eq!("test".to_owned().size(), BodySize::Sized(4));
 
         let pl = "test".to_owned();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
@@ -674,7 +675,7 @@ mod tests {
     async fn test_byte_string() {
         let pl = bytestring::ByteString::from_static("test");
         assert_eq!(pl.size(), BodySize::Sized(4));
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from_static(b"test"));
         assert_poll_next_none!(pl);
     }

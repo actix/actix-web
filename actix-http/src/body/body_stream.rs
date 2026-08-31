@@ -68,12 +68,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::Infallible, time::Duration};
+    use std::{convert::Infallible, pin::pin, time::Duration};
 
-    use actix_rt::{
-        pin,
-        time::{sleep, Sleep},
-    };
+    use actix_rt::time::{sleep, Sleep};
     use actix_utils::future::poll_fn;
     use derive_more::{Display, Error};
     use futures_core::ready;
@@ -102,7 +99,7 @@ mod tests {
                 .iter()
                 .map(|&v| Ok::<_, Infallible>(Bytes::from(v))),
         ));
-        pin!(body);
+        let mut body = pin!(body);
 
         assert_eq!(
             poll_fn(|cx| body.as_mut().poll_next(cx))

@@ -1,6 +1,6 @@
 use std::{
     io::Write,
-    pin::Pin,
+    pin::{pin, Pin},
     task::{Context, Poll},
 };
 
@@ -34,7 +34,7 @@ where
     B: MessageBody,
     B::Error: Into<BoxError>,
 {
-    actix_rt::pin!(body);
+    let mut body = pin!(body);
 
     let orig_length = body.size();
     let mut length = orig_length;
