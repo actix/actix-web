@@ -5,7 +5,10 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use actix_rt::{task::JoinHandle, time::interval};
+use tokio::{
+    task::{spawn_local, JoinHandle},
+    time::interval,
+};
 
 /// "Thu, 01 Jan 1970 00:00:00 GMT".len()
 pub(crate) const DATE_VALUE_LENGTH: usize = 29;
@@ -54,7 +57,7 @@ impl DateService {
         let current_clone = Rc::clone(&current);
         // spawn an async task sleep for 500 millis and update current date/timer in a loop.
         // handle is used to stop the task on DateService drop.
-        let handle = actix_rt::spawn(async move {
+        let handle = spawn_local(async move {
             #[cfg(test)]
             let _notify = crate::notify_on_drop::NotifyOnDrop::new();
 

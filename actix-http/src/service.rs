@@ -9,12 +9,12 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
+use tokio::net::TcpStream;
 use tracing::error;
 
 use crate::{

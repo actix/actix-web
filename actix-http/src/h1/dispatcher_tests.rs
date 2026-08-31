@@ -9,11 +9,11 @@ use std::{
 };
 
 use actix_codec::Framed;
-use actix_rt::time::{sleep, timeout};
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
 use bytes::BytesMut;
 use futures_util::future::lazy;
+use tokio::time::{sleep, timeout};
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
@@ -45,8 +45,8 @@ impl Service<Request> for YieldService {
         Box::pin(async {
             // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
             // once in `handle_request` and another in `poll_response`
-            actix_rt::task::yield_now().await;
-            actix_rt::task::yield_now().await;
+            tokio::task::yield_now().await;
+            tokio::task::yield_now().await;
             Ok(Response::ok())
         })
     }

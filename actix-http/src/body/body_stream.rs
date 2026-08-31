@@ -70,13 +70,13 @@ where
 mod tests {
     use std::{convert::Infallible, pin::pin, time::Duration};
 
-    use actix_rt::time::{sleep, Sleep};
     use actix_utils::future::poll_fn;
     use derive_more::{Display, Error};
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
     use pin_project_lite::pin_project;
     use static_assertions::{assert_impl_all, assert_not_impl_any};
+    use tokio::time::{sleep, Sleep};
 
     use super::*;
     use crate::body::to_bytes;

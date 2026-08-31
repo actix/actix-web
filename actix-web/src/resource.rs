@@ -598,8 +598,8 @@ impl ServiceFactory<ServiceRequest> for ResourceEndpoint {
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::sleep;
     use actix_utils::future::ok;
+    use tokio::time::sleep;
 
     use super::*;
     use crate::{

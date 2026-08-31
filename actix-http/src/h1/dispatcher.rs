@@ -9,13 +9,15 @@ use std::{
 };
 
 use actix_codec::{Framed, FramedParts};
-use actix_rt::time::sleep_until;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    time::sleep_until,
+};
 use tokio_util::codec::{Decoder as _, Encoder as _};
 use tracing::{error, trace};
 
