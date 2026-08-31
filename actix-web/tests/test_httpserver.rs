@@ -438,6 +438,8 @@ async fn test_start_ssl() {
     let host = format!("https://{}", addr);
     let response = client.get(host.clone()).send().await.unwrap();
     assert!(response.status().is_success());
+    #[cfg(not(feature = "http2"))]
+    assert_eq!(response.version(), actix_web::http::Version::HTTP_11);
 
     srv.stop(false).await;
 }
