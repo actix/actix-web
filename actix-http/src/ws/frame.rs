@@ -175,10 +175,10 @@ impl Parser {
         mask: bool,
     ) {
         let payload = pl.as_ref();
-        let one: u8 = if fin {
-            0x80 | Into::<u8>::into(op)
+        let one = if fin {
+            0x80 | u8::from(op)
         } else {
-            op.into()
+            u8::from(op)
         };
         let payload_len = payload.len();
         let (two, p_len) = if mask {

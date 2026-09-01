@@ -13,10 +13,11 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error, From};
 use futures_core::future::LocalBoxFuture;
 use futures_util::{SinkExt as _, StreamExt as _};
+use tokio_util::codec::Decoder as _;
 
 #[derive(Clone)]
 struct WsService(Cell<bool>);
@@ -192,4 +193,52 @@ async fn simple() {
 
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(item, Frame::Close(Some(CloseCode::Normal.into())));
+}
+
+#[test]
+fn rejects_new_data_frame_during_continuation() {
+    let mut codec = ws::Codec::new();
+    let mut buf = BytesMut::new();
+
+    ws::Parser::write_message(&mut buf, b"fragment1", ws::OpCode::Text, false, true);
+    ws::Parser::write_message(&mut buf, b"fragment2", ws::OpCode::Text, true, true);
+
+    assert_eq!(
+        codec.decode(&mut buf).unwrap(),
+        Some(Frame::Continuation(Item::FirstText(Bytes::from_static(
+            b"fragment1",
+        )))),
+        "the first text fragment should be returned as a continuation"
+    );
+    assert!(
+        matches!(
+            codec.decode(&mut buf),
+            Err(ws::ProtocolError::ContinuationStarted)
+        ),
+        "a final text frame should be rejected during a continuation"
+    );
+}
+
+#[test]
+fn rejects_new_binary_frame_during_continuation() {
+    let mut codec = ws::Codec::new();
+    let mut buf = BytesMut::new();
+
+    ws::Parser::write_message(&mut buf, b"fragment1", ws::OpCode::Binary, false, true);
+    ws::Parser::write_message(&mut buf, b"fragment2", ws::OpCode::Binary, true, true);
+
+    assert_eq!(
+        codec.decode(&mut buf).unwrap(),
+        Some(Frame::Continuation(Item::FirstBinary(Bytes::from_static(
+            b"fragment1",
+        )))),
+        "the first binary fragment should be returned as a continuation"
+    );
+    assert!(
+        matches!(
+            codec.decode(&mut buf),
+            Err(ws::ProtocolError::ContinuationStarted)
+        ),
+        "a final binary frame should be rejected during a continuation"
+    );
 }
