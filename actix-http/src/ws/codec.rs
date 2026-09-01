@@ -278,7 +278,7 @@ impl Decoder for Codec {
             OpCode::Bad => Err(ProtocolError::BadOpCode),
             OpCode::Close => {
                 if let Some(ref pl) = payload {
-                    let close_reason = Parser::parse_close_payload(pl);
+                    let close_reason = Parser::try_parse_close_payload(pl)?;
                     Ok(Some(Frame::Close(close_reason)))
                 } else {
                     Ok(Some(Frame::Close(None)))

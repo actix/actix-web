@@ -1,4 +1,4 @@
-use std::{cmp::min, io};
+use std::{cmp::min, io, str};
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -160,6 +160,14 @@ impl Parser {
     }
 
     /// Parse the payload of a close frame.
+    ///
+    /// This method preserves the historical behavior of accepting unknown status codes and
+    /// replacing invalid UTF-8 in the reason. Use [`Parser::try_parse_close_payload`] when the
+    /// payload must be validated.
+    #[deprecated(
+        since = "3.13.5",
+        note = "Use `Parser::try_parse_close_payload` instead."
+    )]
     pub fn parse_close_payload(payload: &[u8]) -> Option<CloseReason> {
         if payload.len() >= 2 {
             let raw_code = u16::from_be_bytes(TryFrom::try_from(&payload[..2]).unwrap());
@@ -173,6 +181,54 @@ impl Parser {
         } else {
             None
         }
+    }
+
+    /// Parse and validate the payload of a close frame.
+    ///
+    /// # Validation
+    ///
+    /// A close payload is either empty or contains a two-byte status code followed by an optional
+    /// UTF-8 reason. This follows [RFC 6455 §5.5.1], with status code rules from [RFC 6455 §7.4]
+    /// and UTF-8 error handling from [RFC 6455 §8.1].
+    ///
+    /// [RFC 6455 §5.5.1]: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.1
+    /// [RFC 6455 §7.4]: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4
+    /// [RFC 6455 §8.1]: https://datatracker.ietf.org/doc/html/rfc6455#section-8.1
+    pub fn try_parse_close_payload(payload: &[u8]) -> Result<Option<CloseReason>, ProtocolError> {
+        // RFC 6455 §5.5.1 requires a two-byte status code when a close payload is not empty.
+        if payload.len() == 1 {
+            return Err(ProtocolError::InvalidLength(payload.len()));
+        }
+
+        if payload.len() >= 2 {
+            let raw_code = u16::from_be_bytes(
+                payload[..2]
+                    .try_into()
+                    .expect("Payload length should be checked before parsing"),
+            );
+
+            // RFC 6455 §7.4 reserves 1000-2999 for protocol-defined codes. Reject reserved and
+            // undefined values while allowing registered codes (3000-3999) and private-use codes
+            // (4000-4999).
+            if !matches!(raw_code, 1000..=1003 | 1007..=1014 | 3000..=4999) {
+                // TODO(semver-major): use this instead
+                // return Err(ProtocolError::InvalidCloseCode(raw_code));
+                return Err(ProtocolError::BadOpCode);
+            }
+
+            if payload.len() > 2 {
+                // RFC 6455 §5.5.1 defines the remaining bytes as a UTF-8 reason. RFC 6455 §8.1
+                // requires the connection to fail when data interpreted as UTF-8 is invalid.
+                str::from_utf8(&payload[2..]).map_err(|_| {
+                    // TODO(semver-major): use this instead
+                    // ProtocolError::InvalidCloseReason
+                    ProtocolError::BadOpCode
+                })?;
+            }
+        }
+
+        #[expect(deprecated)]
+        Ok(Self::parse_close_payload(payload))
     }
 
     /// Generate binary representation
@@ -441,6 +497,18 @@ mod tests {
         let mut buf = BytesMut::new();
         Parser::write_close(&mut buf, None, false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
+    }
+
+    #[test]
+    fn try_parse_close_payload_validates_payload() {
+        assert!(matches!(
+            Parser::try_parse_close_payload(&[0x03, 0xe8, 0xff]).unwrap_err(),
+            ProtocolError::BadOpCode
+        ));
+        assert!(matches!(
+            Parser::try_parse_close_payload(&[0, 0]).unwrap_err(),
+            ProtocolError::BadOpCode
+        ));
     }
 
     #[test]
