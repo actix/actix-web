@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::{cmp::min, io};
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -28,6 +28,15 @@ impl Parser {
         let first = src[0];
         let second = src[1];
         let finished = first & 0x80 != 0;
+
+        // RSV1, RSV2, and RSV3 must be zero unless a negotiated extension defines them.
+        if first & 0b0111_0000 != 0 {
+            // TODO(semver-major): use InvalidReservedBits
+            return Err(ProtocolError::Io(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Received a frame with non-zero reserved bits",
+            )));
+        }
 
         // check masking
         let masked = second & 0x80 != 0;
@@ -336,6 +345,27 @@ mod tests {
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, Bytes::from(vec![1u8]));
+    }
+
+    #[test]
+    fn test_parse_frame_with_rsv1_set() {
+        // https://github.com/actix/actix-web/issues/1579
+
+        // Final, masked text frame with RSV1 set and no negotiated extension.
+        let mut buf = BytesMut::from(
+            &[
+                0b1100_0001u8, // FIN + RSV1 + text
+                0b1000_0001u8, // MASK + payload length
+                0,             // masking key byte 1
+                0,             // masking key byte 2
+                0,             // masking key byte 3
+                0,             // masking key byte 4
+                b'a',          // payload
+            ][..],
+        );
+
+        Parser::parse(&mut buf, true, 1024)
+            .expect_err("Should reject set RSV1 bit when no extension is negotiated");
     }
 
     #[test]

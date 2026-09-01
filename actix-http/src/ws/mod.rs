@@ -38,6 +38,11 @@ pub enum ProtocolError {
     #[display("invalid opcode ({})", _0)]
     InvalidOpcode(#[error(not(source))] u8),
 
+    // TODO(semver-major):
+    // /// Received a frame with non-zero reserved bits.
+    // #[display("received a frame with non-zero reserved bits")]
+    // InvalidReservedBits,
+    //
     /// Invalid control frame length
     #[display("invalid control frame length ({})", _0)]
     InvalidLength(#[error(not(source))] usize),
