@@ -313,11 +313,18 @@ impl InnerField {
 
             if let Some(b_len) = b_len {
                 let b_size = boundary.len() + b_len;
-                if len < b_size {
-                    return Poll::Pending;
-                } else if &payload.buf[b_len..b_size] == boundary.as_bytes() {
-                    // found boundary
-                    return Poll::Ready(None);
+                let available = len - b_len;
+                let check_len = cmp::min(available, boundary.len());
+
+                if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
+                    match (len >= b_size, payload.eof) {
+                        // full boundary delimiter found
+                        (true, _) => return Poll::Ready(None),
+                        // partial boundary prefix with stream still open; wait for more chunks
+                        (false, false) => return Poll::Pending,
+                        // partial match at EOF is not a boundary; fall through to yield as payload data
+                        (false, true) => {}
+                    }
                 }
             }
         }
