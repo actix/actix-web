@@ -14,6 +14,7 @@ use std::fmt;
 // - the few typed headers from actix-http
 // - header parsing utils
 pub use actix_http::header::*;
+use actix_http::Uri;
 use bytes::{Bytes, BytesMut};
 
 mod accept;
@@ -25,6 +26,7 @@ mod cache_control;
 mod content_disposition;
 mod content_language;
 mod content_length;
+mod content_location;
 mod content_range;
 mod content_type;
 mod date;
@@ -38,9 +40,11 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
+mod location;
 mod macros;
 mod preference;
 mod range;
+mod referer;
 
 #[cfg(test)]
 pub(crate) use self::macros::common_header_test;
@@ -55,6 +59,7 @@ pub use self::{
     content_disposition::{ContentDisposition, DispositionParam, DispositionType},
     content_language::ContentLanguage,
     content_length::ContentLength,
+    content_location::ContentLocation,
     content_range::{ContentRange, ContentRangeSpec},
     content_type::ContentType,
     date::Date,
@@ -68,8 +73,10 @@ pub use self::{
     if_range::IfRange,
     if_unmodified_since::IfUnmodifiedSince,
     last_modified::LastModified,
+    location::Location,
     preference::Preference,
     range::{ByteRangeSpec, Range},
+    referer::Referer,
 };
 
 /// Format writer ([`fmt::Write`]) for a [`BytesMut`].
