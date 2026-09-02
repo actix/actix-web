@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 3.13.4
+
+- Reject WebSocket frames with reserved bits.
 - Reject new WebSocket text or binary frames during a continuation.
 
 ## 3.13.3

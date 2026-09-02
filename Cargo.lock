@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.13.3"
+version = "3.13.4"
 dependencies = [
  "actix-codec",
  "actix-http-test",
