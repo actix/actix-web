@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.13.5
+
 - Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
 - Deprecate the `Parser::parse_close_payload()` method in favor of `Parser::try_parse_close_payload()`.
 
