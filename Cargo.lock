@@ -164,6 +164,8 @@ dependencies = [
  "memchr",
  "mime",
  "multer",
+ "quickcheck",
+ "quickcheck_macros",
  "rand 0.10.2",
  "rustversion-msrv",
  "serde",
@@ -2519,6 +2521,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "quickcheck"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95c589f335db0f6aaa168a7cd27b1fc6920f5e1470c804f814d9cd6e62a0f70b"
+dependencies = [
+ "env_logger",
+ "log",
+ "rand 0.10.2",
+]
+
+[[package]]
+name = "quickcheck_macros"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9a28b8493dd664c8b171dd944da82d933f7d456b829bfb236738e1fe06c5ba4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
