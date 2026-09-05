@@ -333,11 +333,12 @@ async fn gzip_flushes_small_streaming_chunks() {
     // output on their own; the encoders buffer them internally. Without a
     // flush when a write yields no output, the whole body only reaches the
     // client when the stream ends.
-    use futures_util::{stream, StreamExt};
     use std::{
         convert::Infallible,
         sync::{Arc, Mutex},
     };
+
+    use futures_util::{stream, StreamExt};
 
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     // The server factory must be Clone; only the (single) worker's handler
