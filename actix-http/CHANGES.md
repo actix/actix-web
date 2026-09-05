@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Flush compression encoders when a write does not produce output so that streaming response bodies (SSE, for example) are delivered incrementally instead of being buffered until the stream ends.
+
 ## 3.13.5
 
 - Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
@@ -11,7 +13,6 @@
 
 - Reject WebSocket frames with reserved bits.
 - Reject new WebSocket text or binary frames during a continuation.
-
 ## 3.13.3
 
 - Close idle HTTP/1 keep-alive connections during graceful server shutdown and close active connections after their current request finishes.
