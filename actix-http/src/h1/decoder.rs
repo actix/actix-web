@@ -176,14 +176,27 @@ pub(crate) trait MessageType: Sized {
                         }
                     }
 
-                    header::EXPECT => {
-                        if let Ok(value) = value.to_str() {
-                            expect = expect
-                                || value
-                                    .split(',')
-                                    .map(str::trim)
-                                    .any(|item| item.eq_ignore_ascii_case("100-continue"));
-                        }
+                    header::EXPECT if version == Version::HTTP_11 => {
+                        let mut quoted = false;
+                        let mut escaped = false;
+                        expect = expect
+                            || value
+                                .as_bytes()
+                                .split(|&byte| {
+                                    if escaped {
+                                        escaped = false;
+                                    } else if quoted && byte == b'\\' {
+                                        escaped = true;
+                                    } else if byte == b'"' {
+                                        quoted = !quoted;
+                                    } else {
+                                        return byte == b',' && !quoted;
+                                    }
+                                    false
+                                })
+                                .any(|item| {
+                                    item.trim_ascii().eq_ignore_ascii_case(b"100-continue")
+                                });
                     }
 
                     _ => {}
@@ -855,15 +868,24 @@ mod tests {
 
     #[test]
     fn test_expect_100_continue() {
-        let req = parse_ready!(&mut BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             expect: 100-continue, 100-Continue\r\n\r\n",
-        ));
-        assert!(req.head().expect());
+        for (value, expected) in [
+            ("100-custom, 100-Continue", true),
+            ("100-custom", false),
+            (r#"custom="foo, 100-continue, bar""#, false),
+            (r#"custom="foo\", 100-continue, bar""#, false),
+            (r#"custom="foo\\", 100-Continue"#, true),
+            (r#"custom="é, bar", 100-Continue"#, true),
+        ] {
+            let raw =
+                format!("POST /test HTTP/1.1\r\ncontent-length: 1\r\nexpect: {value}\r\n\r\n");
+            let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
+            assert_eq!(req.head().expect(), expected, "{value:?}");
+        }
 
         let req = parse_ready!(&mut BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             expect: 100-custom\r\n\r\n",
+            "POST /test HTTP/1.0\r\n\
+             content-length: 1\r\n\
+             expect: 100-continue\r\n\r\n",
         ));
         assert!(!req.head().expect());
     }
