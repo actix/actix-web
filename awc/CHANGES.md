@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Parse all `Connection` header options when validating WebSocket handshakes.
 - Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`. [#3953]
 - Update `hickory-resolver` dependency to `0.26.1`.
 - Update `rand` dependency to `0.10`.

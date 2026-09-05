@@ -969,23 +969,25 @@ mod tests {
 
     #[test]
     fn test_conn_multi_value() {
-        let req = parse_ready!(&mut BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             connection: keep-alive, Upgrade\r\n\r\n",
-        ));
-        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
-
-        let req = parse_ready!(&mut BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             connection: close, upgrade\r\n\r\n",
-        ));
-        assert_eq!(req.head().connection_type(), ConnectionType::Close);
-
-        let req = parse_ready!(&mut BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             connection: upgrade, close\r\n\r\n",
-        ));
-        assert_eq!(req.head().connection_type(), ConnectionType::Close);
+        for (connection, expected) in [
+            ("keep-alive, Upgrade", ConnectionType::Upgrade),
+            ("keep-alive\r\nconnection: Upgrade", ConnectionType::Upgrade),
+            ("close, upgrade", ConnectionType::Close),
+            ("upgrade, close", ConnectionType::Close),
+            ("close\r\nconnection: upgrade", ConnectionType::Close),
+            ("upgrade\r\nconnection: close", ConnectionType::Close),
+            ("not-upgrade", ConnectionType::KeepAlive),
+        ] {
+            let raw = format!("GET /test HTTP/1.1\r\nconnection: {connection}\r\n\r\n");
+            let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
+            assert_eq!(req.head().connection_type(), expected, "{connection:?}");
+            assert_eq!(
+                req.upgrade(),
+                expected == ConnectionType::Upgrade,
+                "{connection:?}"
+            );
+            assert_eq!(req.head().upgrade(), req.upgrade(), "{connection:?}");
+        }
     }
 
     #[test]
