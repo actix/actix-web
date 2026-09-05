@@ -10,7 +10,6 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
@@ -20,6 +19,7 @@ use h2::{
     Ping, PingPong,
 };
 use pin_project_lite::pin_project;
+use tokio::time::{sleep, Sleep};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
@@ -132,7 +132,7 @@ where
                     let config = this.config.clone();
 
                     // multiplex request handling with spawn task
-                    actix_rt::spawn(async move {
+                    tokio::task::spawn_local(async move {
                         // resolve service call and send response.
                         let res = match fut.await {
                             Ok(res) => handle_response(res.into(), tx, config, head_req).await,

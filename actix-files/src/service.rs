@@ -230,7 +230,7 @@ impl Service<ServiceRequest> for FilesService {
                                 }
                             }
                             // fallback to the uncompressed version
-                            match NamedFile::open_async(named_path).await {
+                            match NamedFile::open(named_path) {
                                 Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
                                 Err(err)
                                     if matches!(
@@ -260,7 +260,7 @@ impl Service<ServiceRequest> for FilesService {
                         None => found_unrenderable_dir = true,
                     }
                 } else {
-                    match NamedFile::open_async(&path).await {
+                    match NamedFile::open(&path) {
                         Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
                         Err(err)
                             if matches!(
@@ -360,7 +360,7 @@ async fn find_compressed(
         filename.push(extension);
         compressed_path.set_file_name(filename);
 
-        match NamedFile::open_async(&compressed_path).await {
+        match NamedFile::open(&compressed_path) {
             Ok(mut named_file) => {
                 named_file.content_type = content_type.take().unwrap();
                 named_file.content_disposition = content_disposition.take().unwrap();

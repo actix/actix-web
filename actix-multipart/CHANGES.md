@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.8.1
+
+- Fix multipart field parsing when boundary delimiter is split across payload chunks.
+- Improve detail in some error messages.
+
 ## 0.8.0
 
 - Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]

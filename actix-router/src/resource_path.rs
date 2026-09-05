@@ -42,3 +42,30 @@ impl ResourcePath for http::Uri {
         self.path()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bytestring::ByteString;
+
+    use super::*;
+
+    #[test]
+    fn resource_path_implementations_expose_their_path() {
+        let owned = "/owned".to_owned();
+        assert_eq!(<String as ResourcePath>::path(&owned), "/owned");
+
+        let borrowed = "/borrowed";
+        assert_eq!(<&str as ResourcePath>::path(&borrowed), "/borrowed");
+
+        let bytes = ByteString::from("/bytes");
+        assert_eq!(<ByteString as ResourcePath>::path(&bytes), "/bytes");
+    }
+
+    #[cfg(feature = "http")]
+    #[test]
+    fn uri_resource_path_ignores_queries() {
+        let uri = http::Uri::from_static("/resource?query=value");
+
+        assert_eq!(<http::Uri as ResourcePath>::path(&uri), "/resource");
+    }
+}

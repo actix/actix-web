@@ -27,39 +27,54 @@ pub use self::{
 #[derive(Debug, Display, Error, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client.
-    #[display("received an unmasked frame from client")]
+    #[display("Received an unmasked frame from client")]
     UnmaskedFrame,
 
     /// Received a masked frame from server.
-    #[display("received a masked frame from server")]
+    #[display("Received a masked frame from server")]
     MaskedFrame,
 
     /// Encountered invalid opcode.
-    #[display("invalid opcode ({})", _0)]
+    #[display("Invalid opcode ({})", _0)]
     InvalidOpcode(#[error(not(source))] u8),
 
+    // TODO(semver-major):
+    // /// Received a frame with non-zero reserved bits.
+    // #[display("Received a frame with non-zero reserved bits")]
+    // InvalidReservedBits,
+    //
     /// Invalid control frame length
-    #[display("invalid control frame length ({})", _0)]
+    #[display("Invalid control frame length ({})", _0)]
     InvalidLength(#[error(not(source))] usize),
 
+    // TODO(semver-major): use in Parser::try_parse_close_payload
+    //
+    // /// Invalid close status code.
+    // #[display("Invalid close status code ({})", _0)]
+    // InvalidCloseCode(#[error(not(source))] u16),
+    //
+    // /// Invalid UTF-8 close reason.
+    // #[display("Invalid UTF-8 close reason")]
+    // InvalidCloseReason,
+    //
     /// Bad opcode.
-    #[display("bad opcode")]
+    #[display("Bad opcode")]
     BadOpCode,
 
     /// A payload reached size limit.
-    #[display("payload reached size limit")]
+    #[display("Payload reached size limit")]
     Overflow,
 
     /// Continuation has not started.
-    #[display("continuation has not started")]
+    #[display("Continuation has not started")]
     ContinuationNotStarted,
 
     /// Received new continuation but it is already started.
-    #[display("received new continuation but it has already started")]
+    #[display("Received new continuation but it has already started")]
     ContinuationStarted,
 
     /// Unknown continuation fragment.
-    #[display("unknown continuation fragment: {}", _0)]
+    #[display("Unknown continuation fragment: {}", _0)]
     ContinuationFragment(#[error(not(source))] OpCode),
 
     /// I/O error.

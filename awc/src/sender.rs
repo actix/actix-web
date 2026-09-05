@@ -287,6 +287,7 @@ impl RequestSender {
         match self {
             RequestSender::Owned(head) => {
                 if !head.headers.contains_key(&key) {
+                    #[expect(clippy::question_mark)]
                     match value.try_into_value() {
                         Ok(value) => {
                             head.headers.insert(key, value);
@@ -299,6 +300,7 @@ impl RequestSender {
                 if !head.headers.contains_key(&key)
                     && !extra_headers.iter().any(|h| h.contains_key(&key))
                 {
+                    #[expect(clippy::question_mark)]
                     match value.try_into_value() {
                         Ok(v) => {
                             let h = extra_headers.get_or_insert(HeaderMap::new());

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.14.1"
+version = "4.15.0"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -116,9 +116,6 @@ __compress = []
 # Don't rely on these whatsoever. They may disappear at anytime.
 __tls = []
 
-# io-uring feature only available for Linux OSes.
-experimental-io-uring = ["actix-server/io-uring"]
-
 # Feature group which, when disabled, helps migrate code to v5.0.
 compat = ["compat-routing-macros-force-pub"]
 
@@ -165,11 +162,12 @@ serde_urlencoded = "0.7"
 smallvec = "1.6.1"
 socket2 = "0.6"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
+tokio = { version = "1.38.2", features = ["net", "rt", "signal", "time"] }
 tracing = "0.1.30"
 url = "2.5.4"
 
 [dev-dependencies]
-actix-files = "0.6"
+actix-files = "0.7"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
@@ -187,7 +185,7 @@ serde = { version = "1", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
-tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros", "time"] }
 tokio-util = "0.7"
 zstd = "0.13"
 

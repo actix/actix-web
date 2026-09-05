@@ -106,7 +106,7 @@ async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let bind = ("127.0.0.1", 8080);
-    log::info!("staring server at http://{}:{}", &bind.0, &bind.1);
+    log::info!("staring server at http://{}:{}", bind.0, bind.1);
 
     HttpServer::new(|| {
         App::new()

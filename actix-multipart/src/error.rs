@@ -48,7 +48,9 @@ pub enum Error {
     /// always include a "name" parameter.
     ///
     /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
-    #[display("Content-Disposition header was not found when parsing a \"form-data\" field")]
+    #[display(
+        "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
+    )]
     ContentDispositionNameMissing,
 
     /// Nested multipart is not supported.
@@ -72,29 +74,28 @@ pub enum Error {
     NotConsumed,
 
     /// Form field handler raised error.
-    #[display("An error occurred processing field: {name}")]
+    #[display("An error occurred processing field \"{name}\"")]
     Field {
         name: String,
         source: actix_web::Error,
     },
 
     /// Duplicate field found (for structure that opted-in to denying duplicate fields).
-    #[display("Duplicate field found: {_0}")]
+    #[display("Duplicate field found \"{_0}\"")]
     #[from(ignore)]
     DuplicateField(#[error(not(source))] String),
 
     /// Required field is missing.
-    #[display("Required field is missing: {_0}")]
+    #[display("Required field is missing \"{_0}\"")]
     #[from(ignore)]
     MissingField(#[error(not(source))] String),
 
     /// Unknown field (for structure that opted-in to denying unknown fields).
-    #[display("Unknown field: {_0}")]
+    #[display("Unknown field \"{_0}\"")]
     #[from(ignore)]
     UnknownField(#[error(not(source))] String),
 }
 
-/// Return `BadRequest` for `MultipartError`.
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
@@ -107,11 +108,40 @@ impl ResponseError for Error {
 
 #[cfg(test)]
 mod tests {
+    use err_report::Report;
+
     use super::*;
 
     #[test]
     fn test_multipart_error() {
         let resp = Error::BoundaryMissing.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let err = Error::Payload(PayloadError::Overflow);
+        assert_eq!(
+            Report::new(&err).to_string(),
+            "Payload error: payload reached size limit",
+        );
+
+        let err = Error::Parse(ParseError::Incomplete);
+        assert_eq!(
+            Report::new(&err).to_string(),
+            "Error during field parsing: message is incomplete"
+        );
+
+        let err = Error::ContentDispositionNameMissing;
+        assert_eq!(
+            Report::new(&err).to_string(),
+            "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
+        );
+
+        let err = Error::Field {
+            name: "avatar".to_owned(),
+            source: actix_web::error::ErrorBadRequest("invalid file format"),
+        };
+        assert_eq!(
+            Report::new(&err).to_string(),
+            "An error occurred processing field \"avatar\": invalid file format"
+        );
     }
 }

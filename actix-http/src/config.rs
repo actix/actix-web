@@ -352,11 +352,11 @@ impl ServiceConfig {
 
 #[cfg(test)]
 mod tests {
-    use actix_rt::{
+    use memchr::memmem;
+    use tokio::{
         task::yield_now,
         time::{sleep, sleep_until},
     };
-    use memchr::memmem;
 
     use super::*;
     use crate::{date::DATE_VALUE_LENGTH, notify_on_drop};

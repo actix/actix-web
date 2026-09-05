@@ -1,8 +1,7 @@
 use std::{
     cell::Cell,
     future::Future,
-    io,
-    pin::Pin,
+    pin::{pin, Pin},
     rc::Rc,
     str,
     task::{Context, Poll},
@@ -10,23 +9,27 @@ use std::{
 };
 
 use actix_codec::Framed;
-use actix_rt::{
-    pin,
-    time::{sleep, timeout},
-};
 use actix_service::{fn_service, Service};
 use actix_utils::future::{ready, Ready};
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::BytesMut;
 use futures_util::future::lazy;
+use tokio::time::{sleep, timeout};
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
-    body::{BoxBody, MessageBody},
+    body::BoxBody,
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{TestBuffer, TestSeqBuffer},
-    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
+    test::{
+        pending_once_write_buf::PendingOnceWriteBuf,
+        test_services::{
+            drop_payload_service, echo_path_service, echo_payload_service, ignore_payload_service,
+            ok_service, ready_chunk_body_service, upgrade_response_service,
+        },
+        TestBuffer, TestSeqBuffer,
+    },
+    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response,
 };
 
 struct YieldService;
@@ -42,115 +45,10 @@ impl Service<Request> for YieldService {
         Box::pin(async {
             // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
             // once in `handle_request` and another in `poll_response`
-            actix_rt::task::yield_now().await;
-            actix_rt::task::yield_now().await;
+            tokio::task::yield_now().await;
+            tokio::task::yield_now().await;
             Ok(Response::ok())
         })
-    }
-}
-
-struct ReadyChunkBody {
-    chunk_polls: Rc<Cell<usize>>,
-    remaining: usize,
-    chunk_len: usize,
-}
-
-impl ReadyChunkBody {
-    fn new(chunk_polls: Rc<Cell<usize>>, remaining: usize, chunk_len: usize) -> Self {
-        Self {
-            chunk_polls,
-            remaining,
-            chunk_len,
-        }
-    }
-}
-
-impl MessageBody for ReadyChunkBody {
-    type Error = Error;
-
-    fn size(&self) -> crate::body::BodySize {
-        crate::body::BodySize::Stream
-    }
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        if self.remaining == 0 {
-            return Poll::Ready(None);
-        }
-
-        self.remaining -= 1;
-        self.chunk_polls.set(self.chunk_polls.get() + 1);
-
-        Poll::Ready(Some(Ok(Bytes::from(vec![b'x'; self.chunk_len]))))
-    }
-}
-
-struct PendingOnceWriteBuf {
-    io: TestBuffer,
-    block_next_write: bool,
-}
-
-impl PendingOnceWriteBuf {
-    fn new<T>(data: T) -> Self
-    where
-        T: Into<BytesMut>,
-    {
-        Self {
-            io: TestBuffer::new(data),
-            block_next_write: true,
-        }
-    }
-}
-
-impl io::Read for PendingOnceWriteBuf {
-    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        self.io.read(dst)
-    }
-}
-
-impl io::Write for PendingOnceWriteBuf {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.io.flush()
-    }
-}
-
-impl actix_codec::AsyncRead for PendingOnceWriteBuf {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut actix_codec::ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_read(cx, buf)
-    }
-}
-
-impl actix_codec::AsyncWrite for PendingOnceWriteBuf {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.block_next_write {
-            self.block_next_write = false;
-            cx.waker().wake_by_ref();
-            return Poll::Pending;
-        }
-
-        Pin::new(&mut self.io).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_flush(cx)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }
 
@@ -165,78 +63,6 @@ fn stabilize_date_header(payload: &mut [u8]) {
             .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
         from += 35;
     }
-}
-
-fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    status_service(StatusCode::OK)
-}
-
-fn status_service(
-    status: StatusCode,
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
-}
-
-fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
-{
-    fn_service(|req: Request| {
-        let path = req.path().as_bytes();
-        ready(Ok::<_, Error>(
-            Response::ok().set_body(Bytes::copy_from_slice(path)),
-        ))
-    })
-}
-
-fn drop_payload_service() -> impl Service<Request, Response = Response<&'static str>, Error = Error>
-{
-    fn_service(|mut req: Request| async move {
-        let _ = req.take_payload();
-        Ok::<_, Error>(Response::with_body(StatusCode::OK, "payload dropped"))
-    })
-}
-
-fn ignore_payload_service(
-) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
-    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::with_body(StatusCode::OK, "ok"))))
-}
-
-fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
-    fn_service(|mut req: Request| {
-        Box::pin(async move {
-            use futures_util::StreamExt as _;
-
-            let mut pl = req.take_payload();
-            let mut body = BytesMut::new();
-            while let Some(chunk) = pl.next().await {
-                body.extend_from_slice(chunk.unwrap().chunk())
-            }
-
-            Ok::<_, Error>(Response::ok().set_body(body.freeze()))
-        })
-    })
-}
-
-fn ready_chunk_body_service(
-    chunk_polls: Rc<Cell<usize>>,
-    chunk_count: usize,
-    chunk_len: usize,
-) -> impl Service<Request, Response = Response<ReadyChunkBody>, Error = Error> {
-    fn_service(move |_req: Request| {
-        ready(Ok::<_, Error>(Response::ok().set_body(
-            ReadyChunkBody::new(chunk_polls.clone(), chunk_count, chunk_len),
-        )))
-    })
-}
-
-fn upgrade_response_service(
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(|_req: Request| {
-        ready(Ok::<_, Error>(
-            Response::build(StatusCode::SWITCHING_PROTOCOLS)
-                .upgrade("websocket")
-                .finish(),
-        ))
-    })
 }
 
 #[actix_rt::test]
@@ -259,7 +85,7 @@ async fn late_request() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -326,7 +152,7 @@ async fn oneshot_connection() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -387,7 +213,7 @@ async fn keep_alive_timeout() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -466,7 +292,7 @@ async fn keep_alive_follow_up_req() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -596,7 +422,7 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
         None,
         OnConnectData::default(),
     );
-    pin!(dispatcher);
+    let mut dispatcher = pin!(dispatcher);
 
     // The shutdown notification and request data are ready in the same dispatcher poll.
     let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
@@ -627,7 +453,7 @@ async fn req_parse_err() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => panic!(),
@@ -673,7 +499,7 @@ async fn pipelining_ok_then_ok() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -743,7 +569,7 @@ async fn early_response_with_payload_lingers_before_closing() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -815,7 +641,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -942,7 +768,7 @@ async fn pipelining_ok_then_bad() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
@@ -1014,7 +840,7 @@ async fn expect_handling() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_pending());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -1091,7 +917,7 @@ async fn expect_eager() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -1174,7 +1000,7 @@ async fn upgrade_handling() {
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Upgrade { .. }));
@@ -1211,7 +1037,7 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1272,7 +1098,7 @@ async fn handler_drop_payload() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1416,7 +1242,7 @@ async fn handler_drop_payload_drains_body() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1523,7 +1349,7 @@ async fn allow_half_closed() {
         None,
         OnConnectData::default(),
     );
-    pin!(disptacher);
+    let mut disptacher = pin!(disptacher);
 
     assert!(disptacher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(disptacher.poll_count, 1);
@@ -1576,7 +1402,7 @@ async fn disallow_half_closed() {
         None,
         OnConnectData::default(),
     );
-    pin!(disptacher);
+    let mut disptacher = pin!(disptacher);
 
     assert!(disptacher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(disptacher.poll_count, 1);
@@ -1612,7 +1438,7 @@ async fn h1_write_buffer_size_limits_buffering() {
         None,
         OnConnectData::default(),
     );
-    pin!(default_dispatcher);
+    let mut default_dispatcher = pin!(default_dispatcher);
 
     let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
     assert!(default_dispatcher.as_mut().poll(&mut cx).is_pending());
@@ -1634,7 +1460,7 @@ async fn h1_write_buffer_size_limits_buffering() {
         None,
         OnConnectData::default(),
     );
-    pin!(custom_dispatcher);
+    let mut custom_dispatcher = pin!(custom_dispatcher);
 
     assert!(custom_dispatcher.as_mut().poll(&mut cx).is_pending());
     assert_eq!(custom_polls.get(), 1);

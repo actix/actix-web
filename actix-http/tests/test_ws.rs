@@ -13,10 +13,11 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error, From};
 use futures_core::future::LocalBoxFuture;
 use futures_util::{SinkExt as _, StreamExt as _};
+use tokio_util::codec::Decoder as _;
 
 #[derive(Clone)]
 struct WsService(Cell<bool>);
@@ -108,6 +109,101 @@ async fn service(msg: Frame) -> Result<Message, Error> {
     Ok(msg)
 }
 
+fn masked_close(payload: &[u8]) -> BytesMut {
+    let mask = [1, 2, 3, 4];
+    let mut frame = BytesMut::with_capacity(6 + payload.len());
+    frame.extend_from_slice(&[0x88, 0x80 | payload.len() as u8]);
+    frame.extend_from_slice(&mask);
+
+    for (idx, byte) in payload.iter().enumerate() {
+        frame.extend_from_slice(&[byte ^ mask[idx % mask.len()]]);
+    }
+
+    frame
+}
+
+#[test]
+fn rejects_invalid_close_codes() {
+    for code in [0_u16, 999, 1004, 1005, 1006, 1015, 1016, 1100, 2000, 2999] {
+        let mut codec = ws::Codec::new();
+        let mut frame = masked_close(&code.to_be_bytes());
+
+        assert!(matches!(
+            codec.decode(&mut frame).unwrap_err(),
+            ws::ProtocolError::BadOpCode
+        ));
+    }
+}
+
+#[test]
+fn rejects_invalid_close_reason() {
+    let mut codec = ws::Codec::new();
+    let mut frame = masked_close(&[0x03, 0xe8, 0xff]);
+
+    assert!(matches!(
+        codec.decode(&mut frame).unwrap_err(),
+        ws::ProtocolError::BadOpCode
+    ));
+}
+
+#[test]
+fn accepts_valid_close_codes() {
+    for code in [
+        1000_u16, 1001, 1002, 1003, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 3000, 3999,
+        4999,
+    ] {
+        let mut codec = ws::Codec::new();
+        let mut frame = masked_close(&code.to_be_bytes());
+
+        let Some(Frame::Close(Some(reason))) = codec.decode(&mut frame).unwrap() else {
+            panic!("expected close reason for status code {code}");
+        };
+        assert_eq!(u16::from(reason.code), code);
+        assert_eq!(reason.description, None);
+    }
+}
+
+#[test]
+fn rejects_close_payload_without_status_code() {
+    let mut codec = ws::Codec::new();
+    let mut frame = masked_close(&[0]);
+
+    assert!(matches!(
+        codec.decode(&mut frame).unwrap_err(),
+        ws::ProtocolError::InvalidLength(1)
+    ));
+}
+
+#[test]
+fn accepts_close_payload_without_status_code() {
+    let mut codec = ws::Codec::new();
+    let mut frame = masked_close(&[]);
+
+    assert_eq!(codec.decode(&mut frame).unwrap(), Some(Frame::Close(None)));
+}
+
+#[test]
+fn decodes_valid_close_reason() {
+    let mut codec = ws::Codec::new();
+    let mut frame = masked_close(&[0x03, 0xe8, b'f', b'o', b'o']);
+
+    let Some(Frame::Close(Some(reason))) = codec.decode(&mut frame).unwrap() else {
+        panic!("expected close reason");
+    };
+    assert_eq!(reason.code, CloseCode::Normal);
+    assert_eq!(reason.description.as_deref(), Some("foo"));
+}
+
+#[expect(deprecated)]
+#[test]
+fn legacy_close_payload_parser_wrongly_allows_non_utf8() {
+    assert!(ws::Parser::parse_close_payload(&[0]).is_none());
+
+    let reason = ws::Parser::parse_close_payload(&[0, 0, 0xff]).expect("expected close reason");
+    assert_eq!(u16::from(reason.code), 0);
+    assert_eq!(reason.description.as_deref(), Some("\u{fffd}"));
+}
+
 #[actix_rt::test]
 async fn simple() {
     let mut srv = test_server(|| {
@@ -192,4 +288,52 @@ async fn simple() {
 
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(item, Frame::Close(Some(CloseCode::Normal.into())));
+}
+
+#[test]
+fn rejects_new_data_frame_during_continuation() {
+    let mut codec = ws::Codec::new();
+    let mut buf = BytesMut::new();
+
+    ws::Parser::write_message(&mut buf, b"fragment1", ws::OpCode::Text, false, true);
+    ws::Parser::write_message(&mut buf, b"fragment2", ws::OpCode::Text, true, true);
+
+    assert_eq!(
+        codec.decode(&mut buf).unwrap(),
+        Some(Frame::Continuation(Item::FirstText(Bytes::from_static(
+            b"fragment1",
+        )))),
+        "the first text fragment should be returned as a continuation"
+    );
+    assert!(
+        matches!(
+            codec.decode(&mut buf),
+            Err(ws::ProtocolError::ContinuationStarted)
+        ),
+        "a final text frame should be rejected during a continuation"
+    );
+}
+
+#[test]
+fn rejects_new_binary_frame_during_continuation() {
+    let mut codec = ws::Codec::new();
+    let mut buf = BytesMut::new();
+
+    ws::Parser::write_message(&mut buf, b"fragment1", ws::OpCode::Binary, false, true);
+    ws::Parser::write_message(&mut buf, b"fragment2", ws::OpCode::Binary, true, true);
+
+    assert_eq!(
+        codec.decode(&mut buf).unwrap(),
+        Some(Frame::Continuation(Item::FirstBinary(Bytes::from_static(
+            b"fragment1",
+        )))),
+        "the first binary fragment should be returned as a continuation"
+    );
+    assert!(
+        matches!(
+            codec.decode(&mut buf),
+            Err(ws::ProtocolError::ContinuationStarted)
+        ),
+        "a final binary frame should be rejected during a continuation"
+    );
 }

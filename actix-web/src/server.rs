@@ -1208,8 +1208,8 @@ where
         A: AsRef<std::path::Path>,
     {
         use actix_http::Protocol;
-        use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
+        use tokio::net::UnixStream;
 
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
@@ -1265,8 +1265,8 @@ where
     #[cfg(unix)]
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
-        use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
+        use tokio::net::UnixStream;
 
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();

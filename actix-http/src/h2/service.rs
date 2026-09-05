@@ -8,12 +8,12 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
+use tokio::net::TcpStream;
 use tracing::{error, trace};
 
 use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};

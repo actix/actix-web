@@ -50,8 +50,8 @@ impl Default for Flags {
 /// use actix_web::App;
 /// use actix_files::NamedFile;
 ///
-/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let file = NamedFile::open_async("./static/index.html").await?;
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = NamedFile::open("./static/index.html")?;
 /// let app = App::new().service(file);
 /// # Ok(())
 /// # }
@@ -64,7 +64,7 @@ impl Default for Flags {
 ///
 /// #[get("/")]
 /// async fn index() -> impl Responder {
-///     NamedFile::open_async("./static/index.html").await
+///     NamedFile::open("./static/index.html")
 /// }
 /// ```
 #[derive(Debug, Deref, DerefMut)]
@@ -83,11 +83,7 @@ pub struct NamedFile {
     pub(crate) read_mode_threshold: u64,
 }
 
-#[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
-
-#[cfg(feature = "experimental-io-uring")]
-pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
 
@@ -189,29 +185,7 @@ impl NamedFile {
         // and Content-Disposition values
         let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
-        let md = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                file.metadata()?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                use std::os::unix::prelude::{AsRawFd, FromRawFd};
-
-                let fd = file.as_raw_fd();
-
-                // SAFETY: fd is borrowed and lives longer than the unsafe block
-                unsafe {
-                    let file = std::fs::File::from_raw_fd(fd);
-                    let md = file.metadata();
-                    // SAFETY: forget the fd before exiting block in success or error case but don't
-                    // run destructor (that would close file handle)
-                    std::mem::forget(file);
-                    md?
-                }
-            }
-        };
+        let md = file.metadata()?;
 
         let modified = md.modified().ok();
         let encoding = None;
@@ -237,37 +211,8 @@ impl NamedFile {
     /// use actix_files::NamedFile;
     /// let file = NamedFile::open("foo.txt");
     /// ```
-    #[cfg(not(feature = "experimental-io-uring"))]
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         let file = File::open(&path)?;
-        Self::from_file(file, path)
-    }
-
-    /// Attempts to open a file asynchronously in read-only mode.
-    ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
-    /// will behave just like `open`.
-    ///
-    /// # Examples
-    /// ```
-    /// use actix_files::NamedFile;
-    /// # async fn open() {
-    /// let file = NamedFile::open_async("foo.txt").await.unwrap();
-    /// # }
-    /// ```
-    pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        let file = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                File::open(&path)?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                File::open(&path).await?
-            }
-        };
-
         Self::from_file(file, path)
     }
 
@@ -284,8 +229,8 @@ impl NamedFile {
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
-    /// # async fn path() -> io::Result<()> {
-    /// let file = NamedFile::open_async("test.txt").await?;
+    /// # fn path() -> io::Result<()> {
+    /// let file = NamedFile::open("test.txt")?;
     /// assert_eq!(file.path().as_os_str(), "foo.txt");
     /// # Ok(())
     /// # }
@@ -388,8 +333,6 @@ impl NamedFile {
     ///
     /// Tweaking this value according to your expected usage may lead to significant performance
     /// gains (or losses in other handlers, if `size` is too high).
-    ///
-    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
     ///
     /// Default is 0, meaning all files are read asynchronously.
     pub fn read_mode_threshold(mut self, size: u64) -> Self {
@@ -729,7 +672,7 @@ impl Service<ServiceRequest> for NamedFileService {
 
         let path = self.path.clone();
         Box::pin(async move {
-            let file = NamedFile::open_async(path).await?;
+            let file = NamedFile::open(path)?;
             let res = file.into_response(&req);
             Ok(ServiceResponse::new(req, res))
         })

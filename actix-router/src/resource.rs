@@ -953,7 +953,7 @@ impl ResourceDef {
         };
 
         let segment = PatternSegment::Var(name.to_string());
-        let regex = format!(r"(?P<{}>{})", &name, &pattern);
+        let regex = format!(r"(?P<{name}>{pattern})");
 
         (segment, regex, unprocessed, tail)
     }
@@ -1142,10 +1142,85 @@ mod tests {
 
         assert_eq!(ResourceDef::new("/"), ResourceDef::new(["/"]));
         assert_eq!(ResourceDef::new("/"), ResourceDef::new(vec!["/"]));
+        assert_eq!(
+            ResourceDef::from("/from-str"),
+            ResourceDef::new("/from-str")
+        );
+        assert_eq!(
+            ResourceDef::from("/from-string".to_owned()),
+            ResourceDef::new("/from-string")
+        );
 
         assert_ne!(ResourceDef::new(""), ResourceDef::prefix(""));
         assert_ne!(ResourceDef::new("/"), ResourceDef::prefix("/"));
         assert_ne!(ResourceDef::new("/{id}"), ResourceDef::prefix("/{id}"));
+    }
+
+    #[test]
+    fn metadata_accessors_update_resource_identity() {
+        let mut resource = ResourceDef::new("/root");
+        assert_eq!(resource.id(), 0);
+        resource.set_id(42);
+        assert_eq!(resource.id(), 42);
+        assert!(!resource.is_prefix());
+
+        assert!(resource.name().is_none());
+        resource.set_name("root");
+        assert_eq!(resource.name(), Some("root"));
+    }
+
+    #[test]
+    fn pattern_iterators_report_registered_patterns() {
+        let resource = ResourceDef::new("/root");
+        assert_eq!(resource.pattern(), Some("/root"));
+        let mut patterns = resource.pattern_iter();
+        assert_eq!(patterns.size_hint(), (1, Some(1)));
+        assert_eq!(patterns.next(), Some("/root"));
+        assert_eq!(patterns.next(), None);
+
+        let resource = ResourceDef::new(["/first", "/second"]);
+        assert_eq!(resource.pattern(), Some("/first"));
+        let mut patterns = resource.pattern_iter();
+        assert_eq!(patterns.size_hint(), (2, Some(2)));
+        assert_eq!(patterns.next(), Some("/first"));
+        assert_eq!(patterns.next(), Some("/second"));
+        assert_eq!(patterns.next(), None);
+        assert_eq!(patterns.next(), None);
+    }
+
+    #[test]
+    fn empty_pattern_sets_never_match() {
+        let empty = ResourceDef::new(Vec::<&str>::new());
+        assert_eq!(empty.pattern(), None);
+        assert_eq!(empty.pattern_iter().next(), None);
+        assert!(!empty.is_match("/root"));
+        assert_eq!(empty.find_match("/root"), None);
+    }
+
+    #[test]
+    fn equal_resources_have_equal_hashes() {
+        fn hash(resource: &ResourceDef) -> u64 {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            resource.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let mut first = ResourceDef::new("/root");
+        first.set_id(1);
+        first.set_name("first");
+
+        let mut second = ResourceDef::new("/root");
+        second.set_id(2);
+        second.set_name("second");
+
+        assert_eq!(first, second);
+        assert_eq!(hash(&first), hash(&second));
+    }
+
+    #[test]
+    #[should_panic(expected = "resource name should not be empty")]
+    fn empty_resource_names_are_rejected() {
+        ResourceDef::new("/root").set_name("");
     }
 
     #[test]
@@ -1368,6 +1443,26 @@ mod tests {
         assert_eq!(path.get("id").unwrap(), "2345");
         assert_eq!(path.get("tail").unwrap(), "sdg");
         assert_eq!(path.unprocessed(), "");
+    }
+
+    #[test]
+    fn capture_check_can_reject_a_match_without_mutating_path() {
+        let resource = ResourceDef::prefix("/user/{id}");
+        let mut path = Path::new("/user/admin/stars");
+
+        assert!(
+            !resource.capture_match_info_fn(&mut path, |path| { !path.as_str().contains("admin") })
+        );
+        assert_eq!(path.unprocessed(), "/user/admin/stars");
+        assert!(path.is_empty());
+    }
+
+    #[test]
+    fn dynamic_set_capture_rejects_unmatched_paths() {
+        let resource = ResourceDef::new(["/user/{id}", r"/number/{id:\d+}"]);
+        let mut path = Path::new("/");
+        assert!(!resource.capture_match_info(&mut path));
+        assert_eq!(path.unprocessed(), "/");
     }
 
     #[allow(clippy::literal_string_with_formatting_args)]
@@ -1689,7 +1784,7 @@ mod tests {
         join_test!("",  "/user" => "", "/user", "foo", "/user11", "user", "user/123");
         join_test!("/user",  "/xx" => "", "",  "/", "/user", "/xx", "/userxx", "/user/xx");
 
-        join_test!(["/ver/{v}", "/v{v}"], ["/req/{req}", "/{req}"] => "/v1/abc", 
+        join_test!(["/ver/{v}", "/v{v}"], ["/req/{req}", "/{req}"] => "/v1/abc",
                    "/ver/1/abc", "/v1/req/abc", "/ver/1/req/abc", "/v1/abc/def",
                    "/ver1/req/abc/def", "", "/", "/v1/");
     }

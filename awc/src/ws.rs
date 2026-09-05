@@ -405,9 +405,7 @@ impl WebsocketsRequest {
 
             if hdr_key.as_bytes() != encoded {
                 log::trace!(
-                    "Invalid challenge response: expected: {:?} received: {:?}",
-                    &encoded,
-                    key
+                    "Invalid challenge response: expected: {encoded:?} received: {hdr_key:?}",
                 );
 
                 return Err(WsClientError::InvalidChallengeResponse(

@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.8.0"
+version = "0.8.1"
 authors = [
   "Nikolay Kim <fafhrd91@gmail.com>",
   "Jacob Halsey <jacob@jhalsey.com>",
@@ -69,6 +69,7 @@ actix-test = "0.1"
 actix-web = "4"
 assert_matches = "1"
 awc = "3"
+err-report = "0.1"
 env_logger = "0.11"
 futures-test = "0.3"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }

@@ -7,6 +7,7 @@ use std::{
     convert::Infallible,
     io::{self, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
+    pin::pin,
     sync::Arc,
     task::Poll,
     time::Duration,
@@ -19,7 +20,7 @@ use actix_http::{
     Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::{net::TcpStream as RtTcpStream, pin};
+use actix_rt::net::TcpStream as RtTcpStream;
 use actix_service::{fn_factory_with_config, fn_service};
 use actix_tls::{accept::rustls_0_23::TlsStream, connect::rustls_0_23::webpki_roots_cert_store};
 use actix_utils::future::{err, ok, poll_fn};
@@ -37,7 +38,7 @@ where
 {
     let mut buf = BytesMut::new();
 
-    pin!(stream);
+    let mut stream = pin!(stream);
 
     poll_fn(|cx| loop {
         let body = stream.as_mut();

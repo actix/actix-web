@@ -1,6 +1,6 @@
 use std::{fmt, future::Future, pin::Pin, task::Context};
 
-use actix_rt::time::{Instant, Sleep};
+use tokio::time::{Instant, Sleep};
 use tracing::trace;
 
 #[derive(Debug)]

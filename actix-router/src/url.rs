@@ -127,7 +127,7 @@ mod tests {
     fn valid_utf8_multi_byte() {
         let test = ('\u{FF00}'..='\u{FFFF}').collect::<String>();
         let encoded = percent_encode(test.as_bytes());
-        let path = match_url("/a/{id}/b", format!("/a/{}/b", &encoded));
+        let path = match_url("/a/{id}/b", format!("/a/{encoded}/b"));
         assert_eq!(path.get("id").unwrap(), &test);
     }
 
@@ -139,5 +139,40 @@ mod tests {
 
         // We should always get a valid utf8 string
         assert!(String::from_utf8(path.as_str().as_bytes().to_owned()).is_ok());
+    }
+
+    #[test]
+    fn url_updates_replace_uri() {
+        let initial = Uri::from_static("/initial%20path");
+        let mut url = Url::new(initial.clone());
+
+        assert_eq!(url.uri(), &initial);
+        assert_eq!(url.path(), "/initial path");
+        assert_eq!(<Url as ResourcePath>::path(&url), "/initial path");
+
+        let updated = Uri::from_static("/updated%20path");
+        url.update(&updated);
+        assert_eq!(url.uri(), &updated);
+        assert_eq!(url.path(), "/updated path");
+    }
+
+    #[test]
+    fn custom_quoter_preserves_protected_bytes() {
+        let custom_quoter = Quoter::new(b"", b"-");
+        let initial = Uri::from_static("/initial%2Dpath");
+        let mut url = Url::new_with_quoter(initial, &custom_quoter);
+        assert_eq!(url.path(), "/initial%2Dpath");
+
+        let updated = Uri::from_static("/updated%2Dpath");
+        url.update_with_quoter(&updated, &custom_quoter);
+        assert_eq!(url.uri(), &updated);
+        assert_eq!(url.path(), "/updated%2Dpath");
+    }
+
+    #[test]
+    fn default_url_uses_root_path() {
+        let default = Url::default();
+        assert_eq!(default.uri(), &Uri::default());
+        assert_eq!(default.path(), "/");
     }
 }
