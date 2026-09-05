@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Parse all HTTP/1 `Connection` header options consistently.
-- Only treat `Expect: 100-continue` as a continue expectation.
+- Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
 
 ## 3.18.12
 
