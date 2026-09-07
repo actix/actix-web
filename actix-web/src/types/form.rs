@@ -289,7 +289,10 @@ impl<T> UrlEncoded<T> {
     /// Create a new future to decode a URL encoded request payload.
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
         // check content type
-        if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
+        if !req
+            .content_type()
+            .is_some_and(|ct| ct.eq_ignore_ascii_case("application/x-www-form-urlencoded"))
+        {
             return Self::err(UrlencodedError::ContentType);
         }
         let encoding = match req.encoding() {
@@ -484,6 +487,12 @@ mod tests {
             .to_http_parts();
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
+
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_LENGTH, 10))
+            .to_http_parts();
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
+        assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
     }
 
     #[actix_rt::test]
@@ -508,6 +517,21 @@ mod tests {
                 CONTENT_TYPE,
                 "application/x-www-form-urlencoded; charset=utf-8",
             ))
+            .insert_header((CONTENT_LENGTH, 11))
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
+
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
+        assert_eq!(
+            info,
+            Info {
+                hello: "world".to_owned(),
+                counter: 123
+            }
+        );
+
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "APPLICATION/X-WWW-FORM-URLENCODED"))
             .insert_header((CONTENT_LENGTH, 11))
             .set_payload(Bytes::from_static(b"hello=world&counter=123"))
             .to_http_parts();

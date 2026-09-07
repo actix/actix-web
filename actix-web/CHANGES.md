@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Update `HttpMessage::content_type()` (and `HttpRequest` / `ServiceRequest` implementations) to return `Option<&str>`. [#3797]
+
+[#3797]: https://github.com/actix/actix-web/issues/3797
+
 ## 4.15.0
 
 - Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent.
