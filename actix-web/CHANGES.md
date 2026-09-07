@@ -3,6 +3,9 @@
 ## Unreleased
 
 - The TLS crate features no longer enable the `http2` crate feature.
+- Update `HttpMessage::content_type()` (and `HttpRequest` / `ServiceRequest` implementations) to return `Option<&str>`. [#3797]
+
+[#3797]: https://github.com/actix/actix-web/issues/3797
 
 ## 4.15.0
 
