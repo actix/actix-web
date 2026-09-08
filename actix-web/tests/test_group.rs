@@ -1,5 +1,140 @@
 use actix_web::{middleware::DefaultHeaders, test, web, App, HttpResponse};
 
+#[actix_web::test]
+async fn group_boxes_concrete_response_bodies_between_middleware_layers() {
+    use actix_web::{
+        body::BoxBody,
+        dev::{ServiceRequest, ServiceResponse},
+        middleware::{from_fn, Next},
+        Error,
+    };
+
+    async fn string_body(
+        req: ServiceRequest,
+        next: Next<BoxBody>,
+    ) -> Result<ServiceResponse<String>, Error> {
+        let res = next.call(req).await?;
+        Ok(res.map_body(|_, _| "middleware body".to_owned()))
+    }
+
+    // This signature checks the public middleware boundary: the String returned
+    // by the inner middleware is erased before the outer middleware receives it.
+    async fn boxed_body(
+        req: ServiceRequest,
+        next: Next<BoxBody>,
+    ) -> Result<ServiceResponse<BoxBody>, Error> {
+        next.call(req).await
+    }
+
+    let app = test::init_service(
+        App::new().service(
+            web::group()
+                .wrap(from_fn(string_body))
+                .wrap(from_fn(boxed_body))
+                .route("/body", web::get().to(HttpResponse::Accepted)),
+        ),
+    )
+    .await;
+    let res = test::call_service(&app, test::TestRequest::with_uri("/body").to_request()).await;
+    assert_eq!(res.status(), actix_web::http::StatusCode::ACCEPTED);
+    assert_eq!(test::read_body(res).await, "middleware body");
+}
+
+#[actix_web::test]
+async fn group_middleware_extracts_parent_data_before_child_scope_data_is_added() {
+    use actix_web::{
+        body::MessageBody,
+        dev::{ServiceRequest, ServiceResponse},
+        http::header::{HeaderName, HeaderValue},
+        middleware::{from_fn, Next},
+        Error,
+    };
+
+    async fn report_data(
+        data: web::Data<u32>,
+        req: ServiceRequest,
+        next: Next<impl MessageBody>,
+    ) -> Result<ServiceResponse<impl MessageBody>, Error> {
+        let mut res = next.call(req).await?;
+        res.headers_mut().insert(
+            HeaderName::from_static("x-middleware-data"),
+            HeaderValue::from_str(&data.to_string()).unwrap(),
+        );
+        Ok(res)
+    }
+
+    for grouped in [true, false] {
+        let scope = web::scope("/child").app_data(web::Data::new(2u32)).route(
+            "/value",
+            web::get().to(|data: web::Data<u32>| async move { data.to_string() }),
+        );
+        let app = App::new().app_data(web::Data::new(1u32));
+        let app = if grouped {
+            app.service(web::group().wrap(from_fn(report_data)).service(scope))
+        } else {
+            app.service(scope.wrap(from_fn(report_data)))
+        };
+        let app = test::init_service(app).await;
+        let res = test::call_service(
+            &app,
+            test::TestRequest::with_uri("/child/value").to_request(),
+        )
+        .await;
+        assert_eq!(
+            res.headers().get("x-middleware-data").unwrap(),
+            if grouped { "1" } else { "2" }
+        );
+        assert_eq!(test::read_body(res).await, "2");
+    }
+}
+
+#[actix_web::test]
+async fn group_middleware_cannot_change_the_selected_child_by_rewriting_the_uri() {
+    use actix_web::{
+        body::MessageBody,
+        dev::{ServiceRequest, ServiceResponse, Url},
+        middleware::{from_fn, Next},
+        Error, HttpRequest,
+    };
+
+    async fn rewrite(
+        mut req: ServiceRequest,
+        next: Next<impl MessageBody>,
+    ) -> Result<ServiceResponse<impl MessageBody>, Error> {
+        let uri = "/target".parse::<actix_web::http::Uri>().unwrap();
+        req.match_info_mut().set(Url::new(uri.clone()));
+        req.head_mut().uri = uri;
+        next.call(req).await
+    }
+
+    for grouped in [true, false] {
+        let children = (
+            web::resource("/original")
+                .to(|req: HttpRequest| async move { format!("original:{}", req.path()) }),
+            web::resource("/target")
+                .to(|req: HttpRequest| async move { format!("target:{}", req.path()) }),
+        );
+        let app = App::new();
+        let app = if grouped {
+            app.service(web::group().wrap(from_fn(rewrite)).service(children))
+        } else {
+            app.service(web::scope("").wrap(from_fn(rewrite)).service(children))
+        };
+        let app = test::init_service(app).await;
+        let body =
+            test::call_and_read_body(&app, test::TestRequest::with_uri("/original").to_request())
+                .await;
+        assert_eq!(
+            body,
+            if grouped {
+                "original:/target"
+            } else {
+                "target:/target"
+            }
+        );
+    }
+}
+
 #[cfg(feature = "experimental-introspection")]
 #[actix_web::test]
 async fn groups_report_each_resource_once_with_its_parent_prefix() {
@@ -89,7 +224,12 @@ async fn non_clone_middleware_has_separate_state_for_each_child() {
             web::group()
                 .wrap(VisitCounter)
                 .route("/a", web::get().to(visits))
-                .route("/b", web::get().to(visits)),
+                .route("/b", web::get().to(visits))
+                .service(
+                    web::scope("/scope")
+                        .route("/a", web::get().to(visits))
+                        .route("/b", web::get().to(visits)),
+                ),
         ),
     )
     .await;
@@ -99,6 +239,9 @@ async fn non_clone_middleware_has_separate_state_for_each_child() {
         ("/b", "1"),
         ("/b", "2"),
         ("/a", "3"),
+        ("/scope/a", "1"),
+        ("/scope/b", "2"),
+        ("/scope/a", "3"),
     ] {
         assert_eq!(
             test::call_and_read_body(&app, test::TestRequest::with_uri(path).to_request()).await,
@@ -124,6 +267,7 @@ async fn group_children_keep_resource_and_scope_default_behavior() {
                     }))),
             )
             .service(web::resource("/missing").to(|| async { "sibling" }))
+            .service(web::resource("/scope/unknown").to(|| async { "scope sibling" }))
             .default_service(web::to(|| async {
                 HttpResponse::NotFound().body("parent")
             })),
