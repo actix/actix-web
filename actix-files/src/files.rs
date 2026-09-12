@@ -320,6 +320,10 @@ impl Files {
     /// When a path doesn't pass the filter, [`Files::default_handler`] is called if set, otherwise,
     /// `404 Not Found` is returned.
     ///
+    /// Default directory listings created by [`Files::show_files_listing`] also omit entries that
+    /// do not pass the filter. Custom renderers set with [`Files::files_listing_renderer`] can use
+    /// [`Directory::is_visible_for`] to apply the same rules.
+    ///
     /// # Examples
     /// ```
     /// use std::path::Path;
