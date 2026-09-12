@@ -298,7 +298,7 @@ impl Files {
         for<'r, 's> F:
             Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error> + 'static,
     {
-        self.renderer = Rc::new(f);
+        self.renderer = Rc::new(move |dir, req, _| f(dir, req));
         self
     }
 
@@ -321,8 +321,9 @@ impl Files {
     /// `404 Not Found` is returned.
     ///
     /// Default directory listings created by [`Files::show_files_listing`] also omit entries that
-    /// do not pass the filter. Custom renderers set with [`Files::files_listing_renderer`] can use
-    /// [`Directory::is_visible_for`] to apply the same rules.
+    /// do not pass the filter. Each entry's path is relative to the serving root, and the request
+    /// head is that of the directory listing request. Custom renderers set with
+    /// [`Files::files_listing_renderer`] remain responsible for filtering their own listings.
     ///
     /// # Examples
     /// ```

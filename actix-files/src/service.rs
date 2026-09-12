@@ -114,11 +114,12 @@ impl FilesService {
     }
 
     fn show_index(&self, req: ServiceRequest, base: PathBuf, path: PathBuf) -> ServiceResponse {
-        let dir = Directory::new(base, path).with_path_filter(self.path_filter.clone());
+        let dir = Directory::new(base, path);
 
         let (req, _) = req.into_parts();
 
-        (self.renderer)(&dir, &req).unwrap_or_else(|err| ServiceResponse::from_err(err, req))
+        (self.renderer)(&dir, &req, self.path_filter.as_deref())
+            .unwrap_or_else(|err| ServiceResponse::from_err(err, req))
     }
 }
 
