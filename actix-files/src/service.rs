@@ -114,7 +114,7 @@ impl FilesService {
     }
 
     fn show_index(&self, req: ServiceRequest, base: PathBuf, path: PathBuf) -> ServiceResponse {
-        let dir = Directory::new(base, path);
+        let dir = Directory::new(base, path).with_path_filter(self.path_filter.clone());
 
         let (req, _) = req.into_parts();
 
