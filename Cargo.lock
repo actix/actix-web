@@ -227,9 +227,9 @@ dependencies = [
 
 [[package]]
 name = "actix-server"
-version = "2.9.4"
+version = "2.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164ab0b702b578c93901482aea90729bcb8b0822b090194372ad2966393778fa"
+checksum = "aec21d555b23ee78a1c0e4ed61667935de7d61664caba878226a081b1ac20a74"
 dependencies = [
  "actix-rt",
  "actix-service",
