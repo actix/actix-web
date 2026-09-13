@@ -331,8 +331,9 @@ mod tests {
             ))
             .insert_header((
                 header::CONNECTION,
-                header::HeaderValue::from_static("upgrade"),
+                header::HeaderValue::from_static("keep-alive"),
             ))
+            .append_header((header::CONNECTION, "Upgrade"))
             .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
@@ -344,7 +345,7 @@ mod tests {
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
-            handshake_response(req.head()).finish().status()
+            handshake(req.head()).unwrap().finish().status()
         );
     }
 

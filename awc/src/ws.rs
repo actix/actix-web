@@ -385,19 +385,27 @@ impl WebsocketsRequest {
         }
 
         // Check for "CONNECTION" header
-        if let Some(conn) = head.headers.get(&header::CONNECTION) {
-            if let Ok(s) = conn.to_str() {
-                if !s.to_ascii_lowercase().contains("upgrade") {
-                    log::trace!("Invalid connection header: {}", s);
-                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+        let mut upgrade = false;
+        for conn in head.headers.get_all(header::CONNECTION) {
+            if let Ok(value) = conn.to_str() {
+                for option in value.split(',').map(str::trim) {
+                    if option.eq_ignore_ascii_case("close") {
+                        log::trace!("Invalid connection header: {:?}", conn);
+                        return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                    } else if option.eq_ignore_ascii_case("upgrade") {
+                        upgrade = true;
+                    }
                 }
-            } else {
+            }
+        }
+        if !upgrade {
+            if let Some(conn) = head.headers.get(header::CONNECTION) {
                 log::trace!("Invalid connection header: {:?}", conn);
                 return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+            } else {
+                log::trace!("Missing connection header");
+                return Err(WsClientError::MissingConnectionHeader);
             }
-        } else {
-            log::trace!("Missing connection header");
-            return Err(WsClientError::MissingConnectionHeader);
         }
 
         if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {

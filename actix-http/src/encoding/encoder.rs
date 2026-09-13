@@ -366,7 +366,7 @@ impl ContentEncoder {
             ContentEncoder::Brotli(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding br encoding: {}", err);
+                    trace!("Error encoding br data: {}", err);
                     Err(err)
                 }
             },
@@ -375,7 +375,7 @@ impl ContentEncoder {
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding gzip encoding: {}", err);
+                    trace!("Error encoding gzip data: {}", err);
                     Err(err)
                 }
             },
@@ -384,7 +384,7 @@ impl ContentEncoder {
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding deflate encoding: {}", err);
+                    trace!("Error encoding deflate data: {}", err);
                     Err(err)
                 }
             },
@@ -393,7 +393,7 @@ impl ContentEncoder {
             ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding ztsd encoding: {}", err);
+                    trace!("Error encoding zstd data: {}", err);
                     Err(err)
                 }
             },

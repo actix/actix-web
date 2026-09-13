@@ -151,19 +151,21 @@ pub(crate) trait MessageType: Sized {
 
                     // connection keep-alive state
                     header::CONNECTION => {
-                        ka = if let Ok(conn) = value.to_str().map(str::trim) {
-                            if conn.eq_ignore_ascii_case("keep-alive") {
-                                Some(ConnectionType::KeepAlive)
-                            } else if conn.eq_ignore_ascii_case("close") {
-                                Some(ConnectionType::Close)
-                            } else if conn.eq_ignore_ascii_case("upgrade") {
-                                Some(ConnectionType::Upgrade)
-                            } else {
-                                None
+                        if let Ok(conn) = value.to_str() {
+                            for option in conn.split(',').map(str::trim) {
+                                if option.eq_ignore_ascii_case("close") {
+                                    ka = Some(ConnectionType::Close);
+                                    break;
+                                } else if option.eq_ignore_ascii_case("upgrade")
+                                    && ka != Some(ConnectionType::Close)
+                                {
+                                    ka = Some(ConnectionType::Upgrade);
+                                } else if option.eq_ignore_ascii_case("keep-alive") && ka.is_none()
+                                {
+                                    ka = Some(ConnectionType::KeepAlive);
+                                }
                             }
-                        } else {
-                            None
-                        };
+                        }
                     }
 
                     header::UPGRADE => {
@@ -174,11 +176,27 @@ pub(crate) trait MessageType: Sized {
                         }
                     }
 
-                    header::EXPECT => {
-                        let bytes = value.as_bytes();
-                        if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
-                            expect = true;
-                        }
+                    header::EXPECT if version == Version::HTTP_11 => {
+                        let mut quoted = false;
+                        let mut escaped = false;
+                        expect = expect
+                            || value
+                                .as_bytes()
+                                .split(|&byte| {
+                                    if escaped {
+                                        escaped = false;
+                                    } else if quoted && byte == b'\\' {
+                                        escaped = true;
+                                    } else if byte == b'"' {
+                                        quoted = !quoted;
+                                    } else {
+                                        return byte == b',' && !quoted;
+                                    }
+                                    false
+                                })
+                                .any(|item| {
+                                    item.trim_ascii().eq_ignore_ascii_case(b"100-continue")
+                                });
                     }
 
                     _ => {}
@@ -849,6 +867,30 @@ mod tests {
     }
 
     #[test]
+    fn test_expect_100_continue() {
+        for (value, expected) in [
+            ("100-custom, 100-Continue", true),
+            ("100-custom", false),
+            (r#"custom="foo, 100-continue, bar""#, false),
+            (r#"custom="foo\", 100-continue, bar""#, false),
+            (r#"custom="foo\\", 100-Continue"#, true),
+            (r#"custom="é, bar", 100-Continue"#, true),
+        ] {
+            let raw =
+                format!("POST /test HTTP/1.1\r\ncontent-length: 1\r\nexpect: {value}\r\n\r\n");
+            let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
+            assert_eq!(req.head().expect(), expected, "{value:?}");
+        }
+
+        let req = parse_ready!(&mut BytesMut::from(
+            "POST /test HTTP/1.0\r\n\
+             content-length: 1\r\n\
+             expect: 100-continue\r\n\r\n",
+        ));
+        assert!(!req.head().expect());
+    }
+
+    #[test]
     fn test_conn_default_1_0() {
         let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.0\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
@@ -948,6 +990,29 @@ mod tests {
     }
 
     #[test]
+    fn test_conn_multi_value() {
+        for (connection, expected) in [
+            ("keep-alive, Upgrade", ConnectionType::Upgrade),
+            ("keep-alive\r\nconnection: Upgrade", ConnectionType::Upgrade),
+            ("close, upgrade", ConnectionType::Close),
+            ("upgrade, close", ConnectionType::Close),
+            ("close\r\nconnection: upgrade", ConnectionType::Close),
+            ("upgrade\r\nconnection: close", ConnectionType::Close),
+            ("not-upgrade", ConnectionType::KeepAlive),
+        ] {
+            let raw = format!("GET /test HTTP/1.1\r\nconnection: {connection}\r\n\r\n");
+            let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
+            assert_eq!(req.head().connection_type(), expected, "{connection:?}");
+            assert_eq!(
+                req.upgrade(),
+                expected == ConnectionType::Upgrade,
+                "{connection:?}"
+            );
+            assert_eq!(req.head().upgrade(), req.upgrade(), "{connection:?}");
+        }
+    }
+
+    #[test]
     fn test_conn_upgrade_connect_method() {
         let req = parse_ready!(&mut BytesMut::from(
             "CONNECT /test HTTP/1.1\r\n\
@@ -1032,12 +1097,7 @@ mod tests {
         );
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        // `connection: upgrade, http2-settings` doesn't work properly..
-        // see MessageType::set_headers().
-        //
-        // The line below should be:
-        // assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
-        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
         assert!(req.upgrade());
         assert!(!pl.is_unhandled());
     }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Parse all HTTP/1 `Connection` header options consistently. [#2692]
+- Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
+
+[#2692]: https://github.com/actix/actix-web/issues/2692
+
 ## 3.13.5
 
 - Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
