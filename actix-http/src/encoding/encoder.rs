@@ -208,7 +208,18 @@ where
                     if let Some(mut encoder) = this.encoder.take() {
                         if chunk.len() < MAX_CHUNK_SIZE_ENCODE_IN_PLACE {
                             encoder.write(&chunk).map_err(EncoderError::Io)?;
-                            let chunk = encoder.take();
+                            let mut chunk = encoder.take();
+
+                            if chunk.is_empty() {
+                                // Small chunks (SSE events, for example) do not
+                                // produce compressed output on their own; the
+                                // encoder buffers them internally. Flush so the
+                                // client receives each chunk as it is produced
+                                // instead of only when the stream ends.
+                                encoder.flush().map_err(EncoderError::Io)?;
+                                chunk = encoder.take();
+                            }
+
                             *this.encoder = Some(encoder);
 
                             if !chunk.is_empty() {
@@ -217,6 +228,11 @@ where
                         } else {
                             *this.fut = Some(spawn_blocking(move || {
                                 encoder.write(&chunk)?;
+
+                                if encoder.output_is_empty() {
+                                    encoder.flush()?;
+                                }
+
                                 Ok(encoder)
                             }));
                         }
@@ -357,6 +373,46 @@ impl ContentEncoder {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+        }
+    }
+
+    /// Flushes the encoder so compressed output for already written data is
+    /// made available to `take()`.
+    ///
+    /// Stream encoders buffer internally and small writes do not produce
+    /// output; without an explicit flush, a streaming body's chunks only
+    /// reach the client when `finish()` is called at stream end.
+    fn flush(&mut self) -> Result<(), io::Error> {
+        match *self {
+            #[cfg(feature = "compress-brotli")]
+            ContentEncoder::Brotli(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Deflate(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Gzip(ref mut encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-zstd")]
+            ContentEncoder::Zstd(ref mut encoder) => encoder.flush(),
+        }
+    }
+
+    /// Returns `true` if the encoder has produced no output yet, i.e. all
+    /// data written so far is still buffered internally.
+    fn output_is_empty(&self) -> bool {
+        match *self {
+            #[cfg(feature = "compress-brotli")]
+            ContentEncoder::Brotli(ref encoder) => encoder.get_ref().buf.is_empty(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().buf.is_empty(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().buf.is_empty(),
+
+            #[cfg(feature = "compress-zstd")]
+            ContentEncoder::Zstd(ref encoder) => encoder.get_ref().buf.is_empty(),
         }
     }
 
