@@ -7,7 +7,6 @@
 ![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-test.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-test/0.1.5/status.svg)](https://deps.rs/crate/actix-test/0.1.5)
 [![Download](https://img.shields.io/crates/d/actix-test.svg)](https://crates.io/crates/actix-test)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
