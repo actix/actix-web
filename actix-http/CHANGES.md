@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.13.6
+
+- Removes `h2` from the TLS ALPN offer list when `http2` crate feature is disabled.
+
 ## 3.13.5
 
 - Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
