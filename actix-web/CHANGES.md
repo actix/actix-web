@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The TLS crate features no longer enable the `http2` crate feature.
+
 ## 4.15.0
 
 - Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent.
