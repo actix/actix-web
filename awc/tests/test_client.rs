@@ -58,7 +58,7 @@ async fn simple() {
 #[should_panic(expected = "called from outside of a `task::LocalSet`")]
 #[tokio::test(flavor = "current_thread")]
 async fn tokio_runtime_without_local_set() {
-    let srv = actix_test::start(|| App::new());
+    let srv = actix_test::start(App::new);
 
     let _ = awc::Client::default()
         .get(srv.url("/"))
@@ -69,7 +69,7 @@ async fn tokio_runtime_without_local_set() {
 
 #[tokio::test(flavor = "local")]
 async fn tokio_local_runtime() {
-    let srv = actix_test::start(|| App::new());
+    let srv = actix_test::start(App::new);
 
     let _ = awc::Client::default()
         .get(srv.url("/"))

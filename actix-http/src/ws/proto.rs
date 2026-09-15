@@ -1,7 +1,6 @@
 use std::fmt;
 
 use base64::prelude::*;
-use tracing::error;
 
 /// Operation codes defined in [RFC 6455 §11.8].
 ///
@@ -34,15 +33,15 @@ impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use OpCode::*;
 
-        match self {
-            Continue => write!(f, "CONTINUE"),
-            Text => write!(f, "TEXT"),
-            Binary => write!(f, "BINARY"),
-            Close => write!(f, "CLOSE"),
-            Ping => write!(f, "PING"),
-            Pong => write!(f, "PONG"),
-            Bad => write!(f, "BAD"),
-        }
+        f.write_str(match self {
+            Continue => "CONTINUE",
+            Text => "TEXT",
+            Binary => "BINARY",
+            Close => "CLOSE",
+            Ping => "PING",
+            Pong => "PONG",
+            Bad => "BAD",
+        })
     }
 }
 
@@ -58,7 +57,7 @@ impl From<OpCode> for u8 {
             Ping => 9,
             Pong => 10,
             Bad => {
-                error!("Attempted to convert invalid opcode to u8. This is a bug.");
+                tracing::error!("Attempted to convert invalid opcode to u8. This is a bug.");
                 8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }
