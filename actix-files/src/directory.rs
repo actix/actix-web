@@ -9,6 +9,8 @@ use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
 use v_htmlescape::escape_fmt;
 
+use crate::PathFilter;
+
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
 pub struct Directory {
@@ -43,7 +45,7 @@ impl Directory {
 }
 
 pub(crate) type DirectoryRenderer =
-    dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
+    dyn Fn(&Directory, &HttpRequest, Option<&PathFilter>) -> Result<ServiceResponse, io::Error>;
 
 /// Returns percent encoded file URL path.
 macro_rules! encode_file_url {
@@ -71,6 +73,7 @@ macro_rules! encode_file_name {
 pub(crate) fn directory_listing(
     dir: &Directory,
     req: &HttpRequest,
+    path_filter: Option<&PathFilter>,
 ) -> Result<ServiceResponse, io::Error> {
     let index_of = format!("Index of {}", req.path());
     let mut body = String::new();
@@ -79,6 +82,15 @@ pub(crate) fn directory_listing(
     for entry in dir.path.read_dir()? {
         if dir.is_visible(&entry) {
             let entry = entry.unwrap();
+            if let Some(filter) = path_filter {
+                let entry_path = entry.path();
+                let Ok(relative_path) = entry_path.strip_prefix(&dir.base) else {
+                    continue;
+                };
+                if !filter(relative_path, req.head()) {
+                    continue;
+                }
+            }
             let p = match entry.path().strip_prefix(&dir.path) {
                 Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace('\\', "/"),
                 Ok(p) => base.join(p).to_string_lossy().into_owned(),

@@ -1327,6 +1327,38 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_path_filter_files_listing() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("allowed.txt"), "ok").unwrap();
+        fs::write(tmp.path().join("blocked.txt"), "no").unwrap();
+        fs::create_dir(tmp.path().join("subdir")).unwrap();
+        fs::write(tmp.path().join("subdir").join("nested.txt"), "no").unwrap();
+
+        let st = Files::new("/", tmp.path())
+            .path_filter(|path, _| path.as_os_str().is_empty() || path == Path::new("allowed.txt"))
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+        assert!(body.contains("allowed.txt"), "{body}");
+        assert!(!body.contains("blocked.txt"), "{body}");
+        assert!(!body.contains("subdir"), "{body}");
+
+        let req = TestRequest::with_uri("/allowed.txt").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/blocked.txt").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
     async fn test_default_handler_filter() {
         let st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| async {

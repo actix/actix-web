@@ -118,7 +118,8 @@ impl FilesService {
 
         let (req, _) = req.into_parts();
 
-        (self.renderer)(&dir, &req).unwrap_or_else(|err| ServiceResponse::from_err(err, req))
+        (self.renderer)(&dir, &req, self.path_filter.as_deref())
+            .unwrap_or_else(|err| ServiceResponse::from_err(err, req))
     }
 }
 
