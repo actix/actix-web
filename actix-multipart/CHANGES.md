@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Fix multipart field parsing hanging at EOF with missing or incomplete boundaries by returning `MultipartError::Incomplete`. [#4255]
+## 0.8.2
 
-[#4255]: https://github.com/actix/actix-web/pull/4255
+- Fix multipart field parsing hanging at EOF with missing or incomplete boundaries by returning `MultipartError::Incomplete`.
 
 ## 0.8.1
 
