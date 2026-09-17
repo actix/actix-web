@@ -63,7 +63,7 @@ jobs:
         uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1 # zizmor: ignore[ref-version-mismatch] v1 is a rolling tag; the SHA is intentionally pinned
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: ${{ matrix.version.version }}
 
@@ -98,7 +98,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: nightly
 
