@@ -75,7 +75,7 @@ futures-test = "0.3"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 multer = "3"
 rustversion-msrv = "0.100"
-tokio = { version = "1.38.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync", "time"] }
 tokio-stream = "0.1"
 trybuild = "1"
 

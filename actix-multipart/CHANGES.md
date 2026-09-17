@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix multipart field parsing hanging at EOF with missing or incomplete boundaries by returning `MultipartError::Incomplete`. [#4255]
+
+[#4255]: https://github.com/actix/actix-web/pull/4255
+
 ## 0.8.1
 
 - Fix multipart field parsing when boundary delimiter is split across payload chunks.
