@@ -34,6 +34,7 @@ pin_project! {
         body: EncoderBody<B>,
         encoder: Option<ContentEncoder>,
         fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
+        needs_flush: bool,
         eof: bool,
     }
 }
@@ -46,6 +47,7 @@ impl<B: MessageBody> Encoder<B> {
             },
             encoder: None,
             fut: None,
+            needs_flush: false,
             eof: true,
         }
     }
@@ -55,6 +57,7 @@ impl<B: MessageBody> Encoder<B> {
             body: EncoderBody::Full { body: Bytes::new() },
             encoder: None,
             fut: None,
+            needs_flush: false,
             eof: true,
         }
     }
@@ -87,6 +90,7 @@ impl<B: MessageBody> Encoder<B> {
                     body,
                     encoder: Some(enc),
                     fut: None,
+                    needs_flush: false,
                     eof: false,
                 };
             }
@@ -96,6 +100,7 @@ impl<B: MessageBody> Encoder<B> {
             body,
             encoder: None,
             fut: None,
+            needs_flush: false,
             eof: false,
         }
     }
@@ -199,13 +204,35 @@ where
                 }
             }
 
-            let result = ready!(this.body.as_mut().poll_next(cx));
+            let result = match this.body.as_mut().poll_next(cx) {
+                Poll::Ready(result) => result,
+
+                Poll::Pending => {
+                    if *this.needs_flush {
+                        if let Some(encoder) = this.encoder.as_mut() {
+                            // Release buffered content when the producer pauses.
+                            encoder.flush().map_err(EncoderError::Io)?;
+                            *this.needs_flush = false;
+
+                            let chunk = encoder.take();
+
+                            if !chunk.is_empty() {
+                                return Poll::Ready(Some(Ok(chunk)));
+                            }
+                        }
+                    }
+
+                    return Poll::Pending;
+                }
+            };
 
             match result {
                 Some(Err(err)) => return Poll::Ready(Some(Err(err))),
 
                 Some(Ok(chunk)) => {
                     if let Some(mut encoder) = this.encoder.take() {
+                        *this.needs_flush |= !chunk.is_empty();
+
                         if chunk.len() < MAX_CHUNK_SIZE_ENCODE_IN_PLACE {
                             encoder.write(&chunk).map_err(EncoderError::Io)?;
                             let chunk = encoder.take();
@@ -329,6 +356,22 @@ impl ContentEncoder {
 
             #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(ref mut encoder) => encoder.get_mut().take(),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        match self {
+            #[cfg(feature = "compress-brotli")]
+            ContentEncoder::Brotli(encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Gzip(encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-gzip")]
+            ContentEncoder::Deflate(encoder) => encoder.flush(),
+
+            #[cfg(feature = "compress-zstd")]
+            ContentEncoder::Zstd(encoder) => encoder.flush(),
         }
     }
 
