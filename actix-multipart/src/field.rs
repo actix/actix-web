@@ -314,6 +314,10 @@ impl InnerField {
             if let Some(b_len) = b_len {
                 let b_size = boundary.len() + b_len;
                 if len < b_size {
+                    if payload.eof {
+                        return Poll::Ready(Some(Err(Error::Incomplete)));
+                    }
+
                     return Poll::Pending;
                 } else if &payload.buf[b_len..b_size] == boundary.as_bytes() {
                     // found boundary
@@ -330,6 +334,8 @@ impl InnerField {
                 if cur + 4 > len {
                     if cur > 0 {
                         Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
+                    } else if payload.eof {
+                        Poll::Ready(Some(Err(Error::Incomplete)))
                     } else {
                         Poll::Pending
                     }
