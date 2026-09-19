@@ -1,7 +1,7 @@
 //! [`TryIntoHeaderValue`] trait and implementations.
 
 use bytes::Bytes;
-use http::{header::InvalidHeaderValue, Error as HttpError, HeaderValue};
+use http::{header::InvalidHeaderValue, Error as HttpError, HeaderValue, Uri};
 use mime::Mime;
 
 /// An interface for types that can be converted into a [`HeaderValue`].
@@ -127,5 +127,14 @@ impl TryIntoHeaderValue for Mime {
     #[inline]
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         HeaderValue::from_str(self.as_ref())
+    }
+}
+
+impl TryIntoHeaderValue for Uri {
+    type Error = InvalidHeaderValue;
+
+    #[inline]
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_str(&self.to_string())
     }
 }
