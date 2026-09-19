@@ -62,6 +62,11 @@ jobs:
         if: matrix.target.os == 'ubuntu-latest'
         uses: rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621 # v1 # zizmor: ignore[ref-version-mismatch] v1 is a rolling tag; the SHA is intentionally pinned
 
+      # Keep macOS test binaries below the linker's compact-unwind size limit.
+      - name: Allow macOS compact-unwind linker warning
+        if: matrix.target.os == 'macos-latest' && matrix.version.name == 'stable'
+        run: echo "RUSTFLAGS=--force-warn linker_messages" >> "$GITHUB_ENV"
+
       - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
@@ -84,9 +89,6 @@ jobs:
 
       - name: tests
         timeout-minutes: 30
-        env:
-          # Keep macOS test binaries below the linker's compact-unwind size limit.
-          CARGO_PROFILE_TEST_OPT_LEVEL: ${{ matrix.target.os == 'macos-latest' && '1' || '0' }}
         run: just test
 
       - name: CI cache clean
