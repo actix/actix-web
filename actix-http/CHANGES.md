@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-## 3.13.6
+- Update `HttpMessage::content_type()` to return `Option<&str>`. [#3797]
 
-- Removes `h2` from the TLS ALPN offer list when `http2` crate feature is disabled.
+[#3797]: https://github.com/actix/actix-web/issues/3797
+
+## 3.13.6
 
 ## 3.13.5
 
