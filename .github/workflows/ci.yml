@@ -84,6 +84,9 @@ jobs:
 
       - name: tests
         timeout-minutes: 30
+        env:
+          # Keep macOS test binaries below the linker's compact-unwind size limit.
+          CARGO_PROFILE_TEST_OPT_LEVEL: ${{ matrix.target.os == 'macos-latest' && '1' || '0' }}
         run: just test
 
       - name: CI cache clean
