@@ -137,7 +137,7 @@ actix-utils = "3"
 
 actix-http = "3.13.3"
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
-actix-web-codegen = { version = "4.3", optional = true, default-features = false }
+actix-web-codegen = { version = "=4.4.0", optional = true, default-features = false }
 
 bytes = "1"
 bytestring = "1"
