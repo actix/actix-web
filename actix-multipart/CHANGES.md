@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.8.4
+
+- No significant changes since `0.8.3`.
+
 ## 0.8.3
 
 - Field data that is similar to boundaries is now yielded in the `Field` stream before returning an incomplete error.
