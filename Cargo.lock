@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "actix-multipart-derive"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytesize",
  "darling",
