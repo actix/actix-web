@@ -1,4 +1,4 @@
-//! Demonstrates an HTTP client that verifies TLS certificates with the platform verifier.
+//! Demonstrates construction and usage of a TLS-capable HTTP client.
 
 extern crate tls_rustls_0_23 as rustls;
 
@@ -9,11 +9,11 @@ use rustls_platform_verifier::ConfigVerifierExt as _;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Box<dyn StdError>> {
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-
     rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .unwrap();
+
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let mut config = ClientConfig::with_platform_verifier();
 
