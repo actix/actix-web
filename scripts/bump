@@ -170,4 +170,4 @@ fi
 
 echo
 
-cargo update >/dev/null 2>&1 || true
+cargo tree >/dev/null 2>&1 || true

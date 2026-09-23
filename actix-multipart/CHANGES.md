@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.8.5
+
+- No significant changes since `0.8.4`.
+
+## 0.8.4
+
+- No significant changes since `0.8.3`.
+
+## 0.8.3
+
+- Field data that is similar to boundaries is now yielded in the `Field` stream before returning an incomplete error.
+
 ## 0.8.2
 
 - Fix multipart field parsing hanging at EOF with missing or incomplete boundaries by returning `MultipartError::Incomplete`.
