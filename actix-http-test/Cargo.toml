@@ -41,7 +41,6 @@ actix-codec = "0.5"
 actix-rt = "2.2"
 actix-server = "2"
 actix-service = "2"
-actix-tls = "3"
 actix-utils = "3"
 awc = { version = "3", default-features = false }
 
