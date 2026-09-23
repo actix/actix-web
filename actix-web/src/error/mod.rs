@@ -157,6 +157,7 @@ impl ResponseError for JsonPayloadError {
             Self::Overflow { limit: _ } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Serialize(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Payload(err) => err.status_code(),
+            Self::Deserialize(err) if err.is_data() => StatusCode::UNPROCESSABLE_ENTITY,
             _ => StatusCode::BAD_REQUEST,
         }
     }
@@ -249,6 +250,18 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp = JsonPayloadError::ContentType.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let syntax_err = serde_json::from_str::<serde_json::Value>("{bad json").unwrap_err();
+        let resp = JsonPayloadError::Deserialize(syntax_err).error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let eof_err = serde_json::from_str::<serde_json::Value>(r#"{"name": "#).unwrap_err();
+        let resp = JsonPayloadError::Deserialize(eof_err).error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let data_err = serde_json::from_str::<i32>("\"bad type\"").unwrap_err();
+        let resp = JsonPayloadError::Deserialize(data_err).error_response();
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[test]
