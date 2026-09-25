@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.13.6"
+version = "3.13.7"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -59,7 +59,7 @@ dependencies = [
  "actix-web",
  "async-stream",
  "awc",
- "base64 0.23.1",
+ "base64 0.22.1",
  "bitflags 2.13.2",
  "brotli",
  "bytes",
@@ -106,14 +106,13 @@ dependencies = [
 
 [[package]]
 name = "actix-http-test"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "actix-codec",
  "actix-http",
  "actix-rt",
  "actix-server",
  "actix-service",
- "actix-tls",
  "actix-utils",
  "awc",
  "bytes",
@@ -611,7 +610,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "awc"
-version = "3.8.2"
+version = "3.9.0"
 dependencies = [
  "actix-codec",
  "actix-http",
@@ -623,7 +622,7 @@ dependencies = [
  "actix-tls",
  "actix-utils",
  "actix-web",
- "base64 0.23.1",
+ "base64 0.22.1",
  "brotli",
  "bytes",
  "cfg-if",
@@ -686,6 +685,12 @@ name = "base64"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+
+[[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64"

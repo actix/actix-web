@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.13.7
+
+- Fix `Removed::len()` panicking when inserting a new header or removing an absent header.
+
 ## 3.13.6
 
 - Removes `h2` from the TLS ALPN offer list when `http2` crate feature is disabled.
