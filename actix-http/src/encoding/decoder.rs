@@ -40,10 +40,13 @@ where
     /// Construct a decoder.
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
+        #[cfg(feature = "compress-brotli")]
+        const DEFAULT_DECODER_CAPACITY: usize = 8 * 1024; // 8 KiB
+
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
             ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
-                brotli::DecompressorWriter::new(Writer::new(), 8_096),
+                brotli::DecompressorWriter::new(Writer::new(), DEFAULT_DECODER_CAPACITY),
             ))),
 
             #[cfg(feature = "compress-gzip")]

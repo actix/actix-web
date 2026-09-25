@@ -313,11 +313,18 @@ impl InnerField {
 
             if let Some(b_len) = b_len {
                 let b_size = boundary.len() + b_len;
-                if len < b_size {
-                    return Poll::Pending;
-                } else if &payload.buf[b_len..b_size] == boundary.as_bytes() {
-                    // found boundary
-                    return Poll::Ready(None);
+                let available = len - b_len;
+                let check_len = cmp::min(available, boundary.len());
+
+                if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
+                    match (len >= b_size, payload.eof) {
+                        // full boundary delimiter found
+                        (true, _) => return Poll::Ready(None),
+                        // partial boundary prefix with stream still open; wait for more chunks
+                        (false, false) => return Poll::Pending,
+                        // partial boundary prefix at EOF indicates truncated payload
+                        (false, true) => return Poll::Ready(Some(Err(Error::Incomplete))),
+                    }
                 }
             }
         }
@@ -330,6 +337,8 @@ impl InnerField {
                 if cur + 4 > len {
                     if cur > 0 {
                         Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
+                    } else if payload.eof {
+                        Poll::Ready(Some(Err(Error::Incomplete)))
                     } else {
                         Poll::Pending
                     }
@@ -540,5 +549,76 @@ mod tests {
             .expect("field data should not be size limited")
             .expect("reading field data should not error");
         assert_eq!(field, "two+two+two");
+    }
+
+    #[test]
+    fn mismatching_boundary_prefix_is_yielded_without_more_input() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/form-data; boundary=abc"),
+        );
+
+        let (mut tx, rx) = h1::Payload::create(false);
+        tx.feed_data(Bytes::from_static(
+            b"--abc\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\n\r\n--ax",
+        ));
+
+        let mut multipart = Multipart::new(&headers, rx);
+        let mut field = multipart
+            .next()
+            .now_or_never()
+            .expect("field headers should be ready")
+            .expect("multipart should contain a field")
+            .expect("field headers should be valid");
+
+        let next = field.next().now_or_never();
+        assert!(
+            matches!(&next, Some(Some(Ok(bytes))) if bytes.as_ref() == b"\r\n--ax"),
+            "a mismatching boundary prefix should be yielded without more input: {next:?}",
+        );
+
+        tx.feed_eof();
+
+        let next = field.next().now_or_never();
+        assert!(
+            matches!(next, Some(Some(Err(crate::error::Error::Incomplete)))),
+            "EOF without a closing boundary should report an incomplete message: {next:?}",
+        );
+    }
+
+    #[test]
+    fn mismatching_boundary_prefix_is_yielded_before_eof_incomplete() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/form-data; boundary=abc"),
+        );
+
+        let (mut tx, rx) = h1::Payload::create(false);
+        tx.feed_data(Bytes::from_static(
+            b"--abc\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\n\r\n--ax",
+        ));
+        tx.feed_eof();
+
+        let mut multipart = Multipart::new(&headers, rx);
+        let mut field = multipart
+            .next()
+            .now_or_never()
+            .expect("field headers should be ready")
+            .expect("multipart should contain a field")
+            .expect("field headers should be valid");
+
+        let next = field.next().now_or_never();
+        assert!(
+            matches!(&next, Some(Some(Ok(bytes))) if bytes.as_ref() == b"\r\n--ax"),
+            "a mismatching boundary prefix should be yielded before Incomplete: {next:?}",
+        );
+
+        let next = field.next().now_or_never();
+        assert!(
+            matches!(next, Some(Some(Err(crate::error::Error::Incomplete)))),
+            "EOF after yielding mismatch should report an incomplete message: {next:?}",
+        );
     }
 }

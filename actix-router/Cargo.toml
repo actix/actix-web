@@ -35,8 +35,16 @@ http = "0.2.7"
 percent-encoding = "2.1"
 serde = { version = "1", features = ["derive"] }
 
-[lints]
-workspace = true
+[lints.rust]
+# Cargo cannot override inherited workspace lints.
+rust_2018_idioms = { level = "deny" }
+future_incompatible = { level = "deny" }
+nonstandard_style = { level = "deny" }
+linker_messages = { level = "allow" }
+
+[lints.cargo]
+# regex-lite is used when the unicode feature is disabled.
+unused_dependencies = "allow"
 
 [[bench]]
 name = "router"
