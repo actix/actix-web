@@ -577,7 +577,11 @@ mod tests {
     use actix_multipart_rfc7578::client::multipart;
     use actix_test::TestServer;
     use actix_web::{
-        dev::Payload, http::StatusCode, web, App, HttpRequest, HttpResponse, Resource, Responder,
+        dev::Payload,
+        http::StatusCode,
+        post,
+        test::{call_service, init_service, TestRequest},
+        web, App, HttpRequest, HttpResponse, Responder,
     };
     use awc::{Client, ClientResponse};
     use futures_core::future::LocalBoxFuture;
@@ -588,6 +592,7 @@ mod tests {
         form::{
             bytes::Bytes, tempfile::TempFile, text::Text, FieldReader, Limits, MultipartFormConfig,
         },
+        test::create_form_data_payload_and_headers,
         Field, MultipartError,
     };
 
@@ -1019,7 +1024,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Connect(Disconnected)")]
+    #[should_panic(expected = "Field should not be polled after completion")]
     #[actix_web::test]
     async fn field_try_next_panic() {
         #[derive(Debug)]
@@ -1051,16 +1056,27 @@ mod tests {
             foo: NullSink,
         }
 
-        async fn null_sink(_form: MultipartForm<NullSinkForm>) -> impl Responder {
-            "unreachable"
+        #[post("/")]
+        async fn null_sink(_form: MultipartForm<NullSinkForm>) -> HttpResponse {
+            unreachable!("form should panic before reaching this point");
         }
 
-        let srv = actix_test::start(|| App::new().service(Resource::new("/").post(null_sink)));
+        let app = init_service(App::new().service(null_sink)).await;
 
-        let mut form = multipart::Form::default();
-        form.add_text("foo", "data is not important to this test");
+        let (body, headers) = create_form_data_payload_and_headers(
+            "foo",
+            None,
+            None,
+            web::Bytes::from_static(b"test data"),
+        );
 
-        // panics with Err(Connect(Disconnected)) due to form NullSink panic
-        let _res = send_form(&srv, form, "/").await;
+        let req = headers
+            .into_iter()
+            .fold(TestRequest::post(), |req, header| req.insert_header(header))
+            .set_payload(body)
+            .to_request();
+
+        // Run in this task so the test observes the field panic directly.
+        let _res = call_service(&app, req).await;
     }
 }

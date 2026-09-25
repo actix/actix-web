@@ -63,11 +63,12 @@
 //! - `compress-brotli` - brotli content encoding compression support (enabled by default)
 //! - `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
 //! - `compress-zstd` - zstd content encoding compression support (enabled by default)
-//! - `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
-//! - `rustls` - HTTPS support via `rustls` 0.20 crate, supports `HTTP/2`
-//! - `rustls-0_21` - HTTPS support via `rustls` 0.21 crate, supports `HTTP/2`
-//! - `rustls-0_22` - HTTPS support via `rustls` 0.22 crate, supports `HTTP/2`
-//! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate, supports `HTTP/2`
+//! - `http2` - HTTP/2 support (enabled by default)
+//! - `openssl` - HTTPS support via `openssl` crate
+//! - `rustls` - HTTPS support via `rustls` 0.20 crate
+//! - `rustls-0_21` - HTTPS support via `rustls` 0.21 crate
+//! - `rustls-0_22` - HTTPS support via `rustls` 0.22 crate
+//! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate
 //! - `secure-cookies` - secure cookies support
 //!
 //! ## Experimental features
