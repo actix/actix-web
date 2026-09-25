@@ -18,6 +18,7 @@ macro_rules! byte (
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ChunkedState {
     Size,
+    SizeMore,
     SizeLws,
     Extension,
     SizeLf,
@@ -39,6 +40,7 @@ impl ChunkedState {
         use self::ChunkedState::*;
         match *self {
             Size => ChunkedState::read_size(body, size),
+            SizeMore => ChunkedState::read_size_more(body, size),
             SizeLws => ChunkedState::read_size_lws(body),
             Extension => ChunkedState::read_extension(body),
             SizeLf => ChunkedState::read_size_lf(body, *size),
@@ -52,6 +54,26 @@ impl ChunkedState {
     }
 
     fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
+        let b = byte!(rdr);
+        if !b.is_ascii_hexdigit() {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "400 Bad Request",
+            )));
+        }
+
+        let rem = match b {
+            b'0'..=b'9' => b - b'0',
+            b'a'..=b'f' => b + 10 - b'a',
+            b'A'..=b'F' => b + 10 - b'A',
+            _ => unreachable!(),
+        };
+
+        *size = rem as u64;
+        Poll::Ready(Ok(ChunkedState::SizeMore))
+    }
+
+    fn read_size_more(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
         let radix = 16;
 
         let rem = match byte!(rdr) {
@@ -74,7 +96,7 @@ impl ChunkedState {
                 *size = n;
                 *size += rem as u64;
 
-                Poll::Ready(Ok(ChunkedState::Size))
+                Poll::Ready(Ok(ChunkedState::SizeMore))
             }
             None => {
                 debug!("chunk size would overflow u64");
@@ -218,6 +240,21 @@ mod tests {
                 _ => unreachable!("Error expected"),
             }
         }};
+    }
+
+    #[test]
+    fn test_reject_empty_chunk_size() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+
+        // Empty chunk size before CRLF is illegal under RFC 9112 §7.1
+        buf.extend(b"\r\n\r\n");
+        assert!(pl.decode(&mut buf).is_err());
     }
 
     #[test]
