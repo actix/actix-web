@@ -4,16 +4,18 @@ extern crate tls_rustls_0_23 as rustls;
 
 use std::{error::Error as StdError, sync::Arc};
 
-use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
 use rustls::ClientConfig;
+use rustls_platform_verifier::ConfigVerifierExt as _;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Box<dyn StdError>> {
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
+
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    let mut config = ClientConfig::builder()
-        .with_root_certificates(webpki_roots_cert_store())
-        .with_no_client_auth();
+    let mut config = ClientConfig::with_platform_verifier();
 
     let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     config.alpn_protocols = protos;

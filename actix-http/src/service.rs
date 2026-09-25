@@ -34,15 +34,15 @@ fn set_nodelay(stream: &TcpStream, nodelay: bool) {
     let _ = stream.set_nodelay(nodelay);
 }
 
-/// A [`ServiceFactory`] for HTTP/1.1 and HTTP/2 connections.
+/// A [`ServiceFactory`] for HTTP/1.1 and, when enabled, HTTP/2 connections.
 ///
 /// Use [`build`](Self::build) to begin constructing service. Also see [`HttpServiceBuilder`].
 ///
 /// # Automatic HTTP Version Selection
 /// There are two ways to select the HTTP version of an incoming connection:
-/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); both versions
-///   are supported automatically when using either of the `.rustls()` or `.openssl()` finalizing
-///   methods.
+/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); HTTP/1.x is
+///   always supported, and HTTP/2 is supported when the `http2` feature is enabled. Use either of
+///   the `.rustls()` or `.openssl()` finalizing methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
 ///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
 ///   the `.tcp_auto_h2c()` finalizing method to enable this behavior.
@@ -441,7 +441,9 @@ mod rustls_0_20 {
             InitError = (),
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -542,7 +544,9 @@ mod rustls_0_21 {
             InitError = (),
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -643,7 +647,9 @@ mod rustls_0_22 {
             InitError = (),
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -744,7 +750,9 @@ mod rustls_0_23 {
             InitError = (),
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 

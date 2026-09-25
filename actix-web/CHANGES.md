@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `dev::AppConfig::new()` for configuring applications served by custom servers. [#3180]
+- The TLS crate features no longer enable the `http2` crate feature.
 
 [#3180]: https://github.com/actix/actix-web/issues/3180
 

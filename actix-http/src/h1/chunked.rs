@@ -17,7 +17,8 @@ macro_rules! byte (
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ChunkedState {
-    Size,
+    SizeFirst,
+    SizeRest,
     SizeLws,
     Extension,
     SizeLf,
@@ -38,7 +39,8 @@ impl ChunkedState {
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
-            Size => ChunkedState::read_size(body, size),
+            SizeFirst => ChunkedState::read_size_first(body, size),
+            SizeRest => ChunkedState::read_size_rest(body, size),
             SizeLws => ChunkedState::read_size_lws(body),
             Extension => ChunkedState::read_extension(body),
             SizeLf => ChunkedState::read_size_lf(body, *size),
@@ -51,7 +53,28 @@ impl ChunkedState {
         }
     }
 
-    fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
+    fn read_size_first(
+        rdr: &mut BytesMut,
+        size: &mut u64,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        let rem = match byte!(rdr) {
+            b @ b'0'..=b'9' => b - b'0',
+            b @ b'a'..=b'f' => b + 10 - b'a',
+            b @ b'A'..=b'F' => b + 10 - b'A',
+            _ => {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid chunk size line: Invalid size first-byte",
+                )))
+            }
+        };
+
+        *size = rem as u64;
+
+        Poll::Ready(Ok(ChunkedState::SizeRest))
+    }
+
+    fn read_size_rest(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
         let radix = 16;
 
         let rem = match byte!(rdr) {
@@ -64,7 +87,7 @@ impl ChunkedState {
             _ => {
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "Invalid chunk size line: Invalid Size",
+                    "Invalid chunk size line: Invalid size",
                 )));
             }
         };
@@ -74,7 +97,7 @@ impl ChunkedState {
                 *size = n;
                 *size += rem as u64;
 
-                Poll::Ready(Ok(ChunkedState::Size))
+                Poll::Ready(Ok(ChunkedState::SizeRest))
             }
             None => {
                 debug!("chunk size would overflow u64");
@@ -159,7 +182,7 @@ impl ChunkedState {
     }
     fn read_body_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::Size)),
+            b'\n' => Poll::Ready(Ok(ChunkedState::SizeFirst)),
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk body LF",
@@ -218,6 +241,21 @@ mod tests {
                 _ => unreachable!("Error expected"),
             }
         }};
+    }
+
+    #[test]
+    fn test_reject_empty_chunk_size() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+
+        // Empty chunk size before CRLF is illegal under RFC 9112 §7.1
+        buf.extend(b"\r\n\r\n");
+        assert!(pl.decode(&mut buf).is_err());
     }
 
     #[test]

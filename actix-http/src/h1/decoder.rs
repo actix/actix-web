@@ -479,7 +479,7 @@ impl PayloadDecoder {
     /// Constructs a chunked encoding decoder.
     pub fn chunked() -> PayloadDecoder {
         PayloadDecoder {
-            kind: Kind::Chunked(ChunkedState::Size, 0),
+            kind: Kind::Chunked(ChunkedState::SizeFirst, 0),
         }
     }
 
