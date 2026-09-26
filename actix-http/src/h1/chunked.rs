@@ -27,6 +27,8 @@ pub(super) enum ChunkedState {
     BodyLf,
     EndCr,
     EndLf,
+    Trailer,
+    TrailerLf,
     End,
 }
 
@@ -49,6 +51,8 @@ impl ChunkedState {
             BodyLf => ChunkedState::read_body_lf(body),
             EndCr => ChunkedState::read_end_cr(body),
             EndLf => ChunkedState::read_end_lf(body),
+            Trailer => ChunkedState::read_trailer(body),
+            TrailerLf => ChunkedState::read_trailer_lf(body),
             End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
@@ -192,18 +196,35 @@ impl ChunkedState {
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
-            ))),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
+
     fn read_end_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\n' => Poll::Ready(Ok(ChunkedState::End)),
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk end LF",
+            ))),
+        }
+    }
+
+    fn read_trailer(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        loop {
+            match byte!(rdr) {
+                b'\r' => return Poll::Ready(Ok(ChunkedState::TrailerLf)),
+                _ => continue,
+            }
+        }
+    }
+
+    fn read_trailer_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr) {
+            b'\n' => Poll::Ready(Ok(ChunkedState::EndCr)),
+            _ => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk trailer LF",
             ))),
         }
     }
@@ -241,6 +262,24 @@ mod tests {
                 _ => unreachable!("Error expected"),
             }
         }};
+    }
+
+    #[test]
+    fn test_parse_chunked_payload_with_trailers() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+
+        buf.extend(b"4\r\ndata\r\n0\r\nX-Checksum: 12345\r\nExpires: Wed\r\n\r\n");
+        assert_eq!(
+            pl.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+            b"data"
+        );
+        assert!(pl.decode(&mut buf).unwrap().unwrap().eof());
     }
 
     #[test]
