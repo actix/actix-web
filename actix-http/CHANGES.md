@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.18.10
+
+- Allow trailer fields after chunked bodies.
+
 ## 3.18.9
 
 - Reject empty chunked size lines.
