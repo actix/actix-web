@@ -10,6 +10,8 @@ use crate::{
     test::TestBuffer,
 };
 
+// Stop accepting writes after a shared byte budget is exhausted. The test can
+// then restore the budget and poll the dispatcher again, as if the socket became writable.
 struct LimitedWriter {
     io: TestBuffer,
     allowance: Rc<Cell<usize>>,
@@ -34,6 +36,7 @@ impl AsyncWrite for LimitedWriter {
         let len = buf.len().min(self.allowance.get());
 
         if len == 0 {
+            // The test polls manually after restoring the budget, so no wakeup is needed.
             return Poll::Pending;
         }
 
@@ -53,6 +56,8 @@ impl AsyncWrite for LimitedWriter {
 
 async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool, release: bool) {
     let mut io = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    // The budget includes response headers. Leave a small unwritten tail so
+    // advancing past the written bytes hides most of the original buffer capacity.
     let allowance = Rc::new(Cell::new(if partial {
         body_len - 1024
     } else {
@@ -60,6 +65,7 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     }));
     let services = HttpFlow::new(
         fn_service(move |_: Request| async move {
+            // A single body chunk forces the output buffer to hold the large response.
             Ok::<_, Error>(Response::ok().set_body(bytes::Bytes::from(vec![b'x'; body_len])))
         }),
         ExpectHandler,
@@ -71,6 +77,8 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
             allowance: allowance.clone(),
         },
         services,
+        // This sets the body-polling watermark. The retention limit is the larger
+        // of this value and WRITE_BUFFER_RETENTION_LIMIT.
         ServiceConfigBuilder::new()
             .h1_write_buffer_size(threshold)
             .build(),
@@ -80,6 +88,8 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     let mut dispatcher = pin!(dispatcher);
     let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
 
+    // Pending is expected even after a complete response: the keep-alive
+    // connection stays open and waits for another request.
     assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
 
     if partial {
@@ -89,11 +99,14 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
         assert!(!inner.write_buf.is_empty());
         assert_eq!(io.write_buf_slice().len(), body_len - 1024);
 
+        // Let the dispatcher finish the same response after the simulated blocked write.
         allowance.set(usize::MAX);
         assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
     }
 
-    // Reclaim the consumed prefix so a small tail cannot hide a large allocation.
+    // try_reclaim does not allocate. If the old backing allocation survived,
+    // reclaiming its consumed prefix exposes the large capacity to the assertion below.
+    // Checking only the visible tail could otherwise let the partial-write regression pass.
     if release {
         let DispatcherStateProj::Normal { inner } = dispatcher.as_mut().project().inner.project()
         else {
@@ -119,6 +132,8 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
 
     let pointer = inner.write_buf.as_ptr();
     let response = io.take_write_buf();
+    // Compare the complete body separately from the generated HTTP headers.
+    // A smaller retained buffer must not come at the cost of missing response bytes.
     let body_start = response
         .windows(4)
         .position(|window| window == b"\r\n\r\n")
@@ -141,6 +156,7 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     );
 
     if !release {
+        // Check reuse across requests, not just sufficient capacity after each flush.
         let DispatcherState::Normal { inner } = &dispatcher.inner else {
             panic!()
         };
@@ -169,15 +185,18 @@ async fn normal_write_buffer_reused_after_flush() {
 
 #[actix_rt::test]
 async fn configured_write_buffer_reused_after_flush() {
+    // A custom watermark above 128 KiB also raises the retention limit.
     check_buffer_retention(256 * 1024, 1024 * 1024, false, false).await;
 }
 
 #[actix_rt::test]
 async fn small_write_watermark_preserves_normal_buffer() {
+    // A small watermark must not lower the 128 KiB retention limit.
     check_buffer_retention(64 * 1024, 8 * 1024, false, false).await;
 }
 
 #[actix_rt::test]
 async fn buffer_above_configured_write_watermark_released() {
+    // A larger watermark sets the limit directly; it is not multiplied by four.
     check_buffer_retention(512 * 1024, 256 * 1024, false, true).await;
 }
