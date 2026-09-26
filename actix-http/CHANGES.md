@@ -4,6 +4,10 @@
 
 - Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
 
+## 3.18.11
+
+- Reject requests with a missing or duplicate `Host` header in HTTP/1.1 requests.
+
 ## 3.18.10
 
 - Allow trailer fields after chunked bodies.

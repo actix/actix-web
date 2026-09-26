@@ -98,7 +98,7 @@ async fn late_request() {
         // polls: initial
         assert_eq!(h1.poll_count, 1);
 
-        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nConnection: close\r\n\r\n");
+        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => panic!("second poll should not be pending"),
@@ -134,7 +134,7 @@ async fn late_request() {
 
 #[actix_rt::test]
 async fn oneshot_connection() {
-    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Disabled,
@@ -195,7 +195,7 @@ async fn oneshot_connection() {
 
 #[actix_rt::test]
 async fn keep_alive_timeout() {
-    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(200)),
@@ -274,7 +274,7 @@ async fn keep_alive_timeout() {
 
 #[actix_rt::test]
 async fn keep_alive_follow_up_req() {
-    let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(500)),
@@ -354,6 +354,7 @@ async fn keep_alive_follow_up_req() {
         buf.extend_read_buf(
             "\
             GET /efg HTTP/1.1\r\n\
+            Host: localhost\r\n\
             Connection: close\r\n\
             \r\n\r\n",
         );
@@ -414,7 +415,7 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
     let config = ServiceConfigBuilder::new()
         .graceful_shutdown_signal(Some(GracefulShutdownSignal::new(|| ready(()))))
         .build();
-    let buf = TestBuffer::new("GET /buffered HTTP/1.1\r\n\r\n");
+    let buf = TestBuffer::new("GET /buffered HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let dispatcher = Dispatcher::new(
         buf.clone(),
         services,
@@ -476,8 +477,10 @@ async fn pipelining_ok_then_ok() {
     lazy(|cx| {
         let buf = TestBuffer::new(
             "\
-                GET /abcd HTTP/1.1\r\n\r\n\
-                GET /def HTTP/1.1\r\n\r\n\
+                GET /abcd HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
+                GET /def HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
                 ",
         );
 
@@ -547,6 +550,7 @@ async fn early_response_with_payload_lingers_before_closing() {
         let buf = TestSeqBuffer::new(http_msg(
             r"
             GET /unfinished HTTP/1.1
+            Host: localhost
             Content-Length: 2
             ",
         ));
@@ -617,6 +621,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
         let buf = TestSeqBuffer::new(http_msg(
             r"
             POST / HTTP/1.1
+            Host: localhost
             Content-Length: 8
 
             ab
@@ -688,6 +693,7 @@ async fn lingering_timeout_uses_graceful_shutdown() {
     let buf = TestSeqBuffer::new(
         "\
             POST / HTTP/1.1\r\n\
+            Host: localhost\r\n\
             Content-Length: 8\r\n\
             \r\n\
             ab\
@@ -745,7 +751,8 @@ async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
             "\
-                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /abcd HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
                 GET /def HTTP/1\r\n\r\n\
                 ",
         );
@@ -834,6 +841,7 @@ async fn expect_handling() {
         buf.extend_read_buf(
             "\
                 POST /upload HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Content-Length: 5\r\n\
                 Expect: 100-continue\r\n\
                 \r\n\
@@ -911,6 +919,7 @@ async fn expect_eager() {
         buf.extend_read_buf(
             "\
                 POST /upload HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Content-Length: 5\r\n\
                 Expect: 100-continue\r\n\
                 \r\n\
@@ -994,6 +1003,7 @@ async fn upgrade_handling() {
         buf.extend_read_buf(
             "\
                 GET /ws HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Connection: Upgrade\r\n\
                 Upgrade: websocket\r\n\
                 \r\n\
@@ -1016,6 +1026,7 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
         GET /ws HTTP/1.1
+        Host: localhost
         Connection: Upgrade
         Upgrade: websocket
         Sec-WebSocket-Version: 13
@@ -1079,6 +1090,7 @@ async fn handler_drop_payload() {
     let mut buf = TestBuffer::new(http_msg(
         r"
         POST /drop-payload HTTP/1.1
+        Host: localhost
         Content-Length: 3
 
         abc
@@ -1141,6 +1153,7 @@ async fn handler_drop_payload() {
         buf.extend_read_buf(http_msg(
             r"
             POST /drop-payload HTTP/1.1
+            Host: localhost
             Content-Length: 200
 
             abc
@@ -1224,6 +1237,7 @@ async fn handler_drop_payload_drains_body() {
     let mut buf = TestSeqBuffer::new(http_msg(
         r"
         POST /drop-payload HTTP/1.1
+        Host: localhost
         Transfer-Encoding: chunked
 
         ",
@@ -1303,7 +1317,12 @@ async fn handler_drop_payload_drains_body() {
     .await;
 
     // connection should be able to accept another request after draining the previous body
-    buf.extend_read_buf(http_msg("GET /drop-payload HTTP/1.1"));
+    buf.extend_read_buf(http_msg(
+        r"
+        GET /drop-payload HTTP/1.1
+        Host: localhost
+        ",
+    ));
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -1337,7 +1356,12 @@ async fn handler_drop_payload_drains_body() {
 
 #[actix_rt::test]
 async fn allow_half_closed() {
-    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET / HTTP/1.1
+        Host: localhost
+        ",
+    ));
     buf.close_read();
     let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
 
@@ -1387,7 +1411,12 @@ async fn allow_half_closed() {
 async fn disallow_half_closed() {
     use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
 
-    let buf = TestSeqBuffer::new(http_msg("GET / HTTP/1.1"));
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET / HTTP/1.1
+        Host: localhost
+        ",
+    ));
     buf.close_read();
     let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
     let config = ServiceConfigBuilder::new()
@@ -1422,7 +1451,7 @@ async fn disallow_half_closed() {
 
 #[actix_rt::test]
 async fn h1_write_buffer_size_limits_buffering() {
-    let request = "GET /stream HTTP/1.1\r\nConnection: close\r\n\r\n";
+    let request = "GET /stream HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
 
     let default_polls = Rc::new(Cell::new(0));
     let default_services = HttpFlow::new(

@@ -238,7 +238,7 @@ mod tests {
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
         stream
-            .write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .write_all(b"GET /camel HTTP/1.1\r\nHost: localhost\r\nConnection: Close\r\n\r\n")
             .unwrap();
         let mut data = vec![];
         let _ = stream.read_to_end(&mut data).unwrap();
@@ -252,7 +252,7 @@ mod tests {
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
         stream
-            .write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .write_all(b"GET /lower HTTP/1.1\r\nHost: localhost\r\nConnection: Close\r\n\r\n")
             .unwrap();
         let mut data = vec![];
         let _ = stream.read_to_end(&mut data).unwrap();

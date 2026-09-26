@@ -207,6 +207,7 @@ mod tests {
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let item = codec.decode(&mut buf).unwrap().unwrap();
@@ -218,6 +219,7 @@ mod tests {
         buf.extend(
             b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
                POST /test2 HTTP/1.1\r\n\
+               Host: localhost\r\n\
                transfer-encoding: chunked\r\n\r\n"
                 .iter(),
         );
@@ -243,10 +245,12 @@ mod tests {
         let mut codec = Codec::default();
         let mut buf = BytesMut::from(
             "POST /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              content-length: 11\r\n\
              transfer-encoding: chunked\r\n\r\n\
              0\r\n\r\n\
-             GET /test2 HTTP/1.1\r\n\r\n",
+             GET /test2 HTTP/1.1\r\n\
+             Host: localhost\r\n\r\n",
         );
 
         assert!(codec.decode(&mut buf).is_err());
