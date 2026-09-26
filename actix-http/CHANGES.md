@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.18.9
+
+- Reject empty chunked size lines.
+
 ## 3.13.8
 
 - Ensure "chunked" declaration is final part of Transfer-Encoding header.
