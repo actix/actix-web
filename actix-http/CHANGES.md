@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
+
 ## 3.18.12
 
 - Flush compressed response bodies when the source is pending.
