@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
+
 ## 3.18.10
 
 - Allow trailer fields after chunked bodies.

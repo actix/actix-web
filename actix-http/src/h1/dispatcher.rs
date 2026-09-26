@@ -182,6 +182,7 @@ pin_project! {
         pub(super) io: Option<T>,
         read_buf: BytesMut,
         write_buf: BytesMut,
+        write_buf_needs_reset: bool,
         h1_write_buffer_size: usize,
         codec: Codec,
     }
@@ -297,6 +298,7 @@ where
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    write_buf_needs_reset: false,
                     h1_write_buffer_size: config.h1_write_buffer_size(),
                     codec: Codec::new(config),
                 },
@@ -349,8 +351,19 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        let InnerDispatcherProj { io, write_buf, .. } = self.project();
+        let InnerDispatcherProj {
+            io,
+            write_buf,
+            write_buf_needs_reset,
+            h1_write_buffer_size,
+            ..
+        } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
+
+        // Allow normal buffer growth, but do not retain large response chunks on idle connections.
+        // Remember this across partial writes, which can hide capacity in a consumed prefix.
+        *write_buf_needs_reset |=
+            write_buf.capacity() > h1_write_buffer_size.saturating_mul(4).max(HW_BUFFER_SIZE);
 
         let len = write_buf.len();
         let mut written = 0;
@@ -371,8 +384,13 @@ where
             }
         }
 
-        // everything has written to I/O; clear buffer
-        write_buf.clear();
+        // All bytes have been accepted by the I/O stream, so the buffer can be reused or released.
+        if *write_buf_needs_reset {
+            *write_buf = BytesMut::with_capacity(HW_BUFFER_SIZE);
+            *write_buf_needs_reset = false;
+        } else {
+            write_buf.clear();
+        }
 
         // flush the I/O and check if get blocked
         io.poll_flush(cx)
@@ -1504,3 +1522,7 @@ fn trace_timer_states(
         trace!("  shutdown {}", &shutdown_timer);
     }
 }
+
+#[cfg(test)]
+#[path = "dispatcher_buffer_tests.rs"]
+mod buffer_tests;
