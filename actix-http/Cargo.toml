@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.18.10"
+version = "3.18.11"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
