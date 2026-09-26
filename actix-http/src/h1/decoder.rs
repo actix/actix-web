@@ -777,7 +777,9 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody",
+        );
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -793,7 +795,9 @@ mod tests {
 
     #[test]
     fn test_parse_body_crlf() {
-        let mut buf = BytesMut::from("\r\nGET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from(
+            "\r\nGET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody",
+        );
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -875,7 +879,9 @@ mod tests {
 
     #[test]
     fn test_conn_default_1_1() {
-        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
@@ -1091,7 +1097,9 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_two_slashes() {
-        let req = parse_ready!(&mut BytesMut::from("GET //path HTTP/1.1\r\nHost: localhost\r\n\r\n"));
+        let req = parse_ready!(&mut BytesMut::from(
+            "GET //path HTTP/1.1\r\nHost: localhost\r\n\r\n"
+        ));
         assert_eq!(req.path(), "//path");
     }
 
