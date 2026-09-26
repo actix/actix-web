@@ -869,14 +869,14 @@ mod tests {
 
         let short_tuple: Result<((String, String),), _> =
             de::Deserialize::deserialize(PathDeserializer::new(&path));
-        assert!(short_tuple.is_err());
+        short_tuple.unwrap_err();
 
         let mut path = Path::new("/path/1//2");
         assert!(resource.capture_match_info(&mut path));
 
         let numbers: Result<(Vec<u32>,), _> =
             de::Deserialize::deserialize(PathDeserializer::new(&path));
-        assert!(numbers.is_err());
+        numbers.unwrap_err();
     }
 
     #[test]

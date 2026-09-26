@@ -22,6 +22,7 @@ use crate::{
 /// including `/`, `%`, and `+`.
 ///
 /// # Examples
+///
 /// ```
 /// use actix_web::{get, web};
 ///
@@ -54,12 +55,11 @@ use crate::{
 /// }
 /// ```
 ///
-/// Segments matching multiple path components can be deserialized
-/// into a `Vec<_>` to percent-decode the components individually. Splitting happens before
-/// percent-decoding, so an encoded slash stays within one component. Empty components are preserved,
-/// including leading and trailing ones. An empty capture produces a single empty component.
-/// Use [`NormalizePath`](crate::middleware::NormalizePath) to merge repeated slashes and configure
-/// trailing slashes before extraction.
+/// Segments matching multiple path components can be deserialized into a `Vec<_>` to percent-decode
+/// the components individually. Splitting happens before percent-decoding, so an encoded slash
+/// stays within one component. Empty components are preserved, including leading and trailing ones.
+/// An empty capture produces a single empty component. Use [`NormalizePath`] to merge repeated
+/// slashes and configure trailing slashes before extraction.
 ///
 /// ```
 /// use actix_web::{get, web};
@@ -76,6 +76,8 @@ use crate::{
 ///     format!("Navigating to {}!", info.tail.join(" :: "))
 /// }
 /// ```
+///
+/// [`NormalizePath`]: crate::middleware::NormalizePath
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
 pub struct Path<T>(T);
 
