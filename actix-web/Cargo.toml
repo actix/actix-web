@@ -187,7 +187,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
 tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros", "time"] }
-tokio-util = "0.7"
+tokio-util = { version = "0.7", default-features = false, features = ["time"] }
 zstd = "0.13"
 
 [lints]
