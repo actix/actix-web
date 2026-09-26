@@ -83,6 +83,7 @@ pub(crate) trait MessageType: Sized {
         let mut expect = false;
         let mut chunked = false;
         let mut seen_te = false;
+        let mut seen_host = false;
         let mut content_length = None;
 
         {
@@ -130,6 +131,16 @@ pub(crate) trait MessageType: Sized {
                     header::TRANSFER_ENCODING if seen_te => {
                         debug!("multiple Transfer-Encoding not allowed");
                         return Err(ParseError::Header);
+                    }
+
+                    // host
+                    header::HOST if seen_host => {
+                        debug!("multiple Host headers not allowed");
+                        return Err(ParseError::Header);
+                    }
+
+                    header::HOST => {
+                        seen_host = true;
                     }
 
                     header::TRANSFER_ENCODING if version == Version::HTTP_11 => {
@@ -1239,5 +1250,29 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"a")));
+    }
+
+    #[test]
+    fn http11_reject_duplicate_host_header() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Host: duplicate.com\r\n\r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let err = reader.decode(&mut buf).unwrap_err();
+        assert!(matches!(err, ParseError::Header));
+    }
+
+    #[test]
+    fn http10_allow_missing_host_header() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+            Accept: */*\r\n\r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        assert!(reader.decode(&mut buf).unwrap().is_some());
     }
 }
