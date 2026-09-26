@@ -40,6 +40,9 @@ const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
+/// Write buffer capacity at which we reallocate it after flushing.
+const WRITE_BUFFER_RETENTION_LIMIT: usize = 1024 * 128;
+
 bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
@@ -182,8 +185,13 @@ pin_project! {
         pub(super) io: Option<T>,
         read_buf: BytesMut,
         write_buf: BytesMut,
-        write_buf_needs_reset: bool,
+
+        // Number of bytes to busy-buffer before flushing.
         h1_write_buffer_size: usize,
+
+        // True if backing allocation of `write_buf` needs to be released.
+        write_buf_needs_reset: bool,
+
         codec: Codec,
     }
 }
@@ -298,8 +306,8 @@ where
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                    write_buf_needs_reset: false,
                     h1_write_buffer_size: config.h1_write_buffer_size(),
+                    write_buf_needs_reset: false,
                     codec: Codec::new(config),
                 },
             },
@@ -354,16 +362,21 @@ where
         let InnerDispatcherProj {
             io,
             write_buf,
-            write_buf_needs_reset,
             h1_write_buffer_size,
+            write_buf_needs_reset,
             ..
         } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
-        // Allow normal buffer growth, but do not retain large response chunks on idle connections.
-        // Remember this across partial writes, which can hide capacity in a consumed prefix.
-        *write_buf_needs_reset |=
-            write_buf.capacity() > h1_write_buffer_size.saturating_mul(4).max(HW_BUFFER_SIZE);
+        // Allow normal buffer growth, but do not retain allocations caused by large response
+        // chunks on idle connections.
+        let retention_limit = (*h1_write_buffer_size).max(WRITE_BUFFER_RETENTION_LIMIT);
+
+        if write_buf.capacity() > retention_limit {
+            // Needs stored flag because `write_buf.advance(n)` reduces reported capacity without
+            // releasing the backing allocation.
+            *write_buf_needs_reset = true;
+        }
 
         let len = write_buf.len();
         let mut written = 0;
@@ -1522,6 +1535,10 @@ fn trace_timer_states(
         trace!("  shutdown {}", &shutdown_timer);
     }
 }
+
+#[cfg(test)]
+#[path = "dispatcher_tests.rs"]
+mod dispatcher_tests;
 
 #[cfg(test)]
 #[path = "dispatcher_buffer_tests.rs"]

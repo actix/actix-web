@@ -171,3 +171,13 @@ async fn normal_write_buffer_reused_after_flush() {
 async fn configured_write_buffer_reused_after_flush() {
     check_buffer_retention(256 * 1024, 1024 * 1024, false, false).await;
 }
+
+#[actix_rt::test]
+async fn small_write_watermark_preserves_normal_buffer() {
+    check_buffer_retention(64 * 1024, 8 * 1024, false, false).await;
+}
+
+#[actix_rt::test]
+async fn buffer_above_configured_write_watermark_released() {
+    check_buffer_retention(512 * 1024, 256 * 1024, false, true).await;
+}
