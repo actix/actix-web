@@ -286,6 +286,13 @@ impl MessageType for Request {
         // convert headers
         let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
+        // disallow HTTP/1.1 requests that do not contain a Host header
+        // see https://datatracker.ietf.org/doc/html/rfc9112#section-3.2
+        if ver == Version::HTTP_11 && !msg.head().headers.contains_key(header::HOST) {
+            debug!("missing Host header for HTTP/1.1 request");
+            return Err(ParseError::Header);
+        }
+
         if msg.head().headers.contains_key(header::TRANSFER_ENCODING) {
             if ver == Version::HTTP_10 {
                 debug!("Transfer-Encoding is not allowed in HTTP/1.0 requests");
@@ -644,7 +651,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
         let mut reader = MessageDecoder::<Request>::default();
         match reader.decode(&mut buf) {
@@ -664,7 +671,7 @@ mod tests {
         let mut reader = MessageDecoder::<Request>::default();
         assert!(reader.decode(&mut buf).unwrap().is_none());
 
-        buf.extend(b".1\r\n\r\n");
+        buf.extend(b".1\r\nHost: localhost\r\n\r\n");
         let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(req.version(), Version::HTTP_11);
         assert_eq!(*req.method(), Method::PUT);
@@ -770,7 +777,7 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -786,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_parse_body_crlf() {
-        let mut buf = BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("\r\nGET /test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -802,7 +809,7 @@ mod tests {
 
     #[test]
     fn test_parse_partial_eof() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\n");
         let mut reader = MessageDecoder::<Request>::default();
         assert!(reader.decode(&mut buf).unwrap().is_none());
 
@@ -815,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_headers_split_field() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\n");
 
         let mut reader = MessageDecoder::<Request>::default();
         assert! { reader.decode(&mut buf).unwrap().is_none() }
@@ -844,6 +851,7 @@ mod tests {
     fn test_headers_multi_value() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n",
         );
@@ -867,7 +875,7 @@ mod tests {
 
     #[test]
     fn test_conn_default_1_1() {
-        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.1\r\n\r\n"));
+        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
@@ -875,12 +883,14 @@ mod tests {
     fn test_conn_close() {
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: close\r\n\r\n",
         ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
 
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: Close\r\n\r\n",
         ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
@@ -914,6 +924,7 @@ mod tests {
     fn test_conn_keep_alive_1_1() {
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: keep-alive\r\n\r\n",
         ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
@@ -932,6 +943,7 @@ mod tests {
     fn test_conn_other_1_1() {
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: other\r\n\r\n",
         ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
@@ -941,6 +953,7 @@ mod tests {
     fn test_conn_upgrade() {
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n",
         ));
@@ -950,6 +963,7 @@ mod tests {
 
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              upgrade: Websockets\r\n\
              connection: Upgrade\r\n\r\n",
         ));
@@ -962,6 +976,7 @@ mod tests {
     fn test_conn_upgrade_connect_method() {
         let req = parse_ready!(&mut BytesMut::from(
             "CONNECT /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              content-type: text/plain\r\n\r\n",
         ));
 
@@ -973,12 +988,14 @@ mod tests {
         // string CL
         expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              content-length: line\r\n\r\n",
         ));
 
         // negative CL
         expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              content-length: -1\r\n\r\n",
         ));
     }
@@ -987,6 +1004,7 @@ mod tests {
     fn octal_ish_cl_parsed_as_decimal() {
         let mut buf = BytesMut::from(
             "POST /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              content-length: 011\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -1001,6 +1019,7 @@ mod tests {
     fn test_invalid_header() {
         expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              test line\r\n\r\n",
         ));
     }
@@ -1009,6 +1028,7 @@ mod tests {
     fn test_invalid_name() {
         expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              test[]: line\r\n\r\n",
         ));
     }
@@ -1022,6 +1042,7 @@ mod tests {
     fn test_http_request_upgrade_websocket() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: upgrade\r\n\
              upgrade: websocket\r\n\r\n\
              some raw data",
@@ -1037,6 +1058,7 @@ mod tests {
     fn test_http_request_upgrade_h2c() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              connection: upgrade, http2-settings\r\n\
              upgrade: h2c\r\n\
              http2-settings: dummy\r\n\r\n",
@@ -1057,6 +1079,7 @@ mod tests {
     fn test_http_request_parser_utf8() {
         let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              x-test: тест\r\n\r\n",
         ));
 
@@ -1068,7 +1091,7 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_two_slashes() {
-        let req = parse_ready!(&mut BytesMut::from("GET //path HTTP/1.1\r\n\r\n"));
+        let req = parse_ready!(&mut BytesMut::from("GET //path HTTP/1.1\r\nHost: localhost\r\n\r\n"));
         assert_eq!(req.path(), "//path");
     }
 
@@ -1250,6 +1273,18 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"a")));
+    }
+
+    #[test]
+    fn http11_reject_missing_host_header() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+            Accept: */*\r\n\r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let err = reader.decode(&mut buf).unwrap_err();
+        assert!(matches!(err, ParseError::Header));
     }
 
     #[test]

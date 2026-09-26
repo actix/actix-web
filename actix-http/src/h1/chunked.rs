@@ -285,6 +285,7 @@ mod tests {
     fn test_reject_empty_chunk_size() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -300,6 +301,7 @@ mod tests {
     fn test_parse_chunked_payload_chunk_extension() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+            Host: localhost\r\n\
             transfer-encoding: chunked\r\n\
             \r\n",
         );
@@ -322,6 +324,7 @@ mod tests {
     fn test_request_chunked() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let req = parse_ready!(&mut buf);
@@ -335,6 +338,7 @@ mod tests {
         // intentional typo in "chunked"
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chnked\r\n\r\n",
         );
         expect_parse_err!(&mut buf);
@@ -344,6 +348,7 @@ mod tests {
     fn test_http_request_chunked_payload() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -367,6 +372,7 @@ mod tests {
     fn test_http_request_chunked_payload_and_next_message() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -377,6 +383,7 @@ mod tests {
         buf.extend(
             b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
               POST /test2 HTTP/1.1\r\n\
+              Host: localhost\r\n\
               transfer-encoding: chunked\r\n\r\n"
                 .iter(),
         );
@@ -397,6 +404,7 @@ mod tests {
     fn test_http_request_chunked_payload_chunks() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
 
@@ -505,6 +513,7 @@ mod tests {
     fn test_parse_chunked_payload_with_trailers() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n\
              4\r\ndata\r\n\
              0\r\n\
@@ -519,6 +528,7 @@ mod tests {
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n\
              4\r\ndata\r\n\
              0\r\n\
