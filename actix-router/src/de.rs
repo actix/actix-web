@@ -558,7 +558,7 @@ impl<'de> ValueSeq<'de> {
     }
 
     fn len(&self) -> usize {
-        self.elems.clone().filter(|s| !s.is_empty()).count()
+        self.elems.clone().count()
     }
 }
 
@@ -569,13 +569,10 @@ impl<'de> de::SeqAccess<'de> for ValueSeq<'de> {
     where
         T: de::DeserializeSeed<'de>,
     {
-        for elem in &mut self.elems {
-            if !elem.is_empty() {
-                return seed.deserialize(Value { value: elem }).map(Some);
-            }
-        }
-
-        Ok(None)
+        self.elems
+            .next()
+            .map(|value| seed.deserialize(Value { value }))
+            .transpose()
     }
 
     fn size_hint(&self) -> Option<usize> {
@@ -831,11 +828,55 @@ mod tests {
         let newtypes: Vec<NewtypePath> =
             de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(newtypes, vec![NewtypePath("tail/with/slash/es".to_owned())]);
+    }
 
-        let mut path = Path::new("/path/to/one//two/");
-        assert!(router.recognize(&mut path).is_some());
-        let i: TestSeq1 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
-        assert_eq!(i.tail, vec!["one".to_owned(), "two".to_owned()]);
+    #[test]
+    fn captured_sequences_preserve_empty_components() {
+        for pattern in ["/path/{tail}*", "/path/{tail:.*}"] {
+            let resource = ResourceDef::new(pattern);
+
+            for (uri, expected) in [
+                ("/path/", vec![""]),
+                ("/path//", vec!["", ""]),
+                ("/path///one//two/", vec!["", "", "one", "", "two", ""]),
+                ("/path//one%2Ftwo/%252F/", vec!["", "one/two", "%2F", ""]),
+            ] {
+                let mut path = Path::new(uri);
+                assert!(resource.capture_match_info(&mut path));
+
+                let value: TestSeq1 =
+                    de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+                assert_eq!(value.tail, expected, "pattern: {pattern}, URI: {uri}");
+            }
+        }
+    }
+
+    #[test]
+    fn captured_tuples_preserve_empty_components() {
+        let resource = ResourceDef::new("/path/{tail}*");
+        let mut path = Path::new("/path/one//");
+        assert!(resource.capture_match_info(&mut path));
+
+        let tuple: TestSeq2 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(tuple.tail, ("one".to_owned(), String::new(), String::new()));
+
+        let tuple_struct: TestSeq3 =
+            de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(
+            tuple_struct.tail,
+            TestTupleStruct("one".to_owned(), String::new(), String::new())
+        );
+
+        let short_tuple: Result<((String, String),), _> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        short_tuple.unwrap_err();
+
+        let mut path = Path::new("/path/1//2");
+        assert!(resource.capture_match_info(&mut path));
+
+        let numbers: Result<(Vec<u32>,), _> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        numbers.unwrap_err();
     }
 
     #[test]
@@ -942,7 +983,7 @@ mod tests {
     fn test_value_seq_size_hint_counts_remaining_elements() {
         use serde::de::SeqAccess as _;
 
-        let mut seq = ValueSeq::new("tail/with/slash");
+        let mut seq = ValueSeq::new("tail//slash");
 
         assert_eq!(seq.size_hint(), Some(3));
 

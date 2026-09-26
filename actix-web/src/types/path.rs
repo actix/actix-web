@@ -22,6 +22,7 @@ use crate::{
 /// including `/`, `%`, and `+`.
 ///
 /// # Examples
+///
 /// ```
 /// use actix_web::{get, web};
 ///
@@ -54,9 +55,11 @@ use crate::{
 /// }
 /// ```
 ///
-/// Segments matching multiple path components can be deserialized
-/// into a `Vec<_>` to percent-decode the components individually. Empty
-/// path components are ignored.
+/// Segments matching multiple path components can be deserialized into a `Vec<_>` to percent-decode
+/// the components individually. Splitting happens before percent-decoding, so an encoded slash
+/// stays within one component. Empty components are preserved, including leading and trailing ones.
+/// An empty capture produces a single empty component. Use [`NormalizePath`] to merge repeated
+/// slashes and configure trailing slashes before extraction.
 ///
 /// ```
 /// use actix_web::{get, web};
@@ -73,6 +76,8 @@ use crate::{
 ///     format!("Navigating to {}!", info.tail.join(" :: "))
 /// }
 /// ```
+///
+/// [`NormalizePath`]: crate::middleware::NormalizePath
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
 pub struct Path<T>(T);
 
@@ -189,6 +194,40 @@ mod tests {
     struct Test2 {
         key: String,
         value: u32,
+    }
+
+    #[actix_rt::test]
+    async fn tail_components_preserve_empty_values() {
+        use crate::{middleware::NormalizePath, test, web, App};
+
+        async fn tail(path: Path<(Vec<String>,)>) -> web::Json<Vec<String>> {
+            web::Json(path.into_inner().0)
+        }
+
+        let app = test::init_service(App::new().route("/path/{tail}*", web::get().to(tail))).await;
+
+        for (uri, expected) in [
+            ("/path/", vec![""]),
+            (
+                "/path//one//two%2Fthree/",
+                vec!["", "one", "", "two/three", ""],
+            ),
+        ] {
+            let req = TestRequest::with_uri(uri).to_request();
+            let components: Vec<String> = test::call_and_read_body_json(&app, req).await;
+            assert_eq!(components, expected);
+        }
+
+        let normalized_app = test::init_service(
+            App::new()
+                .wrap(NormalizePath::trim())
+                .route("/path/{tail}*", web::get().to(tail)),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/path//one//two%2Fthree/").to_request();
+        let components: Vec<String> = test::call_and_read_body_json(&normalized_app, req).await;
+        assert_eq!(components, ["one", "two/three"]);
     }
 
     #[actix_rt::test]
