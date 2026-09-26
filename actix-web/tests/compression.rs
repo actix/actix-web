@@ -8,6 +8,7 @@ use actix_web::{
 };
 use bytes::Bytes;
 use futures_util::{stream, StreamExt as _};
+use tokio_util::future::FutureExt as _;
 
 mod utils;
 
@@ -16,56 +17,6 @@ static LOREM_GZIP: &[u8] = include_bytes!("fixtures/lorem.txt.gz");
 static LOREM_BR: &[u8] = include_bytes!("fixtures/lorem.txt.br");
 static LOREM_ZSTD: &[u8] = include_bytes!("fixtures/lorem.txt.zst");
 static LOREM_XZ: &[u8] = include_bytes!("fixtures/lorem.txt.xz");
-
-// Regression test for https://github.com/actix/actix-web/issues/3410.
-#[actix_rt::test]
-async fn gzip_stream_delivers_content_while_body_is_pending() {
-    const INITIAL_CONTENT: &[u8] = b"This content appears immediately";
-
-    let srv = actix_test::start(|| {
-        App::new()
-            .wrap(Compress::default())
-            .default_service(web::to(|| async {
-                let body =
-                    stream::once(async { Ok::<_, io::Error>(Bytes::from_static(INITIAL_CONTENT)) })
-                        // Keep the body open so completion cannot flush the compressor.
-                        .chain(stream::pending());
-
-                HttpResponse::Ok()
-                    .content_type("text/html; charset=utf-8")
-                    .streaming(body)
-            }))
-    });
-
-    let mut res = srv
-        .get("/")
-        .insert_header((header::ACCEPT_ENCODING, "gzip"))
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::OK);
-    assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
-
-    // Read decoded content, since a gzip header alone does not make progress.
-    let content = actix_rt::time::timeout(Duration::from_secs(1), async {
-        let mut content = Vec::new();
-
-        while content.len() < INITIAL_CONTENT.len() {
-            let chunk = res.next().await.unwrap().unwrap();
-            content.extend_from_slice(&chunk);
-        }
-
-        content
-    })
-    .await;
-
-    drop(res);
-    srv.stop().await;
-
-    let content = content.expect("gzip retained content while the response body was pending");
-    assert_eq!(content, INITIAL_CONTENT);
-}
 
 macro_rules! test_server {
     () => {
@@ -353,6 +304,57 @@ async fn deny_identity_coding_no_decompress() {
     assert_eq!(bytes, Bytes::from_static(LOREM_BR));
 
     srv.stop().await;
+}
+
+// Regression test for https://github.com/actix/actix-web/issues/3410.
+#[actix_rt::test]
+async fn gzip_stream_delivers_content_while_body_is_pending() {
+    const INITIAL_CONTENT: &[u8] = b"This content appears immediately";
+
+    let srv = actix_test::start(|| {
+        App::new()
+            .wrap(Compress::default())
+            .default_service(web::to(|| async {
+                let body =
+                    stream::once(async { Ok::<_, io::Error>(Bytes::from_static(INITIAL_CONTENT)) })
+                        // Keep the body open so completion cannot flush the compressor.
+                        .chain(stream::pending());
+
+                HttpResponse::Ok()
+                    .content_type("text/html; charset=utf-8")
+                    .streaming(body)
+            }))
+    });
+
+    let mut res = srv
+        .get("/")
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+
+    // Read decoded content, since a gzip header alone does not make progress.
+    let content = async {
+        let mut content = Vec::new();
+
+        while content.len() < INITIAL_CONTENT.len() {
+            let chunk = res.next().await.unwrap().unwrap();
+            content.extend_from_slice(&chunk);
+        }
+
+        content
+    }
+    .timeout(Duration::from_secs(1))
+    .await;
+
+    drop(res);
+    srv.stop().await;
+
+    let content = content.expect("gzip retained content while the response body was pending");
+    assert_eq!(content, INITIAL_CONTENT);
 }
 
 // TODO: fix test

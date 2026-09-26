@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Flush compressed response bodies when the source is pending.
+
 ## 3.18.11
 
 - Reject requests with a missing or duplicate `Host` header in HTTP/1.1 requests.
