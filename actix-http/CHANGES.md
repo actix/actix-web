@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.18.12
+
 - Flush compressed response bodies when the source is pending.
 
 ## 3.18.11
