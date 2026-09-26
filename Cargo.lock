@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.18.11"
+version = "3.18.12"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -3527,6 +3527,7 @@ dependencies = [
  "futures-sink",
  "libc",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 
