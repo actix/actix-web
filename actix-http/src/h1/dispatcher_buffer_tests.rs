@@ -10,8 +10,9 @@ use crate::{
     test::TestBuffer,
 };
 
-// Stop accepting writes after a shared byte budget is exhausted. The test can
-// then restore the budget and poll the dispatcher again, as if the socket became writable.
+/// Stops accepting writes after a shared byte budget is exhausted.
+///
+/// The test can restore the budget and poll the dispatcher again, as if the socket became writable.
 struct LimitedWriter {
     io: TestBuffer,
     allowance: Rc<Cell<usize>>,
@@ -54,6 +55,15 @@ impl AsyncWrite for LimitedWriter {
     }
 }
 
+/// Checks buffer retention and complete responses on a persistent HTTP/1 connection.
+///
+/// - `body_len`: Response body length in bytes, sent as one chunk for each request.
+/// - `threshold`: Configured HTTP/1 write-buffer watermark in bytes. The retention limit is
+///   the larger of this value and `WRITE_BUFFER_RETENTION_LIMIT`.
+/// - `partial`: If true, block writes after `body_len - 1024` bytes, including headers,
+///   then resume them. Requires `body_len > 1024`.
+/// - `release`: If true, expect the drained buffer to retain at most `HW_BUFFER_SIZE` bytes.
+///   Otherwise, expect sufficient capacity for the body and reuse of the buffer on the next request.
 async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool, release: bool) {
     let mut io = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     // The budget includes response headers. Leave a small unwritten tail so
