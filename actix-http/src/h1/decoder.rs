@@ -900,7 +900,7 @@ mod tests {
             (r#"custom="é, bar", 100-Continue"#, true),
         ] {
             let raw =
-                format!("POST /test HTTP/1.1\r\ncontent-length: 1\r\nexpect: {value}\r\n\r\n");
+                format!("POST /test HTTP/1.1\r\nHost: localhost\r\ncontent-length: 1\r\nexpect: {value}\r\n\r\n");
             let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
             assert_eq!(req.head().expect(), expected, "{value:?}");
         }
