@@ -991,7 +991,9 @@ mod tests {
             ("upgrade\r\nconnection: close", ConnectionType::Close),
             ("not-upgrade", ConnectionType::KeepAlive),
         ] {
-            let raw = format!("GET /test HTTP/1.1\r\nconnection: {connection}\r\n\r\n");
+            let raw = format!(
+                "GET /test HTTP/1.1\r\nHost: localhost\r\nconnection: {connection}\r\n\r\n"
+            );
             let req = parse_ready!(&mut BytesMut::from(raw.as_str()));
             assert_eq!(req.head().connection_type(), expected, "{connection:?}");
             assert_eq!(
