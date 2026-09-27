@@ -2,9 +2,7 @@
 
 ## Unreleased
 
-- Parse all HTTP/1 `Connection` header options consistently. [#2692]
-
-[#2692]: https://github.com/actix/actix-web/issues/2692
+- Parse all HTTP/1 `Connection` header options consistently.
 
 ## 3.18.12
 
