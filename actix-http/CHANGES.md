@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Parse all HTTP/1 `Connection` header options consistently.
+
 ## 3.18.12
 
 - Flush compressed response bodies when the source is pending.
