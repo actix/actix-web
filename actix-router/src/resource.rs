@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     hash::{BuildHasher, Hash, Hasher},
     mem,
+    sync::{Mutex, OnceLock},
 };
 
 use tracing::error;
@@ -1061,22 +1062,42 @@ impl ResourceDef {
             }
         }
 
-        let re = match Regex::new(&re) {
-            Ok(re) => re,
-            Err(err) => panic!("Wrong path pattern: \"{}\" {}", pattern, err),
-        };
-
-        // `Bok::leak(Box::new(name))` is an intentional memory leak. In typical applications the
-        // routing table is only constructed once (per worker) so leak is bounded. If you are
-        // constructing `ResourceDef`s more than once in your application's lifecycle you would
-        // expect a linear increase in leaked memory over time.
-        let names = re
-            .capture_names()
-            .filter_map(|name| name.map(|name| Box::leak(Box::new(name.to_owned())).as_str()))
-            .collect();
+        let (re, names) = compile(&re, pattern);
 
         (PatternType::Dynamic(re, names), segments)
     }
+}
+
+/// A compiled pattern regex and the names of its capture groups.
+type CompiledPattern = (Regex, Vec<&'static str>);
+
+/// Compiles a pattern's regex once per process and hands out clones, which share the compiled
+/// program, since every worker builds the same routing table.
+fn compile(re: &str, pattern: &str) -> CompiledPattern {
+    static COMPILED: OnceLock<Mutex<HashMap<String, CompiledPattern>>> = OnceLock::new();
+
+    let mut compiled = COMPILED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    if let Some(found) = compiled.get(re) {
+        return found.clone();
+    }
+
+    let regex = match Regex::new(re) {
+        Ok(regex) => regex,
+        Err(err) => panic!("Wrong path pattern: \"{}\" {}", pattern, err),
+    };
+
+    // `Box::leak(Box::new(name))` is an intentional memory leak, once per distinct pattern.
+    let names: Vec<&'static str> = regex
+        .capture_names()
+        .filter_map(|name| name.map(|name| Box::leak(Box::new(name.to_owned())).as_str()))
+        .collect();
+
+    compiled.insert(re.to_owned(), (regex.clone(), names.clone()));
+    (regex, names)
 }
 
 impl Eq for ResourceDef {}
@@ -1307,6 +1328,29 @@ mod tests {
         assert!(re.capture_match_info(&mut path));
         assert_eq!(path.get("id").unwrap(), "012345");
         assert_eq!(path.unprocessed(), "");
+    }
+
+    #[test]
+    fn same_pattern_shares_compiled_regex() {
+        let first = ResourceDef::new("/shared/{id}/{name}");
+        let second = ResourceDef::new("/shared/{id}/{name}");
+
+        let (PatternType::Dynamic(_, first_names), PatternType::Dynamic(_, second_names)) =
+            (&first.pat_type, &second.pat_type)
+        else {
+            panic!("both definitions should be dynamic");
+        };
+
+        assert_eq!(first_names, &["id", "name"]);
+        assert!(first_names
+            .iter()
+            .zip(second_names)
+            .all(|(first, second)| std::ptr::eq(*first, *second)));
+
+        let mut path = Path::new("/shared/7/ann");
+        assert!(second.capture_match_info(&mut path));
+        assert_eq!(path.get("id").unwrap(), "7");
+        assert_eq!(path.get("name").unwrap(), "ann");
     }
 
     #[allow(clippy::cognitive_complexity)]
