@@ -35,11 +35,11 @@ jobs:
           persist-credentials: false
 
       - name: Install nasm
-        if: matrix.target.os == 'windows-latest'
+        if: matrix.target.name == 'Windows'
         uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
 
       - name: Install OpenSSL
-        if: matrix.target.os == 'windows-latest'
+        if: matrix.target.name == 'Windows'
         shell: bash
         run: |
           set -e
