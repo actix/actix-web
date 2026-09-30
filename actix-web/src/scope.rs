@@ -575,7 +575,8 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use actix_utils::future::ok;
+    use std::future::ready;
+
     use bytes::Bytes;
 
     use super::*;
@@ -911,7 +912,7 @@ mod tests {
                 web::scope("/app")
                     .service(web::resource("/path1").to(HttpResponse::Ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ready(Ok(r.into_response(HttpResponse::BadRequest())))
                     }),
             ),
         )
@@ -933,7 +934,7 @@ mod tests {
                 .service(web::scope("/app1").default_service(web::to(HttpResponse::BadRequest)))
                 .service(web::scope("/app2"))
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    ready(Ok(r.into_response(HttpResponse::MethodNotAllowed())))
                 }),
         )
         .await;

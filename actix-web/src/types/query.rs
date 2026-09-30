@@ -2,7 +2,8 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_utils::future::{ok, ready, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
@@ -106,6 +107,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
@@ -117,7 +119,7 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
             .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map(|val| ok(Query(val)))
+            .map(|val| ready(Ok(Query(val))))
             .unwrap_or_else(move |err| {
                 let err = QueryPayloadError::Deserialize(err);
 

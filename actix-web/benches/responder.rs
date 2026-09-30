@@ -1,7 +1,9 @@
-use std::{future::Future, time::Instant};
+use std::{
+    future::{ready, Future, Ready},
+    time::Instant,
+};
 
 use actix_http::body::BoxBody;
-use actix_utils::future::{ready, Ready};
 use actix_web::{http::StatusCode, test::TestRequest, Error, HttpRequest, HttpResponse, Responder};
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures_util::future::join_all;

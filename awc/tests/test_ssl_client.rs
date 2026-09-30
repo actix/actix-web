@@ -4,6 +4,7 @@ extern crate tls_openssl as openssl;
 
 use std::{
     convert::Infallible,
+    future::ready,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -13,7 +14,6 @@ use std::{
 use actix_http::{HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
-use actix_utils::future::ok;
 use actix_web::{
     dev::AppConfig,
     http::{header, Version},
@@ -61,7 +61,7 @@ async fn test_connection_reuse_h2() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::build()

@@ -9,6 +9,7 @@ use std::{
 };
 
 use actix_http::error::PayloadError;
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
@@ -129,6 +130,7 @@ impl Stream for Payload {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Payload {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -155,6 +157,7 @@ impl FromRequest for Payload {
 ///     format!("Body {:?}!", body)
 /// }
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Bytes {
     type Error = Error;
     type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
@@ -202,6 +205,7 @@ impl Future for BytesExtractFut {
 /// async fn index(text: String) -> String {
 ///     format!("Body {}!", text)
 /// }
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for String {
     type Error = Error;
     type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
