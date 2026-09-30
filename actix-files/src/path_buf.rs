@@ -4,6 +4,7 @@ use std::{
     str::FromStr,
 };
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
@@ -125,6 +126,7 @@ impl AsRef<Path> for PathBufWrap {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
     type Future = Ready<Result<Self, Self::Error>>;

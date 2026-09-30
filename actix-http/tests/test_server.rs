@@ -1,5 +1,6 @@
 use std::{
     convert::Infallible,
+    future::ready,
     io::{Read, Write},
     net, thread,
     time::{Duration, Instant},
@@ -15,7 +16,6 @@ use actix_rt::{
     time::{sleep, timeout},
 };
 use actix_service::fn_service;
-use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
@@ -31,7 +31,7 @@ async fn h1_basic() {
             .client_disconnect_timeout(Duration::from_secs(1))
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
@@ -53,7 +53,7 @@ async fn h1_2() {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
@@ -81,12 +81,12 @@ async fn expect_continue() {
         HttpService::build()
             .expect(fn_service(|req: Request| {
                 if req.head().uri.query() == Some("yes=") {
-                    ok(req)
+                    ready(Ok(req))
                 } else {
-                    err(ExpectFailed)
+                    ready(Err(ExpectFailed))
                 }
             }))
-            .finish(|_| ok::<_, Infallible>(Response::ok()))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -115,13 +115,13 @@ async fn expect_continue_h1() {
             .expect(fn_service(|req: Request| {
                 sleep(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
-                        ok(req)
+                        ready(Ok(req))
                     } else {
-                        err(ExpectFailed)
+                        ready(Err(ExpectFailed))
                     }
                 })
             }))
-            .h1(fn_service(|_| ok::<_, Infallible>(Response::ok())))
+            .h1(fn_service(|_| ready(Ok::<_, Infallible>(Response::ok()))))
             .tcp()
     })
     .await;
@@ -211,7 +211,7 @@ async fn slow_request_408() {
         HttpService::build()
             .client_request_timeout(Duration::from_millis(200))
             .keep_alive(Duration::from_secs(2))
-            .finish(|_| ok::<_, Infallible>(Response::ok()))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -245,7 +245,7 @@ async fn slow_request_408() {
 async fn http1_malformed_request() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -263,7 +263,7 @@ async fn http1_malformed_request() {
 async fn http1_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -287,7 +287,7 @@ async fn http1_keepalive_timeout() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(Duration::from_secs(1))
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -312,7 +312,7 @@ async fn http1_keepalive_timeout() {
 async fn http1_keepalive_close() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -336,7 +336,7 @@ async fn http1_keepalive_close() {
 async fn http10_keepalive_default_close() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -358,7 +358,7 @@ async fn http10_keepalive_default_close() {
 async fn http10_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -387,7 +387,7 @@ async fn http1_keepalive_disabled() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -424,7 +424,7 @@ async fn content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, Infallible>(Response::new(statuses[idx]))
+                ready(Ok::<_, Infallible>(Response::new(statuses[idx])))
             })
             .tcp()
     })
@@ -538,7 +538,7 @@ async fn h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
                 }
-                ok::<_, Infallible>(builder.body(data.clone()))
+                ready(Ok::<_, Infallible>(builder.body(data.clone())))
             })
             .tcp()
     })
@@ -580,7 +580,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -599,7 +599,7 @@ async fn h1_body() {
 async fn h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -626,7 +626,7 @@ async fn h1_head_empty() {
 async fn h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -653,7 +653,7 @@ async fn h1_head_binary() {
 async fn h1_head_binary2() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -677,10 +677,10 @@ async fn h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
-                )
+                ))
             })
             .tcp()
     })
@@ -701,12 +701,12 @@ async fn h1_body_chunked_explicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .body(BodyStream::new(body)),
-                )
+                ))
             })
             .tcp()
     })
@@ -738,8 +738,10 @@ async fn h1_body_chunked_implicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(Response::build(StatusCode::OK).body(BodyStream::new(body)))
+                let body = once(ready(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
+                    Response::build(StatusCode::OK).body(BodyStream::new(body)),
+                ))
             })
             .tcp()
     })
@@ -770,11 +772,11 @@ async fn h1_response_http_error_handling() {
         HttpService::build()
             .h1(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, Infallible>(
+                ready(Ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((http::header::CONTENT_TYPE, broken_header))
                         .body(STR),
-                )
+                ))
             }))
             .tcp()
     })
@@ -807,7 +809,7 @@ impl From<BadRequest> for Response<BoxBody> {
 async fn h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response<()>, _>(BadRequest))
+            .h1(|_| ready(Err::<Response<()>, _>(BadRequest)))
             .tcp()
     })
     .await;
@@ -831,7 +833,7 @@ async fn h1_on_connect() {
             })
             .h1(|req: Request| {
                 assert!(req.conn_data::<isize>().is_some());
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
@@ -886,7 +888,7 @@ async fn not_modified_spec_h1() {
                     _ => panic!("unknown route"),
                 };
 
-                ok::<_, Infallible>(res)
+                ready(Ok::<_, Infallible>(res))
             })
             .tcp()
     })
@@ -937,7 +939,7 @@ async fn h2c_auto() {
                     Version::HTTP_2 => "h2",
                     _ => unreachable!(),
                 };
-                ok::<_, Infallible>(Response::ok().set_body(body))
+                ready(Ok::<_, Infallible>(Response::ok().set_body(body)))
             })
             .tcp_auto_h2c()
     })

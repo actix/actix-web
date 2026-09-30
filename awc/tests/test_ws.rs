@@ -1,9 +1,8 @@
-use std::io;
+use std::{future::ready, io};
 
 use actix_codec::Framed;
 use actix_http::{body::BodySize, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
-use actix_utils::future::ok;
 use bytes::Bytes;
 use futures_util::{SinkExt as _, StreamExt as _};
 
@@ -36,7 +35,7 @@ async fn test_simple() {
                     ws::Dispatcher::with(framed, ws_service).await
                 }
             })
-            .finish(|_| ok::<_, Error>(Response::not_found()))
+            .finish(|_| ready(Ok::<_, Error>(Response::not_found())))
             .tcp()
     })
     .await;
