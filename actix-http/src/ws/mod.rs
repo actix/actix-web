@@ -5,9 +5,9 @@
 
 use std::io;
 
+use base64::prelude::*;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
-use base64::prelude::*;
 
 use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
@@ -215,9 +215,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     };
 
     let mut decoded = [0u8; 16];
-    if key.len() != 24
-        || BASE64_STANDARD.decode_slice(key, &mut decoded) != Ok(16)
-    {
+    if key.len() != 24 || BASE64_STANDARD.decode_slice(key, &mut decoded) != Ok(16) {
         return Err(HandshakeError::BadWebsocketKey);
     }
     Ok(())
