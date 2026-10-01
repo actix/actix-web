@@ -1,7 +1,6 @@
 use std::{cmp::min, io, str};
 
 use bytes::{Buf, BufMut, BytesMut};
-use tracing::debug;
 
 use super::{
     mask::apply_mask,
@@ -169,14 +168,10 @@ impl Parser {
 
         let mut data = src.split_to(length);
 
-        // control frames must have length <= 125
+        // control frames must have length <= 125 (RFC 6455 §5.5)
         match opcode {
-            OpCode::Ping | OpCode::Pong if length > MAX_CONTROL_FRAME_PAYLOAD => {
+            OpCode::Ping | OpCode::Pong | OpCode::Close if length > MAX_CONTROL_FRAME_PAYLOAD => {
                 return Err(ProtocolError::InvalidLength(length));
-            }
-            OpCode::Close if length > MAX_CONTROL_FRAME_PAYLOAD => {
-                debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some((true, OpCode::Close, None)));
             }
             _ => {}
         }
@@ -538,6 +533,25 @@ mod tests {
         assert!(matches!(
             Parser::try_parse_close_payload(&[0, 0]).unwrap_err(),
             ProtocolError::BadOpCode
+        ));
+    }
+
+    #[test]
+    fn test_oversized_control_frames() {
+        // Ping frame with 126 bytes payload (exceeding 125 limit)
+        let mut buf = BytesMut::from(&[0x89u8, 126u8, 0x00, 126][..]);
+        buf.extend(vec![0u8; 126]);
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 65536),
+            Err(ProtocolError::InvalidLength(126))
+        ));
+
+        // Close frame with 126 bytes payload (exceeding 125 limit)
+        let mut buf = BytesMut::from(&[0x88u8, 126u8, 0x00, 126][..]);
+        buf.extend(vec![0u8; 126]);
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 65536),
+            Err(ProtocolError::InvalidLength(126))
         ));
     }
 
