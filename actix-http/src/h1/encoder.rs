@@ -277,7 +277,9 @@ impl MessageType for Response<()> {
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
-        dst.reserve(INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len());
+        dst.reserve(
+            INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len(),
+        );
 
         // status line
         helpers::write_status_line(head.version, head.status.as_u16(), dst);
