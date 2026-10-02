@@ -5,6 +5,7 @@
 
 use std::io;
 
+use base64::prelude::*;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
@@ -207,8 +208,14 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
         return Err(HandshakeError::UnsupportedVersion);
     }
 
-    // check client handshake for validity
-    if !req.headers().contains_key(header::SEC_WEBSOCKET_KEY) {
+    // check client handshake for validity (RFC 6455 §4.2.1 clause 5)
+    let key = match req.headers().get(header::SEC_WEBSOCKET_KEY) {
+        Some(key) => key.as_bytes(),
+        None => return Err(HandshakeError::BadWebsocketKey),
+    };
+
+    let mut decoded = [0u8; 16];
+    if key.len() != 24 || BASE64_STANDARD.decode_slice(key, &mut decoded) != Ok(16) {
         return Err(HandshakeError::BadWebsocketKey);
     }
     Ok(())
@@ -340,12 +347,36 @@ mod tests {
             ))
             .insert_header((
                 header::SEC_WEBSOCKET_KEY,
-                header::HeaderValue::from_static("13"),
+                header::HeaderValue::from_static("dGhlIHNhbXBsZSBub25jZQ=="),
             ))
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
             handshake(req.head()).unwrap().finish().status()
+        );
+
+        // Invalid key length / non-16-byte base64 nonce
+        let req = TestRequest::default()
+            .insert_header((
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            ))
+            .insert_header((
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            ))
+            .insert_header((
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            ))
+            .insert_header((
+                header::SEC_WEBSOCKET_KEY,
+                header::HeaderValue::from_static("13"),
+            ))
+            .finish();
+        assert_eq!(
+            HandshakeError::BadWebsocketKey,
+            verify_handshake(req.head()).unwrap_err(),
         );
     }
 
