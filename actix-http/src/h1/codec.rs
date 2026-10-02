@@ -199,7 +199,45 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::HttpMessage as _;
+    use crate::{
+        header::{HeaderValue, UPGRADE},
+        HttpMessage as _, StatusCode,
+    };
+
+    #[actix_rt::test]
+    async fn upgrade_advertisement_preserves_keep_alive() {
+        for (version, camel_case, connection) in [
+            ("HTTP/1.1", false, "connection: upgrade\r\n"),
+            ("HTTP/1.1", true, "Connection: Upgrade\r\n"),
+            ("HTTP/1.0", false, "connection: keep-alive, upgrade\r\n"),
+            ("HTTP/1.0", true, "Connection: keep-alive, upgrade\r\n"),
+        ] {
+            let mut codec = Codec::default();
+            let mut request = BytesMut::from(
+                format!("GET / {version}\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n")
+                    .as_bytes(),
+            );
+            codec.decode(&mut request).unwrap().unwrap();
+
+            let mut response = Response::with_body(StatusCode::OK, ());
+            response.head_mut().set_camel_case_headers(camel_case);
+            response
+                .headers_mut()
+                .insert(UPGRADE, HeaderValue::from_static("websocket"));
+
+            let mut output = BytesMut::new();
+            codec
+                .encode(Message::Item((response, BodySize::Sized(0))), &mut output)
+                .unwrap();
+            let output = std::str::from_utf8(&output).unwrap();
+
+            assert!(
+                output.contains(connection),
+                "missing {connection:?}: {output}"
+            );
+            assert!(codec.keep_alive());
+        }
+    }
 
     #[actix_rt::test]
     async fn test_http_request_chunked_payload_and_next_message() {

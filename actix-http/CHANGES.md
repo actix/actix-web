@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
 - Parse all HTTP/1 `Connection` header options consistently.
 - Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
 
