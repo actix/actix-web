@@ -3,6 +3,11 @@
 name: CI (post-merge)
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/ci-post-merge.yml
+      - justfile
   push:
     branches: [main]
 
@@ -15,6 +20,8 @@ concurrency:
 
 jobs:
   build_and_test_nightly:
+    if: github.event_name == 'push'
+
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +78,12 @@ jobs:
         run: cargo-ci-cache-clean
 
   ci_feature_powerset_check:
-    name: Verify Feature Combinations
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1/4, 2/4, 3/4, 4/4]
+
+    name: Verify Feature Combinations (${{ matrix.partition }})
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
@@ -87,6 +99,8 @@ jobs:
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-key: feature-powerset-${{ matrix.partition }}
 
       - name: Install just, cargo-hack
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
@@ -94,4 +108,6 @@ jobs:
           tool: just,cargo-hack
 
       - name: Check feature combinations
-        run: just check-feature-combinations
+        run: just check-feature-combinations "$PARTITION"
+        env:
+          PARTITION: ${{ matrix.partition }}
