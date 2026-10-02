@@ -3,11 +3,6 @@
 name: CI (post-merge)
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - .github/workflows/ci-post-merge.yml
-      - justfile
   push:
     branches: [main]
 
@@ -20,8 +15,6 @@ concurrency:
 
 jobs:
   build_and_test_nightly:
-    if: github.event_name == 'push'
-
     strategy:
       fail-fast: false
       matrix:
