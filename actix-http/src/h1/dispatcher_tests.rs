@@ -1079,6 +1079,57 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
     .await;
 }
 
+#[cfg(feature = "ws")]
+#[actix_rt::test]
+async fn unsupported_websocket_version_closes_connection() {
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET /ws HTTP/1.1
+        Host: localhost
+        Connection: Upgrade
+        Upgrade: websocket
+        Sec-WebSocket-Version: 8
+        Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        fn_service(|req: Request| {
+            ready(crate::ws::handshake(req.head()).map(|mut res| res.finish()))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        let result = h1.as_mut().poll(cx);
+
+        assert!(
+            matches!(result, Poll::Ready(Ok(()))),
+            "rejected handshake did not finish: {result:?}"
+        );
+
+        let output = buf.take_write_buf();
+        let response = str::from_utf8(&output).unwrap();
+
+        assert!(response.starts_with("HTTP/1.1 426 Unsupported WebSocket version\r\n"));
+        assert!(response.contains("connection: close, upgrade\r\n"));
+        assert!(response.contains("upgrade: websocket\r\n"));
+        assert!(response.contains("sec-websocket-version: 13\r\n"));
+    })
+    .await;
+}
+
 // fix in #2624 reverted temporarily
 // complete fix tracked in #2745
 #[ignore]

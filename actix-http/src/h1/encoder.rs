@@ -12,6 +12,7 @@ use crate::{
     body::BodySize,
     header::{
         map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+        UPGRADE,
     },
     helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
@@ -110,22 +111,39 @@ pub(crate) trait MessageType: Sized {
         }
 
         // Connection
-        match conn_type {
-            ConnectionType::Upgrade => {
+        // Response upgrade advertisements need a connection option (RFC 9110, Section 7.8).
+        let has_upgrade = self.status().is_some() && self.headers().contains_key(UPGRADE);
+
+        match (conn_type, has_upgrade) {
+            (ConnectionType::Close, true) if version >= Version::HTTP_11 => {
+                if camel_case {
+                    dst.put_slice(b"Connection: close, upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: close, upgrade\r\n")
+                }
+            }
+            (ConnectionType::KeepAlive, true) if version < Version::HTTP_11 => {
+                if camel_case {
+                    dst.put_slice(b"Connection: keep-alive, upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: keep-alive, upgrade\r\n")
+                }
+            }
+            (ConnectionType::Upgrade, _) | (_, true) => {
                 if camel_case {
                     dst.put_slice(b"Connection: Upgrade\r\n")
                 } else {
                     dst.put_slice(b"connection: upgrade\r\n")
                 }
             }
-            ConnectionType::KeepAlive if version < Version::HTTP_11 => {
+            (ConnectionType::KeepAlive, false) if version < Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: keep-alive\r\n")
                 } else {
                     dst.put_slice(b"connection: keep-alive\r\n")
                 }
             }
-            ConnectionType::Close if version >= Version::HTTP_11 => {
+            (ConnectionType::Close, false) if version >= Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: close\r\n")
                 } else {
