@@ -1,7 +1,6 @@
 use std::{cmp::min, io, str};
 
 use bytes::{Buf, BufMut, BytesMut};
-use tracing::debug;
 
 use super::{
     mask::apply_mask,
@@ -12,6 +11,36 @@ use super::{
 /// A struct representing a WebSocket frame.
 #[derive(Debug)]
 pub struct Parser;
+
+/// FIN bitmask (RFC 6455 §5.2).
+const FIN_MASK: u8 = 0x80;
+
+/// RSV1, RSV2, and RSV3 bitmask (RFC 6455 §5.2).
+const RSV_MASK: u8 = 0b0111_0000;
+
+/// OpCode 4-bit nibble mask (RFC 6455 §5.2).
+const OPCODE_MASK: u8 = 0x0F;
+
+/// MASK bit bitmask (RFC 6455 §5.2).
+const MASK_BIT: u8 = 0x80;
+
+/// 7-bit payload length bitmask (RFC 6455 §5.2).
+const PAYLOAD_LEN_MASK: u8 = 0x7F;
+
+/// Extended payload length indicator for 16-bit length (RFC 6455 §5.2).
+const EXT_LEN_U16: u8 = 126;
+
+/// Extended payload length indicator for 64-bit length (RFC 6455 §5.2).
+const EXT_LEN_U64: u8 = 127;
+
+/// Maximum payload length allowed for control frames (RFC 6455 §5.5).
+const MAX_CONTROL_FRAME_PAYLOAD: usize = 125;
+
+/// Maximum payload length representable by a 16-bit extended length (RFC 6455 §5.2).
+const U16_PAYLOAD_MAX: usize = u16::MAX as usize;
+
+/// Client masking key length in bytes (RFC 6455 §5.3).
+const MASK_LEN: usize = 4;
 
 impl Parser {
     fn parse_metadata(
@@ -27,10 +56,10 @@ impl Parser {
 
         let first = src[0];
         let second = src[1];
-        let finished = first & 0x80 != 0;
+        let finished = first & FIN_MASK != 0;
 
         // RSV1, RSV2, and RSV3 must be zero unless a negotiated extension defines them.
-        if first & 0b0111_0000 != 0 {
+        if first & RSV_MASK != 0 {
             // TODO(semver-major): use InvalidReservedBits
             return Err(ProtocolError::Io(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -39,7 +68,7 @@ impl Parser {
         }
 
         // check masking
-        let masked = second & 0x80 != 0;
+        let masked = second & MASK_BIT != 0;
         if !masked && server {
             return Err(ProtocolError::UnmaskedFrame);
         } else if masked && !server {
@@ -47,14 +76,14 @@ impl Parser {
         }
 
         // Op code
-        let opcode = OpCode::from(first & 0x0F);
+        let opcode = OpCode::from(first & OPCODE_MASK);
 
         if let OpCode::Bad = opcode {
-            return Err(ProtocolError::InvalidOpcode(first & 0x0F));
+            return Err(ProtocolError::InvalidOpcode(first & OPCODE_MASK));
         }
 
-        let len = second & 0x7F;
-        let length = if len == 126 {
+        let len = second & PAYLOAD_LEN_MASK;
+        let length = if len == EXT_LEN_U16 {
             if chunk_len < 4 {
                 return Ok(None);
             }
@@ -63,7 +92,7 @@ impl Parser {
             ));
             idx += 2;
             len
-        } else if len == 127 {
+        } else if len == EXT_LEN_U64 {
             if chunk_len < 10 {
                 return Ok(None);
             }
@@ -75,13 +104,13 @@ impl Parser {
         };
 
         let mask = if server {
-            if chunk_len < idx + 4 {
+            if chunk_len < idx + MASK_LEN {
                 return Ok(None);
             }
 
-            let mask = TryFrom::try_from(&src[idx..idx + 4]).unwrap();
+            let mask = TryFrom::try_from(&src[idx..idx + MASK_LEN]).unwrap();
 
-            idx += 4;
+            idx += MASK_LEN;
 
             Some(mask)
         } else {
@@ -139,14 +168,10 @@ impl Parser {
 
         let mut data = src.split_to(length);
 
-        // control frames must have length <= 125
+        // control frames must have length <= 125 (RFC 6455 §5.5)
         match opcode {
-            OpCode::Ping | OpCode::Pong if length > 125 => {
+            OpCode::Ping | OpCode::Pong | OpCode::Close if length > MAX_CONTROL_FRAME_PAYLOAD => {
                 return Err(ProtocolError::InvalidLength(length));
-            }
-            OpCode::Close if length > 125 => {
-                debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some((true, OpCode::Close, None)));
             }
             _ => {}
         }
@@ -241,27 +266,27 @@ impl Parser {
     ) {
         let payload = pl.as_ref();
         let one = if fin {
-            0x80 | u8::from(op)
+            FIN_MASK | u8::from(op)
         } else {
             u8::from(op)
         };
         let payload_len = payload.len();
         let (two, p_len) = if mask {
-            (0x80, payload_len + 4)
+            (MASK_BIT, payload_len + MASK_LEN)
         } else {
             (0, payload_len)
         };
 
-        if payload_len < 126 {
+        if payload_len < EXT_LEN_U16 as usize {
             dst.reserve(p_len + 2);
             dst.put_slice(&[one, two | payload_len as u8]);
-        } else if payload_len <= 65_535 {
+        } else if payload_len <= U16_PAYLOAD_MAX {
             dst.reserve(p_len + 4);
-            dst.put_slice(&[one, two | 126]);
+            dst.put_slice(&[one, two | EXT_LEN_U16]);
             dst.put_u16(payload_len as u16);
         } else {
             dst.reserve(p_len + 10);
-            dst.put_slice(&[one, two | 127]);
+            dst.put_slice(&[one, two | EXT_LEN_U64]);
             dst.put_u64(payload_len as u64);
         };
 
@@ -508,6 +533,25 @@ mod tests {
         assert!(matches!(
             Parser::try_parse_close_payload(&[0, 0]).unwrap_err(),
             ProtocolError::BadOpCode
+        ));
+    }
+
+    #[test]
+    fn test_oversized_control_frames() {
+        // Ping frame with 126 bytes payload (exceeding 125 limit)
+        let mut buf = BytesMut::from(&[0x89u8, 126u8, 0x00, 126][..]);
+        buf.extend(vec![0u8; 126]);
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 65536),
+            Err(ProtocolError::InvalidLength(126))
+        ));
+
+        // Close frame with 126 bytes payload (exceeding 125 limit)
+        let mut buf = BytesMut::from(&[0x88u8, 126u8, 0x00, 126][..]);
+        buf.extend(vec![0u8; 126]);
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 65536),
+            Err(ProtocolError::InvalidLength(126))
         ));
     }
 
