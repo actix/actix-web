@@ -225,10 +225,13 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
 /// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
+/// Length of Base64 encoded SHA-1 hash for `Sec-WebSocket-Accept` (RFC 6455 §1.3, §4.2.2).
+const WS_ACCEPT_LEN: usize = 28;
+
 /// Hashes the `Sec-WebSocket-Key` header according to the WebSocket spec.
 ///
 /// Result is a Base64 encoded byte array. `base64(sha1(input))` is always 28 bytes.
-pub fn hash_key(key: &[u8]) -> [u8; 28] {
+pub fn hash_key(key: &[u8]) -> [u8; WS_ACCEPT_LEN] {
     let hash = {
         use sha1::Digest as _;
 
@@ -240,9 +243,9 @@ pub fn hash_key(key: &[u8]) -> [u8; 28] {
         hasher.finalize()
     };
 
-    let mut hash_b64 = [0; 28];
+    let mut hash_b64 = [0; WS_ACCEPT_LEN];
     let n = BASE64_STANDARD.encode_slice(hash, &mut hash_b64).unwrap();
-    assert_eq!(n, 28);
+    assert_eq!(n, WS_ACCEPT_LEN);
 
     hash_b64
 }
