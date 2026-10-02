@@ -71,7 +71,12 @@ jobs:
         run: cargo-ci-cache-clean
 
   ci_feature_powerset_check:
-    name: Verify Feature Combinations
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8]
+
+    name: Verify Feature Combinations (${{ matrix.partition }})
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
@@ -84,6 +89,8 @@ jobs:
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache-key: feature-powerset-${{ matrix.partition }}
 
       - name: Install just, cargo-hack
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
@@ -91,4 +98,6 @@ jobs:
           tool: just,cargo-hack
 
       - name: Check feature combinations
-        run: just check-feature-combinations
+        run: just check-feature-combinations "$PARTITION"
+        env:
+          PARTITION: ${{ matrix.partition }}
