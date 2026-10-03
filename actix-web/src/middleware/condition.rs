@@ -26,17 +26,30 @@ use crate::{
 /// let app = App::new()
 ///     .wrap(Condition::new(enable_normalize, NormalizePath::default()));
 /// ```
+/// Or you can use an `Option` to create a new instance:
+/// ```
+/// use actix_web::middleware::{Condition, NormalizePath};
+/// use actix_web::App;
+///
+/// let app = App::new()
+///     .wrap(Condition::from_option(Some(NormalizePath::default())));
+/// ```
 pub struct Condition<T> {
-    transformer: T,
-    enable: bool,
+    transformer: Option<T>,
 }
 
 impl<T> Condition<T> {
     pub fn new(enable: bool, transformer: T) -> Self {
         Self {
-            transformer,
-            enable,
+            transformer: match enable {
+                true => Some(transformer),
+                false => None,
+            },
         }
+    }
+
+    pub fn from_option(transformer: Option<T>) -> Self {
+        Self { transformer }
     }
 }
 
@@ -55,8 +68,8 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        if self.enable {
-            let fut = self.transformer.new_transform(service);
+        if let Some(transformer) = &self.transformer {
+            let fut = transformer.new_transform(service);
             async move {
                 let wrapped_svc = fut.await?;
                 Ok(ConditionMiddleware::Enable(wrapped_svc))
@@ -131,6 +144,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService as _;
+    use futures_util::future::ok;
 
     use super::*;
     use crate::{
@@ -165,6 +179,18 @@ mod tests {
         let _ = Condition::new(true, middleware::DefaultHeaders::new());
         let _ = Condition::new(true, middleware::ErrorHandlers::<BoxBody>::new());
         let _ = Condition::new(true, middleware::ErrorHandlers::<Bytes>::new());
+    }
+
+    fn create_optional_mw<B>(enabled: bool) -> Option<ErrorHandlers<B>>
+    where
+        B: 'static,
+    {
+        match enabled {
+            true => Some(
+                ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+            ),
+            false => None,
+        }
     }
 
     #[actix_rt::test]
@@ -202,6 +228,35 @@ mod tests {
 
         let resp: ServiceResponse<EitherBody<EitherBody<_, _>, String>> =
             test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE), None);
+    }
+
+    #[actix_rt::test]
+    async fn test_handler_some() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
+
+        let mw = Condition::from_option(create_optional_mw(true))
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+    }
+
+    #[actix_rt::test]
+    async fn test_handler_none() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
+
+        let mw = Condition::from_option(create_optional_mw(false))
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }
