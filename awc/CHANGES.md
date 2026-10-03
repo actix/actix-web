@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Parse all `Connection` header options when validating WebSocket handshakes.
+
 ## 3.9.0
 
 - Add camel-case header controls to `WebsocketsRequest` via `camel_case_headers()` and `set_camel_case_headers()`.

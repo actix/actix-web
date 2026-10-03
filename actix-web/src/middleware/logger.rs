@@ -13,6 +13,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
@@ -266,6 +267,7 @@ impl Default for Logger {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for Logger
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -739,8 +741,9 @@ impl fmt::Display for FormatDisplay<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::IntoService;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -752,11 +755,11 @@ mod tests {
     #[actix_rt::test]
     async fn test_logger() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(
+            ready(Ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .insert_header(("X-Test", "ttt"))
                     .finish(),
-            ))
+            )))
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
@@ -774,11 +777,11 @@ mod tests {
     #[actix_rt::test]
     async fn test_logger_exclude_regex() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(
+            ready(Ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .insert_header(("X-Test", "ttt"))
                     .finish(),
-            ))
+            )))
         };
         let logger =
             Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test").exclude_regex("\\w");

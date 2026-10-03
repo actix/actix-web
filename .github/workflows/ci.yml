@@ -30,9 +30,9 @@ jobs:
       matrix:
         # prettier-ignore
         target:
-          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
-          - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
-          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
+          - { name: Linux, os: blacksmith-2vcpu-ubuntu-2404, triple: x86_64-unknown-linux-gnu }
+          - { name: macOS, os: blacksmith-6vcpu-macos-latest, triple: x86_64-apple-darwin }
+          - { name: Windows, os: blacksmith-2vcpu-windows-2025, triple: x86_64-pc-windows-msvc }
         version:
           - { name: msrv, version: "${{ needs.read_msrv.outputs.msrv }}" }
           - { name: stable, version: stable }
@@ -41,16 +41,16 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
         with:
           persist-credentials: false
 
       - name: Install nasm
-        if: matrix.target.os == 'windows-latest'
+        if: matrix.target.name == 'Windows'
         uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
 
       - name: Install OpenSSL
-        if: matrix.target.os == 'windows-latest'
+        if: matrix.target.name == 'Windows'
         shell: bash
         run: |
           set -e
@@ -59,7 +59,7 @@ jobs:
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Setup mold linker
-        if: matrix.target.os == 'ubuntu-latest'
+        if: matrix.target.name == 'Linux'
         uses: rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621 # v1 # zizmor: ignore[ref-version-mismatch] v1 is a rolling tag; the SHA is intentionally pinned
 
       - name: Install Rust (${{ matrix.version.name }})
@@ -68,7 +68,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -91,9 +91,9 @@ jobs:
 
   rustdoc:
     name: doc tests
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
         with:
           persist-credentials: false
 
@@ -103,7 +103,7 @@ jobs:
           toolchain: nightly
 
       - name: Install just
-        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: just
 

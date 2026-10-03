@@ -25,6 +25,8 @@ pub(super) enum ChunkedState {
     Body,
     BodyCr,
     BodyLf,
+    Trailer,
+    TrailerLf,
     EndCr,
     EndLf,
     End,
@@ -38,6 +40,7 @@ impl ChunkedState {
         buf: &mut Option<Bytes>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
+
         match *self {
             SizeFirst => ChunkedState::read_size_first(body, size),
             SizeRest => ChunkedState::read_size_rest(body, size),
@@ -47,6 +50,8 @@ impl ChunkedState {
             Body => ChunkedState::read_body(body, size, buf),
             BodyCr => ChunkedState::read_body_cr(body),
             BodyLf => ChunkedState::read_body_lf(body),
+            Trailer => ChunkedState::read_trailer(body),
+            TrailerLf => ChunkedState::read_trailer_lf(body),
             EndCr => ChunkedState::read_end_cr(body),
             EndLf => ChunkedState::read_end_lf(body),
             End => Poll::Ready(Ok(ChunkedState::End)),
@@ -189,15 +194,33 @@ impl ChunkedState {
             ))),
         }
     }
-    fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+
+    fn read_trailer(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        loop {
+            match byte!(rdr) {
+                b'\r' => return Poll::Ready(Ok(ChunkedState::TrailerLf)),
+                _ => continue,
+            }
+        }
+    }
+
+    fn read_trailer_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
+            b'\n' => Poll::Ready(Ok(ChunkedState::EndCr)),
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
+                "Invalid chunk trailer LF",
             ))),
         }
     }
+
+    fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
+        }
+    }
+
     fn read_end_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\n' => Poll::Ready(Ok(ChunkedState::End)),
@@ -243,10 +266,26 @@ mod tests {
         }};
     }
 
+    macro_rules! assert_decode_chunk_eq {
+        ($pl:expr, $buf:expr, $expected:expr) => {
+            assert_eq!(
+                $pl.decode(&mut $buf).unwrap().unwrap().chunk().as_ref(),
+                $expected,
+            );
+        };
+    }
+
+    macro_rules! assert_decode_chunked_eof {
+        ($pl:expr, $buf:expr) => {
+            assert!($pl.decode(&mut $buf).unwrap().unwrap().eof());
+        };
+    }
+
     #[test]
     fn test_reject_empty_chunk_size() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -262,6 +301,7 @@ mod tests {
     fn test_parse_chunked_payload_chunk_extension() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+            Host: localhost\r\n\
             transfer-encoding: chunked\r\n\
             \r\n",
         );
@@ -284,6 +324,7 @@ mod tests {
     fn test_request_chunked() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let req = parse_ready!(&mut buf);
@@ -297,6 +338,7 @@ mod tests {
         // intentional typo in "chunked"
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chnked\r\n\r\n",
         );
         expect_parse_err!(&mut buf);
@@ -306,6 +348,7 @@ mod tests {
     fn test_http_request_chunked_payload() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -329,6 +372,7 @@ mod tests {
     fn test_http_request_chunked_payload_and_next_message() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let mut reader = MessageDecoder::<Request>::default();
@@ -339,6 +383,7 @@ mod tests {
         buf.extend(
             b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
               POST /test2 HTTP/1.1\r\n\
+              Host: localhost\r\n\
               transfer-encoding: chunked\r\n\r\n"
                 .iter(),
         );
@@ -359,6 +404,7 @@ mod tests {
     fn test_http_request_chunked_payload_chunks() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
 
@@ -461,5 +507,38 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Invalid chunk size line: Size is too big"));
+    }
+
+    #[test]
+    fn test_parse_chunked_payload_with_trailers() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             transfer-encoding: chunked\r\n\r\n\
+             4\r\ndata\r\n\
+             0\r\n\
+             X-Checksum: 12345\r\n\
+             Expires: Wed\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let mut pl = reader.decode(&mut buf).unwrap().unwrap().1.unwrap();
+
+        assert_decode_chunk_eq!(pl, buf, b"data");
+        assert_decode_chunked_eof!(pl, buf);
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             transfer-encoding: chunked\r\n\r\n\
+             4\r\ndata\r\n\
+             0\r\n\
+               X-Checksum: 12345\r\n\
+             Expires: Wed  \r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let mut pl = reader.decode(&mut buf).unwrap().unwrap().1.unwrap();
+
+        assert_decode_chunk_eq!(pl, buf, b"data");
+        assert_decode_chunked_eof!(pl, buf);
     }
 }
