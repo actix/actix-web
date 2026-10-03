@@ -1345,6 +1345,8 @@ where
 {
     /// Start listening for incoming connections.
     ///
+    /// The server does not accept connections until the returned [`Server`] future is first polled.
+    ///
     /// # Workers
     /// This method starts a number of HTTP workers in separate threads. The number of workers in a
     /// set is defined by [`workers()`](Self::workers) or, by default, the number of the machine's
