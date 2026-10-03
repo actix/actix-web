@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- Parse all HTTP/1 `Connection` header options consistently.
+- Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
+
+## 3.18.12
+
+- Flush compressed response bodies when the source is pending.
+
+## 3.18.11
+
+- Reject requests with a missing or duplicate `Host` header in HTTP/1.1 requests.
+
+## 3.18.10
+
+- Allow trailer fields after chunked bodies.
+
+## 3.18.9
+
+- Reject empty chunked size lines.
+
+## 3.13.8
+
+- Ensure "chunked" declaration is final part of Transfer-Encoding header.
+
+## 3.13.7
+
+- Fix `Removed::len()` panicking when inserting a new header or removing an absent header.
+
 ## 3.13.6
 
 - Removes `h2` from the TLS ALPN offer list when `http2` crate feature is disabled.

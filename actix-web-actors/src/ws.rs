@@ -404,7 +404,7 @@ pub fn handshake_with_protocols(
     }
     let supported_ver = {
         if let Some(hdr) = req.headers().get(&header::SEC_WEBSOCKET_VERSION) {
-            hdr == "13" || hdr == "8" || hdr == "7"
+            hdr == "13"
         } else {
             false
         }
@@ -882,6 +882,27 @@ mod tests {
             HandshakeError::UnsupportedVersion,
             handshake(&req).err().unwrap()
         );
+
+        for &ver in &["7", "8"] {
+            let req = TestRequest::default()
+                .insert_header((
+                    header::UPGRADE,
+                    header::HeaderValue::from_static("websocket"),
+                ))
+                .insert_header((
+                    header::CONNECTION,
+                    header::HeaderValue::from_static("upgrade"),
+                ))
+                .insert_header((
+                    header::SEC_WEBSOCKET_VERSION,
+                    header::HeaderValue::from_static(ver),
+                ))
+                .to_http_request();
+            assert_eq!(
+                HandshakeError::UnsupportedVersion,
+                handshake(&req).err().unwrap()
+            );
+        }
 
         let req = TestRequest::default()
             .insert_header((

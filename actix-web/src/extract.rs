@@ -9,7 +9,8 @@ use std::{
 };
 
 use actix_http::{Method, Uri};
-use actix_utils::future::{ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
@@ -104,7 +105,7 @@ pub trait FromRequest: Sized {
 /// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures_util::future::{ok, err, Ready};
+/// use std::future::{ready, Ready};
 /// use serde::Deserialize;
 /// use rand;
 ///
@@ -119,9 +120,9 @@ pub trait FromRequest: Sized {
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
-///             ok(Thing { name: "thingy".into() })
+///             ready(Ok(Thing { name: "thingy".into() }))
 ///         } else {
-///             err(ErrorBadRequest("no luck"))
+///             ready(Err(ErrorBadRequest("no luck")))
 ///         }
 ///
 ///     }
@@ -192,7 +193,7 @@ where
 /// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures_util::future::{ok, err, Ready};
+/// use std::future::{ready, Ready};
 /// use serde::Deserialize;
 /// use rand;
 ///
@@ -207,9 +208,9 @@ where
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
-///             ok(Thing { name: "thingy".into() })
+///             ready(Ok(Thing { name: "thingy".into() }))
 ///         } else {
-///             err(ErrorBadRequest("no luck"))
+///             ready(Err(ErrorBadRequest("no luck")))
 ///         }
 ///     }
 /// }
@@ -277,12 +278,13 @@ where
 ///
 /// let app = App::new().default_service(web::to(handler));
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Uri {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.uri().clone())
+        ready(Ok(req.uri().clone()))
     }
 }
 
@@ -298,12 +300,13 @@ impl FromRequest for Uri {
 ///
 /// let app = App::new().default_service(web::to(handler));
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Method {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.method().clone())
+        ready(Ok(req.method().clone()))
     }
 }
 
@@ -395,12 +398,13 @@ mod tuple_from_req {
         }
     }
 
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     impl FromRequest for () {
         type Error = Infallible;
         type Future = Ready<Result<Self, Self::Error>>;
 
         fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-            ok(())
+            ready(Ok(()))
         }
     }
 

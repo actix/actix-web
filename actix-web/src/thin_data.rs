@@ -1,5 +1,6 @@
 use std::any::type_name;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::{dev::Payload, error, FromRequest, HttpRequest};
@@ -50,6 +51,7 @@ impl_more::impl_as_ref!(ThinData<T> => T);
 impl_more::impl_as_mut!(ThinData<T> => T);
 impl_more::impl_deref_and_mut!(<T> in ThinData<T> => T);
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: Clone + 'static> FromRequest for ThinData<T> {
     type Error = crate::Error;
     type Future = Ready<Result<Self, Self::Error>>;

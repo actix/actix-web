@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- Update `darling` dependency to `0.24`.
+## 0.8.1
+
 - Update `syn` dependency to `0.3`.
+- Update `darling` dependency to `0.24`.
 
 ## 0.8.0
 

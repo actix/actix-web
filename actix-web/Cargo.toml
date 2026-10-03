@@ -137,7 +137,7 @@ actix-utils = "3"
 
 actix-http = "3.13.3"
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
-actix-web-codegen = { version = "4.3", optional = true, default-features = false }
+actix-web-codegen = { version = "=4.4.0", optional = true, default-features = false }
 
 bytes = "1"
 bytestring = "1"
@@ -187,7 +187,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
 tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros", "time"] }
-tokio-util = "0.7"
+tokio-util = { version = "0.7", default-features = false, features = ["time"] }
 zstd = "0.13"
 
 [lints]

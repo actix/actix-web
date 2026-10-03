@@ -2,16 +2,18 @@
 
 extern crate tls_rustls_0_23 as rustls;
 
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    future::ready,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
 use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
-use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{pki_types::ServerName, ClientConfig, ServerConfig};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
@@ -86,7 +88,7 @@ async fn test_connection_reuse_h2() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::build()

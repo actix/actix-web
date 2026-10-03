@@ -725,7 +725,7 @@ impl Iterator for Removed {
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.inner {
             Some(ref iter) => iter.size_hint(),
-            None => (0, None),
+            None => (0, Some(0)),
         }
     }
 }
@@ -958,6 +958,35 @@ mod tests {
 
         map.insert(header::LOCATION, HeaderValue::from_static("/test"));
         assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn removed_has_exact_length() {
+        let mut map = HeaderMap::new();
+        let mut removed = map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+
+        let mut removed = map.remove(header::ACCEPT);
+
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed.size_hint(), (1, Some(1)));
+        assert_eq!(removed.next(), Some(HeaderValue::from_static("text/plain")));
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+
+        let mut removed = map.remove(header::ACCEPT);
+
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
     }
 
     #[test]

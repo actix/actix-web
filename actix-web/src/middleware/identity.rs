@@ -1,5 +1,6 @@
 //! A no-op middleware. See [Noop] for docs.
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::dev::{forward_ready, Service, Transform};
@@ -9,6 +10,7 @@ use crate::dev::{forward_ready, Service, Transform};
 #[non_exhaustive]
 pub struct Identity;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S: Service<Req>, Req> Transform<S, Req> for Identity {
     type Response = S::Response;
     type Error = S::Error;

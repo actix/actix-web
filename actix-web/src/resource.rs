@@ -596,9 +596,8 @@ impl ServiceFactory<ServiceRequest> for ResourceEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{future::ready, time::Duration};
 
-    use actix_utils::future::ok;
     use tokio::time::sleep;
 
     use super::*;
@@ -729,7 +728,7 @@ mod tests {
                         .route(web::delete().to(HttpResponse::Ok)),
                 )
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::BadRequest()))
+                    ready(Ok(r.into_response(HttpResponse::BadRequest())))
                 }),
         )
         .await;
@@ -752,7 +751,7 @@ mod tests {
                 web::resource("/test")
                     .route(web::get().to(HttpResponse::Ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ready(Ok(r.into_response(HttpResponse::BadRequest())))
                     }),
             ),
         )

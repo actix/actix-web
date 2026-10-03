@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+## 4.4.0
+
+- Update `syn` dependency to `3`.
 - Minimum supported Rust version (MSRV) is now 1.88.
-- Update `syn` dependency to `0.3`.
 
 ## 4.3.0
 

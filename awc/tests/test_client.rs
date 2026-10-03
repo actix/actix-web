@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     convert::Infallible,
+    future::ready,
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr},
     sync::{
@@ -13,7 +14,6 @@ use std::{
 use actix_http::{HttpService, StatusCode};
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
-use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::header, web, App, Error, HttpRequest, HttpResponse};
 use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
 use base64::prelude::*;
@@ -241,7 +241,7 @@ async fn connection_reuse() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::new(map_config(
@@ -278,7 +278,7 @@ async fn connection_force_close() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::new(map_config(
@@ -315,7 +315,7 @@ async fn connection_server_close() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::new(map_config(
@@ -354,7 +354,7 @@ async fn connection_wait_queue() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::new(map_config(
@@ -402,7 +402,7 @@ async fn connection_wait_queue_force_close() {
         let num2 = num2.clone();
         fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            ok(io)
+            ready(Ok(io))
         })
         .and_then(
             HttpService::new(map_config(
