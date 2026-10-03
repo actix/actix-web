@@ -17,6 +17,11 @@ use crate::{
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;
+const INITIAL_HEAD_CAPACITY: usize = 256;
+const COLON_SPACE_LEN: usize = 2;
+const CRLF_LEN: usize = 2;
+const HEADER_DELIMITER_LEN: usize = COLON_SPACE_LEN + CRLF_LEN;
+const ASCII_TO_UPPERCASE_MASK: u8 = 0b1101_1111;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
@@ -163,7 +168,7 @@ pub(crate) trait MessageType: Sized {
                 let v_len = v.len();
 
                 // key length + value length + colon + space + \r\n
-                let len = k_len + v_len + 4;
+                let len = k_len + v_len + HEADER_DELIMITER_LEN;
 
                 if len > remaining {
                     // SAFETY: all the bytes written up to position "pos" are initialized
@@ -193,14 +198,14 @@ pub(crate) trait MessageType: Sized {
 
                     buf = buf.add(k_len);
 
-                    write_data(b": ", buf, 2);
-                    buf = buf.add(2);
+                    write_data(b": ", buf, COLON_SPACE_LEN);
+                    buf = buf.add(COLON_SPACE_LEN);
 
                     write_data(v, buf, v_len);
                     buf = buf.add(v_len);
 
-                    write_data(b"\r\n", buf, 2);
-                    buf = buf.add(2);
+                    write_data(b"\r\n", buf, CRLF_LEN);
+                    buf = buf.add(CRLF_LEN);
                 };
 
                 pos += len;
@@ -272,7 +277,9 @@ impl MessageType for Response<()> {
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
-        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len());
+        dst.reserve(
+            INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len(),
+        );
 
         // status line
         helpers::write_status_line(head.version, head.status.as_u16(), dst);
@@ -304,7 +311,7 @@ impl MessageType for RequestHeadType {
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.as_ref();
-        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
+        dst.reserve(INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             helpers::MutWriter(dst),
             "{} {} {}",
@@ -510,7 +517,7 @@ unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
 
     // first character should be uppercase
     if let Some(c @ b'a'..=b'z') = iter.next() {
-        buffer[0] = c & 0b1101_1111;
+        buffer[0] = c & ASCII_TO_UPPERCASE_MASK;
     }
 
     // track 1 ahead of the current position since that's the location being assigned to
@@ -521,7 +528,7 @@ unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
         if c == b'-' {
             // advance iter by one and uppercase if needed
             if let Some(c @ b'a'..=b'z') = iter.next() {
-                buffer[index] = c & 0b1101_1111;
+                buffer[index] = c & ASCII_TO_UPPERCASE_MASK;
             }
             index += 1;
         }
