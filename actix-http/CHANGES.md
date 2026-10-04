@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse all HTTP/1 `Connection` header options consistently.
 - Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
 
