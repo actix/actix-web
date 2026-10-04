@@ -1,6 +1,7 @@
 use std::{
     cell::Cell,
     future::{ready, Future, Ready},
+    io,
     pin::{pin, Pin},
     rc::Rc,
     str,
@@ -10,9 +11,12 @@ use std::{
 
 use actix_codec::Framed;
 use actix_service::{fn_service, Service};
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures_util::future::lazy;
-use tokio::time::{sleep, timeout};
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    time::{sleep, timeout},
+};
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
@@ -1498,6 +1502,137 @@ async fn h1_write_buffer_size_limits_buffering() {
 #[should_panic(expected = "HTTP/1 write buffer size must be greater than zero")]
 async fn h1_write_buffer_size_rejects_zero() {
     let _ = crate::config::ServiceConfigBuilder::new().h1_write_buffer_size(0);
+}
+
+const SIZED_BODY_LEN: usize = 64 * 1024;
+
+fn sized_body() -> Bytes {
+    (0..SIZED_BODY_LEN).map(|i| i as u8).collect()
+}
+
+fn sized_body_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok().set_body(sized_body()))))
+}
+
+/// A connection that writes at most `limit` bytes per call and can refuse its first write.
+struct TrickleIo {
+    io: TestBuffer,
+    limit: usize,
+    vectored: bool,
+    block_next_write: bool,
+}
+
+impl AsyncRead for TrickleIo {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for TrickleIo {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self.poll_write_vectored(cx, &[io::IoSlice::new(buf)])
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        if self.block_next_write {
+            self.block_next_write = false;
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        let bufs = if self.vectored { bufs } else { &bufs[..1] };
+        let mut taken = Vec::new();
+        for buf in bufs {
+            let len = buf.len().min(self.limit - taken.len());
+            taken.extend_from_slice(&buf[..len]);
+        }
+        Pin::new(&mut self.io).poll_write(cx, &taken)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.vectored
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+}
+
+#[actix_rt::test]
+async fn sized_body_does_not_grow_write_buf() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        assert!(res.ends_with(&sized_body()));
+
+        let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project() else {
+            panic!("dispatcher state should be Normal");
+        };
+        assert!(inner.write_buf.capacity() < SIZED_BODY_LEN);
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn sized_body_survives_partial_writes() {
+    for vectored in [true, false] {
+        let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let io = TrickleIo {
+            io: buf.clone(),
+            limit: 1000,
+            vectored,
+            block_next_write: true,
+        };
+        let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+        let h1 = Dispatcher::new(
+            io,
+            services,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+        );
+        let mut h1 = pin!(h1);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+            assert!(h1.as_mut().poll(cx).is_pending());
+
+            let res = buf.take_write_buf();
+            let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+            assert!(str::from_utf8(&res[..head_end])
+                .unwrap()
+                .contains(&format!("content-length: {SIZED_BODY_LEN}")));
+            assert_eq!(res[head_end..], sized_body(), "vectored: {vectored}");
+        })
+        .await;
+    }
 }
 
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {
