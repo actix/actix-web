@@ -59,7 +59,7 @@ dependencies = [
  "actix-web",
  "async-stream",
  "awc",
- "base64 0.23.1",
+ "base64 0.22.1",
  "bitflags 2.13.2",
  "brotli",
  "bytes",
@@ -623,7 +623,7 @@ dependencies = [
  "actix-tls",
  "actix-utils",
  "actix-web",
- "base64 0.23.1",
+ "base64 0.22.1",
  "brotli",
  "bytes",
  "cfg-if",
@@ -687,6 +687,12 @@ name = "base64"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+
+[[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64"
@@ -1380,9 +1386,9 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "err-report"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06cb69b1ae8233d2eeb09f3345fb027a271dcb3ebefe18e0982344ef18d59da4"
+checksum = "b72c97854e4bb801efa2f80a19ebeffe205ff5f5147d3d5f78e53e5e35e22072"
 
 [[package]]
 name = "errno"
