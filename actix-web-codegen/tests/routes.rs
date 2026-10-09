@@ -1,6 +1,5 @@
-use std::future::Future;
+use std::future::{ready, Future, Ready};
 
-use actix_utils::future::{ok, Ready};
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::{
@@ -63,12 +62,12 @@ async fn trace_test() -> impl Responder {
 
 #[get("/test")]
 fn auto_async() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    ok(HttpResponse::Ok().finish())
+    ready(Ok(HttpResponse::Ok().finish()))
 }
 
 #[get("/test")]
 fn auto_sync() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    ok(HttpResponse::Ok().finish())
+    ready(Ok(HttpResponse::Ok().finish()))
 }
 
 #[put("/test/{param}")]
@@ -172,7 +171,7 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(ChangeStatusCodeMiddleware { service })
+        ready(Ok(ChangeStatusCodeMiddleware { service }))
     }
 }
 

@@ -9,7 +9,8 @@ use std::{
 
 use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
-use actix_utils::future::{ok, Either, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Either, Ready};
 use futures_core::ready;
 use mime::Mime;
 use once_cell::sync::Lazy;
@@ -76,6 +77,7 @@ use crate::{
 #[non_exhaustive]
 pub struct Compress;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
     B: MessageBody,
@@ -88,7 +90,7 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware { service })
+        ready(Ok(CompressMiddleware { service }))
     }
 }
 
@@ -96,6 +98,7 @@ pub struct CompressMiddleware<S> {
     service: S,
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -137,10 +140,10 @@ where
                 res.headers_mut()
                     .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
 
-                Either::right(ok(req
+                Either::right(ready(Ok(req
                     .into_response(res)
                     .map_into_boxed_body()
-                    .map_into_right_body()))
+                    .map_into_right_body())))
             }
 
             Some(encoding) => Either::left(CompressResponse {

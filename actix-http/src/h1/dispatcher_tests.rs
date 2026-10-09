@@ -1,6 +1,6 @@
 use std::{
     cell::Cell,
-    future::Future,
+    future::{ready, Future, Ready},
     pin::{pin, Pin},
     rc::Rc,
     str,
@@ -10,7 +10,6 @@ use std::{
 
 use actix_codec::Framed;
 use actix_service::{fn_service, Service};
-use actix_utils::future::{ready, Ready};
 use bytes::BytesMut;
 use futures_util::future::lazy;
 use tokio::time::{sleep, timeout};

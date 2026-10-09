@@ -5,10 +5,13 @@
 
 use std::io;
 
+use base64::prelude::*;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
+use crate::{
+    body::BoxBody, header::HeaderValue, ConnectionType, RequestHead, Response, ResponseBuilder,
+};
 
 mod codec;
 mod dispatcher;
@@ -140,7 +143,15 @@ impl From<HandshakeError> for Response<BoxBody> {
             }
 
             HandshakeError::UnsupportedVersion => {
-                let mut res = Response::bad_request();
+                #[allow(clippy::declare_interior_mutable_const)]
+                const HV_13: HeaderValue = HeaderValue::from_static("13");
+                #[allow(clippy::declare_interior_mutable_const)]
+                const HV_WEBSOCKET: HeaderValue = HeaderValue::from_static("websocket");
+                let mut res = Response::new(StatusCode::UPGRADE_REQUIRED);
+                res.head_mut().set_connection_type(ConnectionType::Upgrade);
+                res.headers_mut().insert(header::UPGRADE, HV_WEBSOCKET);
+                res.headers_mut()
+                    .insert(header::SEC_WEBSOCKET_VERSION, HV_13);
                 res.head_mut().reason = Some("Unsupported WebSocket version");
                 res
             }
@@ -198,7 +209,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     }
     let supported_ver = {
         if let Some(hdr) = req.headers().get(header::SEC_WEBSOCKET_VERSION) {
-            hdr == "13" || hdr == "8" || hdr == "7"
+            hdr == "13"
         } else {
             false
         }
@@ -207,8 +218,14 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
         return Err(HandshakeError::UnsupportedVersion);
     }
 
-    // check client handshake for validity
-    if !req.headers().contains_key(header::SEC_WEBSOCKET_KEY) {
+    // check client handshake for validity (RFC 6455 §4.2.1 clause 5)
+    let key = match req.headers().get(header::SEC_WEBSOCKET_KEY) {
+        Some(key) => key.as_bytes(),
+        None => return Err(HandshakeError::BadWebsocketKey),
+    };
+
+    let mut decoded = [0u8; 16];
+    if key.len() != 24 || BASE64_STANDARD.decode_slice(key, &mut decoded) != Ok(16) {
         return Err(HandshakeError::BadWebsocketKey);
     }
     Ok(())
@@ -305,6 +322,27 @@ mod tests {
             verify_handshake(req.head()).unwrap_err(),
         );
 
+        for &ver in &["7", "8"] {
+            let req = TestRequest::default()
+                .insert_header((
+                    header::UPGRADE,
+                    header::HeaderValue::from_static("websocket"),
+                ))
+                .insert_header((
+                    header::CONNECTION,
+                    header::HeaderValue::from_static("upgrade"),
+                ))
+                .insert_header((
+                    header::SEC_WEBSOCKET_VERSION,
+                    header::HeaderValue::from_static(ver),
+                ))
+                .finish();
+            assert_eq!(
+                HandshakeError::UnsupportedVersion,
+                verify_handshake(req.head()).unwrap_err(),
+            );
+        }
+
         let req = TestRequest::default()
             .insert_header((
                 header::UPGRADE,
@@ -340,12 +378,36 @@ mod tests {
             ))
             .insert_header((
                 header::SEC_WEBSOCKET_KEY,
-                header::HeaderValue::from_static("13"),
+                header::HeaderValue::from_static("dGhlIHNhbXBsZSBub25jZQ=="),
             ))
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
             handshake(req.head()).unwrap().finish().status()
+        );
+
+        // Invalid key length / non-16-byte base64 nonce
+        let req = TestRequest::default()
+            .insert_header((
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            ))
+            .insert_header((
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            ))
+            .insert_header((
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            ))
+            .insert_header((
+                header::SEC_WEBSOCKET_KEY,
+                header::HeaderValue::from_static("13"),
+            ))
+            .finish();
+        assert_eq!(
+            HandshakeError::BadWebsocketKey,
+            verify_handshake(req.head()).unwrap_err(),
         );
     }
 
@@ -360,7 +422,13 @@ mod tests {
         let resp: Response<BoxBody> = HandshakeError::NoVersionHeader.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let resp: Response<BoxBody> = HandshakeError::UnsupportedVersion.into();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(resp.status(), StatusCode::UPGRADE_REQUIRED);
+        assert!(resp.upgrade());
+        assert_eq!(resp.headers().get(header::UPGRADE).unwrap(), "websocket");
+        assert_eq!(
+            resp.headers().get(header::SEC_WEBSOCKET_VERSION).unwrap(),
+            "13"
+        );
         let resp: Response<BoxBody> = HandshakeError::BadWebsocketKey.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
