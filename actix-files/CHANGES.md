@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Apply `Files::path_filter` to default directory listings. [#3207]
+
+[#3207]: https://github.com/actix/actix-web/issues/3207
+
 ## 0.7.0
 
 - Remove the experimental `experimental-io-uring` crate feature and its implementation, including the `NamedFile::open_async()` method.
