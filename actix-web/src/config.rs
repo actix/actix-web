@@ -238,7 +238,31 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub(crate) fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
+    /// Creates connection configuration for an application served by a custom server.
+    ///
+    /// [`HttpServer`](crate::HttpServer) creates this configuration automatically. Use this
+    /// constructor when serving an [`App`](crate::App) with lower-level server APIs.
+    ///
+    /// - `secure` indicates whether the server uses TLS; it does not enable TLS.
+    /// - `host` is the server hostname, optionally including a port, without a scheme or path.
+    /// - `addr` is the listener's local socket address.
+    ///
+    /// The scheme and host are used as fallbacks by [`ConnectionInfo`](crate::dev::ConnectionInfo)
+    /// and URL generation when the request does not supply them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_web::dev::AppConfig;
+    ///
+    /// let addr = "127.0.0.1:8443".parse().unwrap();
+    /// let config = AppConfig::new(true, "example.com:8443".to_owned(), addr);
+    ///
+    /// assert!(config.secure());
+    /// assert_eq!(config.host(), "example.com:8443");
+    /// assert_eq!(config.local_addr(), addr);
+    /// ```
+    pub fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
         AppConfig { secure, host, addr }
     }
 
