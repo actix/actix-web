@@ -6,7 +6,7 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::{
     body::BodySize,
@@ -331,6 +331,12 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
+    /// Accounts `msg` as part of a fixed-length body and returns the bytes to write as they are,
+    /// or `None` when the body is framed and has to go through [`Self::encode_chunk`].
+    pub fn take_unbuffered(&mut self, msg: &Bytes) -> Option<Bytes> {
+        self.te.take_unbuffered(msg)
+    }
+
     /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
@@ -424,6 +430,18 @@ impl TransferEncoding {
     pub fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Length(len),
+        }
+    }
+
+    /// Accounts `msg` as part of a fixed-length body and returns the bytes to write as they are.
+    pub fn take_unbuffered(&mut self, msg: &Bytes) -> Option<Bytes> {
+        match self.kind {
+            TransferEncodingKind::Length(ref mut remaining) if *remaining > 0 => {
+                let len = cmp::min(*remaining, msg.len() as u64);
+                *remaining -= len;
+                Some(msg.slice(..len as usize))
+            }
+            _ => None,
         }
     }
 

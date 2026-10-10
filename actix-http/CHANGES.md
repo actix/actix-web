@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, so the buffer no longer keeps the size of the largest response it sent.
 - Parse all HTTP/1 `Connection` header options consistently.
 - Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
 

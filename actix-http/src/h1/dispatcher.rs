@@ -11,7 +11,7 @@ use std::{
 use actix_codec::{Framed, FramedParts};
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 use tokio::{
@@ -181,7 +181,9 @@ pin_project! {
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
-        write_buf: BytesMut,
+        pub(super) write_buf: BytesMut,
+        // a large body chunk written after `write_buf` without being copied into it
+        write_body: Option<Bytes>,
         h1_write_buffer_size: usize,
         codec: Codec,
     }
@@ -297,6 +299,7 @@ where
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    write_body: None,
                     h1_write_buffer_size: config.h1_write_buffer_size(),
                     codec: Codec::new(config),
                 },
@@ -349,20 +352,44 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        let InnerDispatcherProj { io, write_buf, .. } = self.project();
+        let InnerDispatcherProj {
+            io,
+            write_buf,
+            write_body,
+            ..
+        } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
         let len = write_buf.len();
         let mut written = 0;
 
-        while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..])? {
+        loop {
+            let head = &write_buf[written..];
+            let body: &[u8] = write_body.as_deref().unwrap_or_default();
+            let head_len = head.len();
+            let polled = if head.is_empty() && body.is_empty() {
+                break;
+            } else if !head.is_empty() && !body.is_empty() && io.is_write_vectored() {
+                io.as_mut()
+                    .poll_write_vectored(cx, &[io::IoSlice::new(head), io::IoSlice::new(body)])?
+            } else if !head.is_empty() {
+                io.as_mut().poll_write(cx, head)?
+            } else {
+                io.as_mut().poll_write(cx, body)?
+            };
+            match polled {
                 Poll::Ready(0) => {
                     error!("write zero; closing");
                     return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
                 }
 
-                Poll::Ready(n) => written += n,
+                Poll::Ready(n) => {
+                    let from_head = n.min(head_len);
+                    written += from_head;
+                    if let Some(body) = write_body.as_mut() {
+                        body.advance(n - from_head);
+                    }
+                }
 
                 Poll::Pending => {
                     write_buf.advance(written);
@@ -370,9 +397,11 @@ where
                 }
             }
         }
+        debug_assert_eq!(written, len);
 
         // everything has written to I/O; clear buffer
         write_buf.clear();
+        *write_body = None;
 
         // flush the I/O and check if get blocked
         io.poll_flush(cx)
@@ -559,8 +588,11 @@ where
     }
 
     fn send_continue(self: Pin<&mut Self>) {
-        self.project()
-            .write_buf
+        let this = self.project();
+        if let Some(body) = this.write_body.take() {
+            this.write_buf.extend_from_slice(&body);
+        }
+        this.write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
@@ -652,9 +684,17 @@ where
                 StateProj::SendPayload { mut body } => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < *this.h1_write_buffer_size {
+                    while this.write_buf.len() < *this.h1_write_buffer_size
+                        && this.write_body.is_none()
+                    {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
+                                if item.len() >= HW_BUFFER_SIZE {
+                                    if let Some(chunk) = this.codec.encode_chunk_unbuffered(&item) {
+                                        *this.write_body = Some(chunk);
+                                        continue;
+                                    }
+                                }
                                 this.codec
                                     .encode(Message::Chunk(Some(item)), this.write_buf)?;
                             }
@@ -710,9 +750,17 @@ where
 
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < *this.h1_write_buffer_size {
+                    while this.write_buf.len() < *this.h1_write_buffer_size
+                        && this.write_body.is_none()
+                    {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
+                                if item.len() >= HW_BUFFER_SIZE {
+                                    if let Some(chunk) = this.codec.encode_chunk_unbuffered(&item) {
+                                        *this.write_body = Some(chunk);
+                                        continue;
+                                    }
+                                }
                                 this.codec
                                     .encode(Message::Chunk(Some(item)), this.write_buf)?;
                             }
@@ -771,6 +819,9 @@ where
                         // expect resolved. write continue to buffer and set InnerDispatcher state
                         // to service call.
                         Poll::Ready(Ok(req)) => {
+                            if let Some(body) = this.write_body.take() {
+                                this.write_buf.extend_from_slice(&body);
+                            }
                             this.write_buf
                                 .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
                             let fut = this.flow.service.call(req);
@@ -1251,6 +1302,9 @@ where
             mem::take(this.codec),
             mem::take(this.read_buf),
         );
+        if let Some(body) = this.write_body.take() {
+            this.write_buf.extend_from_slice(&body);
+        }
         parts.write_buf = mem::take(this.write_buf);
         let framed = Framed::from_parts(parts);
         this.flow.upgrade.as_ref().unwrap().call((req, framed))
@@ -1430,7 +1484,8 @@ where
                     }
 
                     // keep-alive and stream errors
-                    if state_is_none && inner_p.write_buf.is_empty() {
+                    if state_is_none && inner_p.write_buf.is_empty() && inner_p.write_body.is_none()
+                    {
                         if let Some(err) = inner_p.error.take() {
                             error!("stream error: {}", &err);
                             return Poll::Ready(Err(err));
