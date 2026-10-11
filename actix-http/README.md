@@ -48,3 +48,9 @@ async fn main() -> io::Result<()> {
         .await
 }
 ```
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>
