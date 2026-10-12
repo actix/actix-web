@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `brotli` dependency to `9`.
+
 ## 3.18.13
 
 - Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
