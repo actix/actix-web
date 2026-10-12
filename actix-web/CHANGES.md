@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Honor `Accept` quality parameters before other media-type parameters.
+- Preserve quoted `Accept` media-type parameters that contain semicolons and quality-like text.
 
 ## 4.16.0
 

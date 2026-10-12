@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Honor quality parameters before other header item parameters.
+- Ignore semicolons inside quoted parameter values when parsing header quality parameters.
 
 ## 3.18.13
 

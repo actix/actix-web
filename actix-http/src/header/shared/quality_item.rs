@@ -100,10 +100,26 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 
         let mut parameter_start = None;
         let mut quality_parameter = None;
+        let mut quoted = false;
+        let mut escaped = false;
 
         for end in q_item_str
-            .match_indices(';')
-            .map(|(index, _)| index)
+            .bytes()
+            .enumerate()
+            .filter_map(|(index, byte)| {
+                if escaped {
+                    escaped = false;
+                } else {
+                    match byte {
+                        b'\\' if quoted => escaped = true,
+                        b'"' => quoted = !quoted,
+                        b';' if !quoted => return Some(index),
+                        _ => {}
+                    }
+                }
+
+                None
+            })
             .chain(std::iter::once(q_item_str.len()))
         {
             if let Some(start) = parameter_start {
