@@ -234,7 +234,54 @@ impl Accept {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::header::q;
+    use crate::{
+        http::header::{q, Header as _},
+        test::TestRequest,
+    };
+
+    #[test]
+    fn quality_before_media_parameter_controls_preference() {
+        let req = TestRequest::default()
+            .insert_header((
+                header::ACCEPT,
+                "application/json;q=0.1;profile=compact, text/html;q=0.9",
+            ))
+            .to_http_request();
+
+        let accept = Accept::parse(&req).unwrap();
+
+        assert_eq!(
+            accept,
+            Accept(vec![
+                QualityItem::new("application/json;profile=compact".parse().unwrap(), q(0.1)),
+                QualityItem::new(mime::TEXT_HTML, q(0.9)),
+            ])
+        );
+
+        assert_eq!(accept.preference(), mime::TEXT_HTML);
+    }
+
+    #[test]
+    fn invalid_quality_before_media_parameter_does_not_gain_preference() {
+        for quality in ["2", "0.0000", "\"0.5\""] {
+            let req = TestRequest::default()
+                .insert_header((
+                    header::ACCEPT,
+                    format!("application/json;q={quality};profile=compact, text/html;q=0.9"),
+                ))
+                .to_http_request();
+
+            let accept = Accept::parse(&req).unwrap();
+
+            assert_eq!(
+                accept,
+                Accept(vec![QualityItem::new(mime::TEXT_HTML, q(0.9))]),
+                "q={quality}"
+            );
+
+            assert_eq!(accept.preference(), mime::TEXT_HTML, "q={quality}");
+        }
+    }
 
     #[test]
     fn ranking_precedence() {
