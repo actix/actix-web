@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honor `Accept` quality parameters before other media-type parameters.
+
 ## 4.16.0
 
 - The TLS crate features no longer enable the `http2` crate feature.

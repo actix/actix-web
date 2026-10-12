@@ -1,4 +1,4 @@
-use std::{cmp, fmt, str};
+use std::{borrow::Cow, cmp, fmt, str};
 
 use super::Quality;
 use crate::error::ParseError;
@@ -95,43 +95,54 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         }
 
         // set defaults used if quality-item parsing fails, i.e., item has no q attribute
-        let mut raw_item = q_item_str;
+        let mut raw_item = Cow::Borrowed(q_item_str);
         let mut quality = Quality::MAX;
 
-        let parts = q_item_str
-            .rsplit_once(';')
-            .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
+        let mut parameter_start = None;
+        let mut quality_parameter = None;
 
-        if let Some((val, q_attr)) = parts {
-            // example for item with q-factor:
-            //
-            // gzip;q=0.65
-            // ^^^^         val
-            //      ^^^^^^  q_attr
-            //      ^^      q
-            //        ^^^^  q_val
+        for end in q_item_str
+            .match_indices(';')
+            .map(|(index, _)| index)
+            .chain(std::iter::once(q_item_str.len()))
+        {
+            if let Some(start) = parameter_start {
+                let parameter = q_item_str[start + 1..end].trim();
 
-            if q_attr.len() < 2 {
                 // Can't possibly be an attribute since an attribute needs at least a name followed
                 // by an equals sign. And bare identifiers are forbidden.
-                return Err(ParseError::Header);
-            }
-
-            let q = &q_attr[0..2];
-
-            if q == "q=" || q == "Q=" {
-                let q_val = &q_attr[2..];
-                if q_val.len() > 5 {
-                    // longer than 5 indicates an over-precise q-factor
+                if end == q_item_str.len() && parameter.len() < 2 {
                     return Err(ParseError::Header);
                 }
 
-                let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
-                let q_value = Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
-
-                quality = q_value;
-                raw_item = val;
+                if parameter.starts_with("q=") || parameter.starts_with("Q=") {
+                    quality_parameter = Some((start, end, parameter));
+                }
             }
+
+            parameter_start = Some(end);
+        }
+
+        if let Some((start, end, q_attr)) = quality_parameter {
+            let q_val = &q_attr[2..];
+            if q_val.len() > 5 {
+                // longer than 5 indicates an over-precise q-factor
+                return Err(ParseError::Header);
+            }
+
+            let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
+            let q_value = Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
+
+            quality = q_value;
+            raw_item = if end == q_item_str.len() {
+                Cow::Borrowed(q_item_str[..start].trim())
+            } else {
+                Cow::Owned(format!(
+                    "{}{}",
+                    q_item_str[..start].trim_end(),
+                    &q_item_str[end..]
+                ))
+            };
         }
 
         let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;

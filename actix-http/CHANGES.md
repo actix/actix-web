@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honor quality parameters before other header item parameters.
+
 ## 3.18.13
 
 - Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
