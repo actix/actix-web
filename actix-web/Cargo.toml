@@ -172,7 +172,7 @@ actix-files = "0.7"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
-brotli = "8"
+brotli = "9"
 const-str = "1.1"
 core_affinity = "0.8"
 criterion = { version = "0.8", features = ["html_reports"] }
