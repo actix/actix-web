@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.16.0
+
 - The TLS crate features no longer enable the `http2` crate feature.
 - Prevent `TestRequest` app data retention by disabling its request pooling.
 
