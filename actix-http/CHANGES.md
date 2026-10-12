@@ -5,6 +5,7 @@
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
+- Parse header quality values as exact decimals and reject invalid numeric syntax.
 
 ## 3.18.13
 

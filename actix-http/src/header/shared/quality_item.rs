@@ -141,13 +141,34 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         let mut quality = Quality::MAX;
 
         if let Some((start, end, value)) = quality_parameter {
-            // reject q-values longer than allowed by the spec (3 d.p.)
-            if value.len() > 5 {
-                return Err(ParseError::Header);
-            }
+            // Parse decimal digits directly to preserve the specified precision.
+            quality = match value.as_bytes() {
+                [b'0'] => Quality::ZERO,
+                [b'1'] => Quality::MAX,
 
-            let value = value.parse::<f32>().map_err(|_| ParseError::Header)?;
-            quality = Quality::try_from(value).map_err(|_| ParseError::Header)?;
+                [b'0', b'.', digits @ ..]
+                    if digits.len() <= 3 && digits.iter().all(u8::is_ascii_digit) =>
+                {
+                    let mut value = 0;
+                    let mut place = 100;
+
+                    for &digit in digits {
+                        value += u16::from(digit - b'0') * place;
+                        place /= 10;
+                    }
+
+                    Quality(value)
+                }
+
+                [b'1', b'.', digits @ ..]
+                    if digits.len() <= 3 && digits.iter().all(|&digit| digit == b'0') =>
+                {
+                    Quality::MAX
+                }
+
+                _ => return Err(ParseError::Header),
+            };
+
             raw_item = if end == q_item_str.len() {
                 Cow::Borrowed(q_item_str[..start].trim())
             } else {
@@ -403,6 +424,58 @@ mod tests {
     #[test]
     fn test_quality_item_from_str6() {
         "gzip; q=2".parse::<QualityItem<Encoding>>().unwrap_err();
+    }
+
+    #[test]
+    fn quality_value_rejects_invalid_numeric_syntax() {
+        for value in [
+            "", ".5", ".0001", "+0.5", "-0", "-0.0", "00.5", "00001", "1e-1", "1e-4", "0.0000",
+            "1.0000", "1.001", "0.0.1", "NaN", "inf", " 0.5", "\"0.5\"",
+        ] {
+            let input = format!("gzip; q={value}");
+
+            assert!(
+                input.parse::<QualityItem<Encoding>>().is_err(),
+                "accepted invalid quality in {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn quality_value_accepts_valid_numeric_syntax() {
+        for (value, expected) in [
+            ("0", Quality::ZERO),
+            ("0.", Quality::ZERO),
+            ("0.0", Quality::ZERO),
+            ("0.00", Quality::ZERO),
+            ("0.000", Quality::ZERO),
+            ("0.001", Quality::MIN),
+            ("0.01", Quality(10)),
+            ("0.1", Quality(100)),
+            ("0.10", Quality(100)),
+            ("0.100", Quality(100)),
+            ("0.999", Quality(999)),
+            ("1", Quality::MAX),
+            ("1.", Quality::MAX),
+            ("1.0", Quality::MAX),
+            ("1.00", Quality::MAX),
+            ("1.000", Quality::MAX),
+        ] {
+            let input = format!("gzip; q={value}");
+            let parsed = input.parse::<QualityItem<Encoding>>().unwrap();
+
+            assert_eq!(parsed.quality, expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn quality_value_preserves_thousandths() {
+        for value in 0..1000 {
+            let input = format!("gzip; q=0.{value:03}");
+            let parsed = input.parse::<QualityItem<Encoding>>().unwrap();
+
+            assert_eq!(parsed.quality, Quality(value), "{input}");
+        }
     }
 
     #[test]
