@@ -4,6 +4,7 @@
 
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
 - The TLS crate features no longer enable the `http2` crate feature.
+- Prevent `TestRequest` app data retention by disabling its request pooling.
 
 ## 4.15.0
 

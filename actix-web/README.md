@@ -116,3 +116,9 @@ This project is licensed under either of the following licenses, at your option:
 ## Code of Conduct
 
 Contribution to the `actix/actix-web` repo is organized under the terms of the Contributor Covenant. The Actix team promises to intervene to uphold that code of conduct.
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>

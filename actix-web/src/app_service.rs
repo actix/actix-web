@@ -189,6 +189,13 @@ impl AppInitServiceState {
         })
     }
 
+    /// Constructs state for requests that do not have a service lifecycle to reuse the pool.
+    pub(crate) fn new_without_pool(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
+        let state = Self::new(rmap, config);
+        state.pool().disable();
+        state
+    }
+
     /// Returns a reference to the application's resource map.
     #[inline]
     pub(crate) fn rmap(&self) -> &ResourceMap {
