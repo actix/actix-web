@@ -262,6 +262,60 @@ mod tests {
     }
 
     #[test]
+    fn quoted_quality_text_keeps_default_preference() {
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/json;profile=\"client; q=0.9\""))
+            .to_http_request();
+
+        let accept = Accept::parse(&req).unwrap();
+
+        assert_eq!(
+            accept,
+            Accept(vec![QualityItem::max(
+                "application/json;profile=\"client; q=0.9\""
+                    .parse()
+                    .unwrap(),
+            )])
+        );
+
+        assert_eq!(
+            accept[0].item.get_param("profile").unwrap().as_str(),
+            "client; q=0.9"
+        );
+    }
+
+    #[test]
+    fn real_quality_controls_preference_beside_quoted_quality_text() {
+        for json in [
+            "application/json;Q=0.1;profile=\"client; q=0.9\";version=2",
+            "application/json;profile=\"client; q=0.9\"; Q=0.1;version=2",
+            "application/json;profile=\"client; q=0.9\";version=2;Q=0.1",
+        ] {
+            let req = TestRequest::default()
+                .insert_header((header::ACCEPT, format!("{json}, text/html;q=0.9")))
+                .to_http_request();
+
+            let accept = Accept::parse(&req).unwrap();
+
+            assert_eq!(
+                accept,
+                Accept(vec![
+                    QualityItem::new(
+                        "application/json;profile=\"client; q=0.9\";version=2"
+                            .parse()
+                            .unwrap(),
+                        q(0.1),
+                    ),
+                    QualityItem::new(mime::TEXT_HTML, q(0.9)),
+                ]),
+                "{json}"
+            );
+
+            assert_eq!(accept.preference(), mime::TEXT_HTML, "{json}");
+        }
+    }
+
+    #[test]
     fn invalid_quality_before_media_parameter_does_not_gain_preference() {
         for quality in ["2", "0.0000", "\"0.5\""] {
             let req = TestRequest::default()
