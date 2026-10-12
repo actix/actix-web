@@ -5,6 +5,7 @@
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
+- Round float quality conversions to the nearest thousandth to preserve all three decimal places.
 
 ## 3.18.13
 
