@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `zstd` dependency to `0.14`.
+
 ## 3.18.13
 
 - Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
