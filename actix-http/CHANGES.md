@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
 
 ## 3.18.13
 
