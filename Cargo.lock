@@ -73,8 +73,10 @@ dependencies = [
  "foldhash",
  "futures-core",
  "futures-util",
- "h2",
+ "h2 0.3.27",
+ "h2 0.4.20",
  "http 0.2.12",
+ "http 1.5.0",
  "httparse",
  "httpdate",
  "itoa",
@@ -604,6 +606,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-waker"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -634,7 +642,7 @@ dependencies = [
  "flate2",
  "futures-core",
  "futures-util",
- "h2",
+ "h2 0.3.27",
  "hickory-resolver",
  "http 0.2.12",
  "itoa",
@@ -1623,6 +1631,25 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.12",
+ "indexmap",
+ "slab",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "h2"
+version = "0.4.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d29020232d6aa3fb1daca64c1127cf662cf97f254ae16c18c05b8ab635fc118"
+dependencies = [
+ "atomic-waker",
+ "bytes",
+ "fnv",
+ "futures-core",
+ "futures-sink",
+ "http 1.5.0",
  "indexmap",
  "slab",
  "tokio",

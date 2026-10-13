@@ -55,7 +55,7 @@ allowed_external_types = [
 default = []
 
 # HTTP/2 protocol support
-http2 = ["dep:h2"]
+http2 = ["dep:h2", "dep:h2-04", "dep:http-1"]
 
 # WebSocket protocol implementation
 ws = ["dep:local-channel", "dep:base64", "dep:rand", "dep:sha1"]
@@ -117,7 +117,9 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.27", optional = true }
+h2 = { version = "0.3.27", optional = true, features = ["unstable"] }
+h2-04 = { package = "h2", version = "0.4.20", optional = true }
+http-1 = { package = "http", version = "1", optional = true }
 
 # websockets
 base64 = { version = "0.22", optional = true }
@@ -146,6 +148,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 divan = "0.1.8"
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
+h2-04 = { package = "h2", version = "0.4.20", features = ["unstable"] }
 memchr = "2.4"
 once_cell = "1.21"
 rcgen = "0.14"

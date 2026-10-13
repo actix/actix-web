@@ -9,7 +9,7 @@ use std::{
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
-use h2::{
+use h2_04::{
     server::{Builder, Connection, Handshake},
     RecvStream,
 };
@@ -20,6 +20,7 @@ use crate::{
     error::{DispatchError, PayloadError},
 };
 
+mod compat;
 mod dispatcher;
 mod service;
 
@@ -27,12 +28,25 @@ pub use self::{dispatcher::Dispatcher, service::H2Service};
 
 /// HTTP/2 peer stream.
 pub struct Payload {
-    stream: RecvStream,
+    stream: PayloadStream,
+}
+
+enum PayloadStream {
+    Legacy(h2::RecvStream),
+    Current(RecvStream),
 }
 
 impl Payload {
-    pub(crate) fn new(stream: RecvStream) -> Self {
-        Self { stream }
+    pub(crate) fn new(stream: h2::RecvStream) -> Self {
+        Self {
+            stream: PayloadStream::Legacy(stream),
+        }
+    }
+
+    fn from_current(stream: RecvStream) -> Self {
+        Self {
+            stream: PayloadStream::Current(stream),
+        }
     }
 }
 
@@ -42,11 +56,26 @@ impl Stream for Payload {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        match ready!(Pin::new(&mut this.stream).poll_data(cx)) {
+        let data = match &mut this.stream {
+            PayloadStream::Legacy(stream) => ready!(stream.poll_data(cx)),
+            PayloadStream::Current(stream) => {
+                ready!(stream.poll_data(cx)).map(|res| res.map_err(compat::error))
+            }
+        };
+
+        match data {
             Some(Ok(chunk)) => {
                 let len = chunk.len();
 
-                match this.stream.flow_control().release_capacity(len) {
+                let released = match &mut this.stream {
+                    PayloadStream::Legacy(stream) => stream.flow_control().release_capacity(len),
+                    PayloadStream::Current(stream) => stream
+                        .flow_control()
+                        .release_capacity(len)
+                        .map_err(compat::error),
+                };
+
+                match released {
                     Ok(()) => Poll::Ready(Some(Ok(chunk))),
                     Err(err) => Poll::Ready(Some(Err(err.into()))),
                 }
@@ -88,7 +117,10 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        match Pin::new(&mut this.handshake).poll(cx)? {
+        match Pin::new(&mut this.handshake)
+            .poll(cx)
+            .map_err(compat::error)?
+        {
             // return the timer on success handshake; its slot can be re-used for h2 ping-pong
             Poll::Ready(conn) => Poll::Ready(Ok((conn, this.timer.take()))),
             Poll::Pending => match this.timer.as_mut() {
@@ -104,9 +136,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use static_assertions::assert_impl_all;
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
 
     assert_impl_all!(Payload: Unpin, Send, Sync);
+
+    // The backend dependency must not become a public conversion interface.
+    assert_not_impl_any!(crate::Payload: From<h2_04::RecvStream>);
+    assert_not_impl_any!(PayloadError: From<h2_04::Error>);
+    assert_not_impl_any!(DispatchError: From<h2_04::Error>);
 }

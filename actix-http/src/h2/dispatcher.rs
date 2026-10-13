@@ -14,13 +14,14 @@ use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
-use h2::{
+use h2_04::{
     server::{Connection, SendResponse},
     Ping, PingPong,
 };
 use pin_project_lite::pin_project;
 use tokio::time::{sleep, Sleep};
 
+use super::compat;
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
@@ -111,19 +112,18 @@ where
         let this = self.get_mut();
 
         loop {
-            match Pin::new(&mut this.connection).poll_accept(cx)? {
+            match Pin::new(&mut this.connection)
+                .poll_accept(cx)
+                .map_err(compat::error)?
+            {
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
-                    let payload = crate::h2::Payload::new(body);
+                    let payload = crate::h2::Payload::from_current(body);
                     let pl = Payload::H2 { payload };
                     let mut req = Request::with_payload(pl);
-                    let head_req = parts.method == Method::HEAD;
-
                     let head = req.head_mut();
-                    head.uri = parts.uri;
-                    head.method = parts.method;
-                    head.version = parts.version;
-                    head.headers = parts.headers.into();
+                    compat::request_head(parts, head)?;
+                    let head_req = head.method == Method::HEAD;
                     head.peer_addr = this.peer_addr;
 
                     req.conn_data.clone_from(&this.conn_data);
@@ -166,7 +166,7 @@ where
                             // When there is an in-flight ping-pong, poll pong and keep-alive
                             // timer. On successful pong received, update keep-alive timer to
                             // determine the next timing of ping pong.
-                            match ping_pong.ping_pong.poll_pong(cx)? {
+                            match ping_pong.ping_pong.poll_pong(cx).map_err(compat::error)? {
                                 Poll::Ready(_) => {
                                     ping_pong.in_flight = false;
 
@@ -183,7 +183,10 @@ where
                             // as an interval instead.
                             ready!(ping_pong.timer.as_mut().poll(cx));
 
-                            ping_pong.ping_pong.send_ping(Ping::opaque())?;
+                            ping_pong
+                                .ping_pong
+                                .send_ping(Ping::opaque())
+                                .map_err(compat::error)?;
 
                             let dead_line = this.config.keep_alive_deadline().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line.into());
@@ -199,8 +202,8 @@ where
 }
 
 enum DispatchError {
-    SendResponse(h2::Error),
-    SendData(h2::Error),
+    SendResponse(h2_04::Error),
+    SendData(h2_04::Error),
     ResponseBody(Box<dyn StdError>),
 }
 
@@ -222,7 +225,7 @@ where
 
     // send response head and return on eof.
     let mut stream = tx
-        .send_response(res, eof_or_head)
+        .send_response(compat::response_head(res), eof_or_head)
         .map_err(DispatchError::SendResponse)?;
 
     if eof_or_head {
