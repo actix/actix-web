@@ -3,9 +3,10 @@
 ## Unreleased
 
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
+- Parse header quality values as exact decimals and reject invalid numeric syntax.
+- Round float quality conversions to the nearest thousandth to preserve all three decimal places.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
-- Parse header quality values as exact decimals and reject invalid numeric syntax.
 
 ## 3.18.13
 
