@@ -1,4 +1,4 @@
-use std::{cmp, fmt, str};
+use std::{borrow::Cow, cmp, fmt, iter, str};
 
 use super::Quality;
 use crate::error::ParseError;
@@ -9,6 +9,9 @@ use crate::error::ParseError;
 /// # Parsing and Formatting
 /// This wrapper be used to parse header value items that have a q-factor annotation as well as
 /// serialize items with a their q-factor.
+///
+/// When parsing, the `q` parameter is recognized at any position outside quoted parameter values.
+/// Other parameters are preserved for the wrapped item's parser.
 ///
 /// # Ordering
 /// Since this context of use for this type is header value items, ordering is defined for
@@ -94,44 +97,83 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             return Err(ParseError::Header);
         }
 
-        // set defaults used if quality-item parsing fails, i.e., item has no q attribute
-        let mut raw_item = q_item_str;
-        let mut quality = Quality::MAX;
+        let mut parameter_start = None;
+        let mut quality_parameter = None;
+        let mut quoted = false;
+        let mut escaped = false;
 
-        let parts = q_item_str
-            .rsplit_once(';')
-            .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
-
-        if let Some((val, q_attr)) = parts {
-            // example for item with q-factor:
-            //
-            // gzip;q=0.65
-            // ^^^^         val
-            //      ^^^^^^  q_attr
-            //      ^^      q
-            //        ^^^^  q_val
-
-            if q_attr.len() < 2 {
-                // Can't possibly be an attribute since an attribute needs at least a name followed
-                // by an equals sign. And bare identifiers are forbidden.
-                return Err(ParseError::Header);
+        // Only unquoted semicolons delimit parameters; quoted-pairs escape the next byte.
+        for (index, byte) in q_item_str.bytes().chain(iter::once(b';')).enumerate() {
+            if escaped {
+                // skip escaped char
+                escaped = false;
+                continue;
             }
 
-            let q = &q_attr[0..2];
+            match byte {
+                b'\\' if quoted => escaped = true,
 
-            if q == "q=" || q == "Q=" {
-                let q_val = &q_attr[2..];
-                if q_val.len() > 5 {
-                    // longer than 5 indicates an over-precise q-factor
-                    return Err(ParseError::Header);
+                b'"' => quoted = !quoted,
+
+                b';' if !quoted => {
+                    if let Some(start) = parameter_start {
+                        let attribute = q_item_str[start + 1..index].trim();
+
+                        // Retain the existing rejection of a short final attribute.
+                        if index == q_item_str.len() && attribute.len() < 2 {
+                            return Err(ParseError::Header);
+                        }
+
+                        if attribute.starts_with("q=") || attribute.starts_with("Q=") {
+                            // Preserve the existing last-quality-parameter behavior.
+                            quality_parameter = Some((start, index, &attribute[2..]));
+                        }
+                    }
+
+                    parameter_start = Some(index);
                 }
 
-                let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
-                let q_value = Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
-
-                quality = q_value;
-                raw_item = val;
+                _ => {}
             }
+        }
+
+        let mut raw_item = Cow::Borrowed(q_item_str);
+        let mut quality = Quality::MAX;
+
+        if let Some((start, end, value)) = quality_parameter {
+            // Parse decimal digits directly to preserve the specified precision.
+            quality = match value.as_bytes() {
+                [b'0'] => Quality::ZERO,
+                [b'1'] => Quality::MAX,
+
+                [b'0', b'.', digits @ ..]
+                    if digits.len() <= 3 && digits.iter().all(u8::is_ascii_digit) =>
+                {
+                    let mut value = 0;
+                    let mut place = 100;
+
+                    for &digit in digits {
+                        value += u16::from(digit - b'0') * place;
+                        place /= 10;
+                    }
+
+                    Quality(value)
+                }
+
+                [b'1', b'.', digits @ ..]
+                    if digits.len() <= 3 && digits.iter().all(|&digit| digit == b'0') =>
+                {
+                    Quality::MAX
+                }
+
+                _ => return Err(ParseError::Header),
+            };
+
+            raw_item = if end == q_item_str.len() {
+                Cow::Borrowed(q_item_str[..start].trim())
+            } else {
+                Cow::Owned([&q_item_str[..start], &q_item_str[end..]].concat())
+            };
         }
 
         let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;
@@ -143,6 +185,103 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quality_parameter_position() {
+        for input in [
+            "text/plain; q=0.2; charset=utf-8; format=flowed",
+            "text/plain; charset=utf-8; Q=0.2; format=flowed",
+            "text/plain; charset=utf-8; format=flowed; q=0.2",
+        ] {
+            let parsed = input.parse::<QualityItem<mime::Mime>>().unwrap();
+
+            assert_eq!(parsed.quality, Quality(200), "{input}");
+            assert_eq!(
+                parsed.item,
+                "text/plain; charset=utf-8; format=flowed"
+                    .parse::<mime::Mime>()
+                    .unwrap(),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn quoted_quality_is_not_parameter() {
+        for input in [
+            r#"text/plain; note="x; q=0.2""#,
+            r#"text/plain; note="x; q=invalid""#,
+            r#"text/plain; note="x;Q=0""#,
+            r#"text/plain; note="x\";q=0.2""#,
+            r#"text/plain; note="x\\;q=0.2""#,
+        ] {
+            let parsed = input.parse::<QualityItem<String>>().unwrap();
+
+            assert_eq!(parsed.item, input);
+            assert_eq!(parsed.quality, Quality::MAX, "{input}");
+        }
+    }
+
+    #[test]
+    fn quality_parameter_with_quoted_parameters() {
+        for input in [
+            r#"text/plain; q=0.2; note="x; q=0.8"; format=flowed"#,
+            r#"text/plain; note="x; q=0.8"; q=0.2; format=flowed"#,
+            r#"text/plain; note="x; q=0.8"; format=flowed; q=0.2"#,
+        ] {
+            let parsed = input.parse::<QualityItem<mime::Mime>>().unwrap();
+
+            assert_eq!(parsed.quality, Quality(200), "{input}");
+            assert_eq!(parsed.item.get_param("note").unwrap(), "x; q=0.8");
+            assert_eq!(parsed.item.get_param("format").unwrap(), "flowed");
+            assert!(parsed.item.get_param("q").is_none(), "{input}");
+        }
+    }
+
+    #[test]
+    fn invalid_quality_not_last() {
+        for quality in ["2", "invalid", "0.2739999", "NaN", "", "-1"] {
+            for input in [
+                format!("text/plain; q={quality}; charset=utf-8"),
+                format!("text/plain; charset=utf-8; Q={quality}; format=flowed"),
+            ] {
+                assert!(
+                    input.parse::<QualityItem<mime::Mime>>().is_err(),
+                    "accepted invalid quality in {input}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_parameters_keep_default_quality() {
+        for input in [
+            "text/plain; charset=utf-8",
+            "text/plain; charset=utf-8; format=flowed",
+            "text/plain; quality=0.2; query=yes",
+        ] {
+            let parsed = input.parse::<QualityItem<mime::Mime>>().unwrap();
+            assert_eq!(parsed.quality, Quality::MAX, "{input}");
+            assert_eq!(parsed.item, input.parse::<mime::Mime>().unwrap());
+        }
+    }
+
+    #[test]
+    fn generic_item_keeps_unrelated_parameters() {
+        for (input, expected) in [
+            ("hello; q=0.2; extension=yes", "hello; extension=yes"),
+            (
+                r#"hello; note="x; q=invalid"; q=0.2; extension=yes"#,
+                r#"hello; note="x; q=invalid"; extension=yes"#,
+            ),
+            ("  hello  ; q=0.2  ", "hello"),
+            ("hello; q=0.1; q=0.2", "hello; q=0.1"),
+        ] {
+            let parsed = input.parse::<QualityItem<String>>().unwrap();
+            assert_eq!(parsed.item, expected, "{input}");
+            assert_eq!(parsed.quality, Quality(200), "{input}");
+        }
+    }
 
     // copy of encoding from actix-web headers
     #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
@@ -176,8 +315,10 @@ mod tests {
 
     impl str::FromStr for Encoding {
         type Err = crate::error::ParseError;
+
         fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
             use Encoding::*;
+
             match s {
                 "chunked" => Ok(Chunked),
                 "br" => Ok(Brotli),
@@ -192,47 +333,43 @@ mod tests {
     }
 
     #[test]
-    fn test_quality_item_fmt_q_1() {
-        use Encoding::*;
-        let x = QualityItem::max(Chunked);
-        assert_eq!(format!("{}", x), "chunked");
+    fn test_quality_item_fmt_q() {
+        assert_eq!(QualityItem::max(Encoding::Chunked).to_string(), "chunked");
+
+        assert_eq!(
+            QualityItem::new(Encoding::Chunked, Quality(1)).to_string(),
+            "chunked; q=0.001",
+        );
     }
-    #[test]
-    fn test_quality_item_fmt_q_0001() {
-        use Encoding::*;
-        let x = QualityItem::new(Chunked, Quality(1));
-        assert_eq!(format!("{}", x), "chunked; q=0.001");
-    }
+
     #[test]
     fn test_quality_item_fmt_q_05() {
-        use Encoding::*;
-        // Custom value
         let x = QualityItem {
-            item: EncodingExt("identity".to_owned()),
+            item: Encoding::EncodingExt("identity".to_owned()),
             quality: Quality(500),
         };
-        assert_eq!(format!("{}", x), "identity; q=0.5");
+
+        assert_eq!(x.to_string(), "identity; q=0.5");
     }
 
     #[test]
     fn test_quality_item_fmt_q_0() {
-        use Encoding::*;
-        // Custom value
         let x = QualityItem {
-            item: EncodingExt("identity".to_owned()),
-            quality: Quality(0),
+            item: Encoding::EncodingExt("identity".to_owned()),
+            quality: Quality::ZERO,
         };
+
         assert_eq!(x.to_string(), "identity; q=0");
     }
 
     #[test]
     fn test_quality_item_from_str1() {
-        use Encoding::*;
-        let x: Result<QualityItem<Encoding>, _> = "chunked".parse();
+        let x = "chunked".parse::<QualityItem<Encoding>>().unwrap();
+
         assert_eq!(
-            x.unwrap(),
+            x,
             QualityItem {
-                item: Chunked,
+                item: Encoding::Chunked,
                 quality: Quality(1000),
             }
         );
@@ -240,12 +377,12 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str2() {
-        use Encoding::*;
-        let x: Result<QualityItem<Encoding>, _> = "chunked; q=1".parse();
+        let x = "chunked; q=1".parse::<QualityItem<Encoding>>().unwrap();
+
         assert_eq!(
-            x.unwrap(),
+            x,
             QualityItem {
-                item: Chunked,
+                item: Encoding::Chunked,
                 quality: Quality(1000),
             }
         );
@@ -253,12 +390,12 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str3() {
-        use Encoding::*;
-        let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.5".parse();
+        let x = "gzip; q=0.5".parse::<QualityItem<Encoding>>().unwrap();
+
         assert_eq!(
-            x.unwrap(),
+            x,
             QualityItem {
-                item: Gzip,
+                item: Encoding::Gzip,
                 quality: Quality(500),
             }
         );
@@ -266,12 +403,12 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str4() {
-        use Encoding::*;
-        let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.273".parse();
+        let x = "gzip; q=0.273".parse::<QualityItem<Encoding>>().unwrap();
+
         assert_eq!(
-            x.unwrap(),
+            x,
             QualityItem {
-                item: Gzip,
+                item: Encoding::Gzip,
                 quality: Quality(273),
             }
         );
@@ -279,27 +416,82 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str5() {
-        let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.2739999".parse();
-        assert!(x.is_err());
+        "gzip; q=0.2739999"
+            .parse::<QualityItem<Encoding>>()
+            .unwrap_err();
     }
 
     #[test]
     fn test_quality_item_from_str6() {
-        let x: Result<QualityItem<Encoding>, _> = "gzip; q=2".parse();
-        assert!(x.is_err());
+        "gzip; q=2".parse::<QualityItem<Encoding>>().unwrap_err();
+    }
+
+    #[test]
+    fn quality_value_rejects_invalid_numeric_syntax() {
+        for value in [
+            "", ".5", ".0001", "+0.5", "-0", "-0.0", "00.5", "00001", "1e-1", "1e-4", "0.0000",
+            "1.0000", "1.001", "0.0.1", "NaN", "inf", " 0.5", "\"0.5\"",
+        ] {
+            let input = format!("gzip; q={value}");
+
+            assert!(
+                input.parse::<QualityItem<Encoding>>().is_err(),
+                "accepted invalid quality in {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn quality_value_accepts_valid_numeric_syntax() {
+        for (value, expected) in [
+            ("0", Quality::ZERO),
+            ("0.", Quality::ZERO),
+            ("0.0", Quality::ZERO),
+            ("0.00", Quality::ZERO),
+            ("0.000", Quality::ZERO),
+            ("0.001", Quality::MIN),
+            ("0.01", Quality(10)),
+            ("0.1", Quality(100)),
+            ("0.10", Quality(100)),
+            ("0.100", Quality(100)),
+            ("0.999", Quality(999)),
+            ("1", Quality::MAX),
+            ("1.", Quality::MAX),
+            ("1.0", Quality::MAX),
+            ("1.00", Quality::MAX),
+            ("1.000", Quality::MAX),
+        ] {
+            let input = format!("gzip; q={value}");
+            let parsed = input.parse::<QualityItem<Encoding>>().unwrap();
+
+            assert_eq!(parsed.quality, expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn quality_value_preserves_thousandths() {
+        for value in 0..1000 {
+            let input = format!("gzip; q=0.{value:03}");
+            let parsed = input.parse::<QualityItem<Encoding>>().unwrap();
+
+            assert_eq!(parsed.quality, Quality(value), "{input}");
+        }
     }
 
     #[test]
     fn test_quality_item_ordering() {
-        let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
-        let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
-        let comparison_result: bool = x.gt(&y);
-        assert!(comparison_result)
+        let x = "gzip; q=0.5".parse::<QualityItem<Encoding>>().unwrap();
+        let y = "gzip; q=0.273".parse::<QualityItem<Encoding>>().unwrap();
+
+        assert!(x > y);
     }
 
     #[test]
     fn test_fuzzing_bugs() {
-        assert!("99999;".parse::<QualityItem<String>>().is_err());
-        assert!("\x0d;;;=\u{d6aa}==".parse::<QualityItem<String>>().is_err())
+        "99999;".parse::<QualityItem<String>>().unwrap_err();
+
+        "\x0d;;;=\u{d6aa}=="
+            .parse::<QualityItem<String>>()
+            .unwrap_err();
     }
 }

@@ -146,8 +146,7 @@ else
     echo "chore($PACKAGE_NAME): prepare release $NEW_VERSION"
 fi
 
-SHORT_PACKAGE_NAME="$(echo $PACKAGE_NAME | sed 's/^actix-web-//' | sed 's/^actix-//')"
-GIT_TAG="$(echo $SHORT_PACKAGE_NAME-v$NEW_VERSION)"
+GIT_TAG="${PACKAGE_NAME}-v${NEW_VERSION}"
 RELEASE_TITLE="$(echo $PACKAGE_NAME: v$NEW_VERSION)"
 
 if [ "$(echo $NEW_VERSION | grep beta)" ] || [ "$(echo $NEW_VERSION | grep rc)" ] || [ "$(echo $NEW_VERSION | grep alpha)" ]; then

@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.18.12"
+version = "3.18.13"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -129,9 +129,9 @@ sha1 = { version = "0.11", optional = true }
 actix-tls = { version = "3.4", default-features = false, optional = true }
 
 # compress-*
-brotli = { version = "8", optional = true }
+brotli = { version = "9", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-zstd = { version = "0.13", optional = true }
+zstd = { version = "0.14", optional = true }
 
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
