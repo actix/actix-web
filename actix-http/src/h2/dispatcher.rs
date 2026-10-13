@@ -114,7 +114,7 @@ where
         loop {
             match Pin::new(&mut this.connection)
                 .poll_accept(cx)
-                .map_err(compat::error)?
+                .map_err(compat::dispatch_error)?
             {
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
@@ -166,7 +166,11 @@ where
                             // When there is an in-flight ping-pong, poll pong and keep-alive
                             // timer. On successful pong received, update keep-alive timer to
                             // determine the next timing of ping pong.
-                            match ping_pong.ping_pong.poll_pong(cx).map_err(compat::error)? {
+                            match ping_pong
+                                .ping_pong
+                                .poll_pong(cx)
+                                .map_err(compat::dispatch_error)?
+                            {
                                 Poll::Ready(_) => {
                                     ping_pong.in_flight = false;
 
@@ -186,7 +190,7 @@ where
                             ping_pong
                                 .ping_pong
                                 .send_ping(Ping::opaque())
-                                .map_err(compat::error)?;
+                                .map_err(compat::dispatch_error)?;
 
                             let dead_line = this.config.keep_alive_deadline().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line.into());

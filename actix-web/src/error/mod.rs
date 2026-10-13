@@ -5,6 +5,8 @@
 // expanded manually.
 //
 // See <https://github.com/rust-lang/rust/issues/83375>
+#[cfg(feature = "http2-native")]
+pub use actix_http::error::Http2Error;
 pub use actix_http::error::{ContentTypeError, DispatchError, HttpError, ParseError, PayloadError};
 use derive_more::{Display, Error, From};
 use serde_json::error::Error as JsonError;

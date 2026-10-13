@@ -87,7 +87,10 @@ cookies = ["dep:cookie"]
 secure-cookies = ["cookies", "cookie/secure"]
 
 # HTTP/2 support (including h2c)
-http2 = ["actix-http/http2"]
+http2 = ["http2-native", "actix-http/http2"]
+
+# HTTP/2 support without the h2 0.3 compatibility API.
+http2-native = ["actix-http/http2-native"]
 
 # WebSocket support
 ws = ["actix-http/ws"]

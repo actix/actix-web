@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `http2-native` to support HTTP/2 without the `h2` 0.3 compatibility dependency. Disable default features and omit `http2` to use it; errors use the opaque `Http2Error` type.
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
 
 ## 4.16.0

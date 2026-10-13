@@ -318,7 +318,7 @@ where
     /// worst-case memory usage per connection.
     ///
     /// The default value is 1MiB.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn h2_initial_window_size(self, size: u32) -> Self {
         self.config.lock().unwrap().h2_initial_window_size = Some(size);
         self
@@ -330,7 +330,7 @@ where
     /// worst-case memory usage per connection.
     ///
     /// The default value is 2MiB.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn h2_initial_connection_window_size(self, size: u32) -> Self {
         self.config
             .lock()
@@ -514,7 +514,7 @@ where
     /// or HTTP/2 connections.
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
@@ -697,7 +697,7 @@ where
     }
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
@@ -1415,7 +1415,7 @@ fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> 
     builder.set_alpn_select_callback(|_, protocols| {
         const H11: &[u8] = b"\x08http/1.1";
 
-        #[cfg(feature = "http2")]
+        #[cfg(feature = "http2-native")]
         {
             const H2: &[u8] = b"\x02h2";
 
@@ -1431,9 +1431,9 @@ fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> 
         }
     });
 
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     let protos = b"\x08http/1.1\x02h2";
-    #[cfg(not(feature = "http2"))]
+    #[cfg(not(feature = "http2-native"))]
     let protos = b"\x08http/1.1";
     builder.set_alpn_protos(protos)?;
 

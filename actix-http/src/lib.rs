@@ -4,7 +4,8 @@
 //!
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
-//! | `http2`             | HTTP/2 support via [h2].                    |
+//! | `http2`             | HTTP/2 support with the h2 0.3 compatibility API. |
+//! | `http2-native`      | HTTP/2 support without the h2 0.3 compatibility dependency. |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
 //! | `rustls-0_20`       | TLS support via rustls 0.20.                |
 //! | `rustls-0_21`       | TLS support via rustls 0.21.                |
@@ -18,6 +19,12 @@
 //! [h2]: https://crates.io/crates/h2
 //! [OpenSSL]: https://crates.io/crates/openssl
 //! [rustls]: https://crates.io/crates/rustls
+//!
+//! `http2` includes `http2-native` and retains the existing h2 0.3 error and stream
+//! types. Enable only `http2-native` to omit that dependency. In this mode, HTTP/2
+//! failures use the opaque `error::Http2Error` in the `Http2` variants of
+//! [`error::PayloadError`] and [`error::DispatchError`]. Cargo features are additive:
+//! any dependency that enables `http2` restores the compatibility API and dependency.
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
 #![allow(
@@ -40,7 +47,7 @@ pub mod encoding;
 pub mod error;
 mod extensions;
 pub mod h1;
-#[cfg(feature = "http2")]
+#[cfg(feature = "http2-native")]
 pub mod h2;
 pub mod header;
 mod helpers;

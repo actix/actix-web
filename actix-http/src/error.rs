@@ -251,6 +251,63 @@ impl From<ParseError> for Response<BoxBody> {
     }
 }
 
+/// An HTTP/2 error that does not expose the protocol implementation.
+///
+/// With `http2-native` enabled and `http2` disabled, payload and dispatch errors
+/// contain this type. The compatibility feature `http2` uses the legacy error
+/// variants instead. The underlying backend error is not exposed as a source.
+#[cfg(feature = "http2-native")]
+#[derive(Debug, Display)]
+#[display("{inner}")]
+pub struct Http2Error {
+    inner: h2_04::Error,
+}
+
+#[cfg(feature = "http2-native")]
+impl Http2Error {
+    #[cfg(not(feature = "http2"))]
+    pub(crate) fn from_backend(inner: h2_04::Error) -> Self {
+        Self { inner }
+    }
+
+    /// Returns the HTTP/2 reason code, if present.
+    pub fn reason_code(&self) -> Option<u32> {
+        self.inner.reason().map(u32::from)
+    }
+
+    /// Returns true for a stream reset.
+    pub fn is_reset(&self) -> bool {
+        self.inner.is_reset()
+    }
+
+    /// Returns true for a GOAWAY error.
+    pub fn is_go_away(&self) -> bool {
+        self.inner.is_go_away()
+    }
+
+    /// Returns true if the peer sent the reset or GOAWAY.
+    pub fn is_remote(&self) -> bool {
+        self.inner.is_remote()
+    }
+
+    /// Returns true if the local protocol implementation detected the error.
+    pub fn is_library(&self) -> bool {
+        self.inner.is_library()
+    }
+
+    /// Returns the underlying transport error, if present.
+    pub fn as_io_error(&self) -> Option<&io::Error> {
+        self.inner.get_io()
+    }
+}
+
+#[cfg(feature = "http2-native")]
+impl StdError for Http2Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        self.as_io_error().map(|err| err as &dyn StdError)
+    }
+}
+
 /// A set of errors that can occur during payload parsing.
 #[derive(Debug, Display)]
 #[non_exhaustive]
@@ -276,6 +333,11 @@ pub enum PayloadError {
     #[display("{}", _0)]
     Http2Payload(::h2::Error),
 
+    /// HTTP/2 payload error when the legacy `http2` feature is disabled.
+    #[cfg(feature = "http2-native")]
+    #[display("{}", _0)]
+    Http2(Http2Error),
+
     /// Generic I/O error.
     #[display("{}", _0)]
     Io(io::Error),
@@ -291,6 +353,8 @@ impl std::error::Error for PayloadError {
             PayloadError::UnknownLength => None,
             #[cfg(feature = "http2")]
             PayloadError::Http2Payload(err) => Some(err),
+            #[cfg(feature = "http2-native")]
+            PayloadError::Http2(err) => Some(err),
             PayloadError::Io(err) => Some(err),
         }
     }
@@ -350,6 +414,11 @@ pub enum DispatchError {
     #[cfg(feature = "http2")]
     H2(h2::Error),
 
+    /// HTTP/2 error when the legacy `http2` feature is disabled.
+    #[display("{}", _0)]
+    #[cfg(feature = "http2-native")]
+    Http2(Http2Error),
+
     /// The first request did not complete within the specified timeout.
     #[display("request did not complete within the specified timeout")]
     SlowRequestTimeout,
@@ -377,6 +446,9 @@ impl StdError for DispatchError {
 
             #[cfg(feature = "http2")]
             DispatchError::H2(err) => Some(err),
+
+            #[cfg(feature = "http2-native")]
+            DispatchError::Http2(err) => Some(err),
 
             _ => None,
         }

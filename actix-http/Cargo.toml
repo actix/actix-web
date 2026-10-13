@@ -54,8 +54,11 @@ allowed_external_types = [
 [features]
 default = []
 
-# HTTP/2 protocol support
-http2 = ["dep:h2", "dep:h2-04", "dep:http-1"]
+# HTTP/2 support with the existing h2 0.3 compatibility API.
+http2 = ["http2-native", "dep:h2"]
+
+# HTTP/2 support without the h2 0.3 compatibility API.
+http2-native = ["dep:h2-04", "dep:http-1"]
 
 # WebSocket protocol implementation
 ws = ["dep:local-channel", "dep:base64", "dep:rand", "dep:sha1"]

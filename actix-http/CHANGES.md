@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `http2-native` for HTTP/2 without the `h2` 0.3 compatibility dependency, with an opaque `Http2Error` in new payload and dispatch error variants. The existing `http2` feature retains the legacy API and takes precedence when both features are enabled.
 - Use `h2` 0.4 internally for HTTP/2 servers while retaining the public `h2` 0.3 types. Adapted errors retain protocol reason and origin but omit reset stream IDs and GOAWAY debug data; unrecognized backend user errors become I/O errors.
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse header quality values as exact decimals and reject invalid numeric syntax.

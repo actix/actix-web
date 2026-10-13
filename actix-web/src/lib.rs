@@ -63,13 +63,26 @@
 //! - `compress-brotli` - brotli content encoding compression support (enabled by default)
 //! - `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
 //! - `compress-zstd` - zstd content encoding compression support (enabled by default)
-//! - `http2` - HTTP/2 support (enabled by default)
+//! - `http2` - HTTP/2 support with the h2 0.3 compatibility API (enabled by default)
+//! - `http2-native` - HTTP/2 support without the h2 0.3 compatibility dependency
 //! - `openssl` - HTTPS support via `openssl` crate
 //! - `rustls` - HTTPS support via `rustls` 0.20 crate
 //! - `rustls-0_21` - HTTPS support via `rustls` 0.21 crate
 //! - `rustls-0_22` - HTTPS support via `rustls` 0.22 crate
 //! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate
 //! - `secure-cookies` - secure cookies support
+//!
+//! To use HTTP/2 without the h2 0.3 compatibility dependency, disable default
+//! features and select `http2-native`. Add other features as needed:
+//!
+//! ```toml
+//! actix-web = { version = "4", default-features = false, features = ["http2-native"] }
+//! ```
+//!
+//! HTTP/2 failures then use `error::Http2Error`, an opaque Actix-owned error.
+//! The existing `http2` feature keeps the h2 0.3 API and takes precedence when
+//! both features are enabled. Cargo features are additive: another dependency
+//! that enables `http2`, such as AWC, can restore the h2 0.3 dependency.
 //!
 //! ## Experimental features
 //! To enable faster release iterations, we mark some features as experimental.

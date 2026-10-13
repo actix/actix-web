@@ -227,7 +227,7 @@ where
 
     /// Creates TCP stream service from HTTP service that automatically selects HTTP/1.x or HTTP/2
     /// on plaintext connections.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn tcp_auto_h2c(
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
@@ -442,7 +442,7 @@ mod rustls_0_20 {
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"http/1.1".to_vec()];
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -545,7 +545,7 @@ mod rustls_0_21 {
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"http/1.1".to_vec()];
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -648,7 +648,7 @@ mod rustls_0_22 {
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"http/1.1".to_vec()];
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -751,7 +751,7 @@ mod rustls_0_23 {
         > {
             let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut protos = vec![b"http/1.1".to_vec()];
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -958,7 +958,7 @@ where
         let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake {
                     handshake: Some((
@@ -971,9 +971,9 @@ where
                 },
             },
 
-            #[cfg(not(feature = "http2"))]
+            #[cfg(not(feature = "http2-native"))]
             Protocol::Http2 => {
-                panic!("HTTP/2 support is disabled (enable with the `http2` feature flag)")
+                panic!("HTTP/2 support is disabled (enable `http2` or `http2-native`)")
             }
 
             Protocol::Http1 => HttpServiceHandlerResponse {
@@ -993,7 +993,7 @@ where
     }
 }
 
-#[cfg(not(feature = "http2"))]
+#[cfg(not(feature = "http2-native"))]
 pin_project! {
     #[project = StateProj]
     enum State<T, S, B, X, U>
@@ -1018,7 +1018,7 @@ pin_project! {
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(feature = "http2-native")]
 pin_project! {
     #[project = StateProj]
     enum State<T, S, B, X, U>
@@ -1105,10 +1105,10 @@ where
         match self.as_mut().project().state.project() {
             StateProj::H1 { dispatcher } => dispatcher.poll(cx),
 
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             StateProj::H2 { dispatcher } => dispatcher.poll(cx),
 
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {

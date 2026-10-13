@@ -55,6 +55,11 @@ test:
     cargo {{ toolchain }} test --lib --tests -p=actix-multipart-derive --all-features
     cargo {{ toolchain }} nextest run --no-tests=warn -p=actix-router --no-default-features
     cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
+    @just toolchain='{{ toolchain }}' test-http2-native
+
+# Test HTTP/2 in a downstream application without legacy feature unification.
+test-http2-native:
+    CARGO_TARGET_DIR=target/http2-native-consumer cargo {{ toolchain }} test --manifest-path actix-http/tests/http2-native-consumer/Cargo.toml
 
 # Test workspace using MSRV.
 test-msrv: downgrade-for-msrv

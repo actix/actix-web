@@ -308,7 +308,7 @@ where
     }
 
     /// Finish service configuration and create a service for the HTTP/2 protocol.
-    #[cfg(feature = "http2")]
+    #[cfg(feature = "http2-native")]
     pub fn h2<F, B>(self, service: F) -> crate::h2::H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,
