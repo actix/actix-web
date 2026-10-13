@@ -9,9 +9,7 @@ use base64::prelude::*;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::{
-    body::BoxBody, header::HeaderValue, ConnectionType, RequestHead, Response, ResponseBuilder,
-};
+use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;
@@ -148,7 +146,6 @@ impl From<HandshakeError> for Response<BoxBody> {
                 #[allow(clippy::declare_interior_mutable_const)]
                 const HV_WEBSOCKET: HeaderValue = HeaderValue::from_static("websocket");
                 let mut res = Response::new(StatusCode::UPGRADE_REQUIRED);
-                res.head_mut().set_connection_type(ConnectionType::Upgrade);
                 res.headers_mut().insert(header::UPGRADE, HV_WEBSOCKET);
                 res.headers_mut()
                     .insert(header::SEC_WEBSOCKET_VERSION, HV_13);
@@ -423,7 +420,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let resp: Response<BoxBody> = HandshakeError::UnsupportedVersion.into();
         assert_eq!(resp.status(), StatusCode::UPGRADE_REQUIRED);
-        assert!(resp.upgrade());
+        assert!(!resp.upgrade());
         assert_eq!(resp.headers().get(header::UPGRADE).unwrap(), "websocket");
         assert_eq!(
             resp.headers().get(header::SEC_WEBSOCKET_VERSION).unwrap(),

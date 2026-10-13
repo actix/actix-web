@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.15.0)](https://docs.rs/actix-web/4.15.0)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.16.0)](https://docs.rs/actix-web/4.16.0)
 ![MSRV](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.15.0/status.svg)](https://deps.rs/crate/actix-web/4.15.0)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.16.0/status.svg)](https://deps.rs/crate/actix-web/4.16.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![Coverage](https://github.com/actix/actix-web/actions/workflows/coverage.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/coverage.yml)
@@ -116,3 +116,9 @@ This project is licensed under either of the following licenses, at your option:
 ## Code of Conduct
 
 Contribution to the `actix/actix-web` repo is organized under the terms of the Contributor Covenant. The Actix team promises to intervene to uphold that code of conduct.
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>

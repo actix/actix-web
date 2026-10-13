@@ -14,6 +14,7 @@ const MAX_QUALITY_FLOAT: f32 = 1.0;
 /// This means there are 1001 possible values. Since floating point numbers are not exact and the
 /// smallest floating point data type (`f32`) consumes four bytes, we use an `u16` value to store
 /// the quality internally.
+/// Float conversions round to the nearest thousandth.
 ///
 /// [RFC 7231 §5.3.1] gives more information on quality values in HTTP header fields.
 ///
@@ -56,7 +57,7 @@ impl Quality {
             "q value must be between 0.0 and 1.0"
         );
 
-        Quality((value * MAX_QUALITY_INT as f32) as u16)
+        Quality((value * MAX_QUALITY_INT as f32).round() as u16)
     }
 }
 
@@ -185,6 +186,28 @@ mod tests {
     #[test]
     fn q_helper() {
         assert_eq!(q(0.5), Quality(500));
+    }
+
+    #[test]
+    fn float_conversion_preserves_thousandths() {
+        for value in 0..=1000 {
+            let quality = Quality::try_from(value as f32 / 1000.0).unwrap();
+
+            assert_eq!(quality, Quality(value), "quality={value}/1000");
+        }
+    }
+
+    #[test]
+    fn float_conversion_rounds_to_nearest_thousandth() {
+        for (value, expected) in [
+            (0.0004, Quality::ZERO),
+            (0.0005, Quality::MIN),
+            (0.2344, Quality(234)),
+            (0.2345, Quality(235)),
+            (0.9995, Quality::MAX),
+        ] {
+            assert_eq!(Quality::try_from(value).unwrap(), expected, "{value}");
+        }
     }
 
     #[test]
