@@ -53,6 +53,9 @@ pub(crate) const DEFAULT_H2_STREAM_WINDOW_SIZE: u32 = 1024 * 1024; // 1MiB
 /// Default HTTP/1 response write buffer size.
 pub(crate) const DEFAULT_H1_WRITE_BUFFER_SIZE: usize = 32_768;
 
+/// Default maximum number of HTTP/1 request header fields.
+pub(crate) const DEFAULT_H1_MAX_HEADERS: usize = 96;
+
 /// A builder for creating a [`ServiceConfig`]
 #[derive(Default, Debug)]
 pub struct ServiceConfigBuilder {
@@ -70,6 +73,7 @@ impl ServiceConfigBuilder {
     /// - secure value of `false`
     /// - [`None`] for the local address setting
     /// - Allow for half closed HTTP/1 connections
+    /// - 96 header fields per HTTP/1 request
     pub fn new() -> Self {
         Self::default()
     }
@@ -118,6 +122,21 @@ impl ServiceConfigBuilder {
     /// server to abort the connection handling as soon as it detects an EOF from the client
     pub fn h1_allow_half_closed(mut self, allow: bool) -> Self {
         self.inner.h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum number of header fields in a request head.
+    ///
+    /// Each field counts toward the limit, including `Host` and repeated header names.
+    /// Requests that exceed the limit receive a `431 Request Header Fields Too Large` response.
+    ///
+    /// For HTTP/2, the count excludes pseudo-header fields and is checked after decoding.
+    /// The HTTP/2 header list size limit also applies.
+    ///
+    /// By default, HTTP/1 allows 96 fields and HTTP/2 has no explicit field count limit.
+    /// A limit of 0 allows no header fields.
+    pub fn max_headers(mut self, max: usize) -> Self {
+        self.inner.max_headers = Some(max);
         self
     }
 
@@ -190,6 +209,7 @@ struct Inner {
     tcp_nodelay: Option<bool>,
     date_service: DateService,
     h1_allow_half_closed: bool,
+    max_headers: Option<usize>,
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
@@ -207,6 +227,7 @@ impl Default for Inner {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            max_headers: None,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
@@ -233,6 +254,7 @@ impl ServiceConfig {
             tcp_nodelay: None,
             date_service: DateService::new(),
             h1_allow_half_closed: true,
+            max_headers: None,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
@@ -294,6 +316,14 @@ impl ServiceConfig {
     /// server will abort the connection handling as soon as it detects an EOF from the client
     pub fn h1_allow_half_closed(&self) -> bool {
         self.0.h1_allow_half_closed
+    }
+
+    /// Explicit maximum number of header fields in a request head.
+    ///
+    /// Returns `None` when the protocol defaults apply: 96 fields for HTTP/1 and no explicit
+    /// field count limit for HTTP/2.
+    pub fn max_headers(&self) -> Option<usize> {
+        self.0.max_headers
     }
 
     /// HTTP/1 response write buffer size (in bytes).
