@@ -86,7 +86,7 @@ dependencies = [
  "openssl",
  "percent-encoding",
  "pin-project-lite",
- "rand 0.10.2",
+ "rand 0.10.3",
  "rcgen",
  "regex",
  "rustls 0.23.45",
@@ -164,7 +164,7 @@ dependencies = [
  "memchr",
  "mime",
  "multer",
- "rand 0.10.2",
+ "rand 0.10.3",
  "rustversion-msrv",
  "serde",
  "serde_json",
@@ -357,7 +357,7 @@ dependencies = [
  "once_cell",
  "openssl",
  "pin-project-lite",
- "rand 0.10.2",
+ "rand 0.10.3",
  "rcgen",
  "regex",
  "regex-lite",
@@ -643,7 +643,7 @@ dependencies = [
  "openssl",
  "percent-encoding",
  "pin-project-lite",
- "rand 0.10.2",
+ "rand 0.10.3",
  "rcgen",
  "rustls 0.20.9",
  "rustls 0.21.12",
@@ -1669,7 +1669,7 @@ dependencies = [
  "idna",
  "ipnet",
  "jni 0.22.4",
- "rand 0.10.2",
+ "rand 0.10.3",
  "thiserror 2.0.20",
  "tinyvec",
  "tokio",
@@ -1689,7 +1689,7 @@ dependencies = [
  "jni 0.22.4",
  "once_cell",
  "prefix-trie",
- "rand 0.10.2",
+ "rand 0.10.3",
  "ring 0.17.14",
  "thiserror 2.0.20",
  "tinyvec",
@@ -1714,7 +1714,7 @@ dependencies = [
  "ndk-context",
  "once_cell",
  "parking_lot",
- "rand 0.10.2",
+ "rand 0.10.3",
  "resolv-conf",
  "smallvec",
  "system-configuration",
@@ -2598,9 +2598,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
 dependencies = [
  "chacha20",
  "getrandom 0.4.3",
