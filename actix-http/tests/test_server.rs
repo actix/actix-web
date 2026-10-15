@@ -1033,3 +1033,137 @@ async fn h2_flow_control_window_sizes() {
 
     srv.stop().await;
 }
+
+#[actix_rt::test]
+async fn h2_legacy_request_response_and_payload_types() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .finish(|mut req: Request| async move {
+                assert_eq!(req.method(), http::Method::POST);
+                assert_eq!(req.version(), http::Version::HTTP_2);
+                assert_eq!(req.uri().path_and_query().unwrap(), "/a%2Fb?q=%FF");
+                assert_eq!(
+                    req.head().headers.get_all("x-repeat").collect::<Vec<_>>(),
+                    ["one", "two"]
+                );
+
+                let mut body = bytes::BytesMut::new();
+                let mut payload = req.take_payload();
+
+                while let Some(chunk) = payload.next().await {
+                    body.extend_from_slice(&chunk?);
+                }
+
+                Ok::<_, Error>(
+                    Response::build(http::StatusCode::CREATED)
+                        .append_header(("set-cookie", "a=1"))
+                        .append_header(("set-cookie", "b=2"))
+                        .body(body.freeze()),
+                )
+            })
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+    let (mut client, connection) = h2::client::handshake(tcp).await.unwrap();
+    let connection = tokio::spawn(connection);
+    let request = http::Request::builder()
+        .method(http::Method::POST)
+        .uri(format!("http://{}/a%2Fb?q=%FF", srv.addr()))
+        .header("x-repeat", "one")
+        .header("x-repeat", "two")
+        .body(())
+        .unwrap();
+    let (response, mut body) = client.send_request(request, false).unwrap();
+    body.send_data(Bytes::from_static(b"legacy payload"), true)
+        .unwrap();
+
+    let response = response.await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::CREATED);
+    assert_eq!(
+        response
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .collect::<Vec<_>>(),
+        ["a=1", "b=2"]
+    );
+
+    // Existing callers can still pass an h2 0.3 receive stream into Actix.
+    let mut payload =
+        actix_http::Payload::<actix_http::BoxedPayloadStream>::from(response.into_body());
+    let mut received = bytes::BytesMut::new();
+
+    while let Some(chunk) = payload.next().await {
+        received.extend_from_slice(&chunk.unwrap());
+    }
+
+    assert_eq!(received, "legacy payload");
+
+    connection.abort();
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn h2_reset_preserves_legacy_payload_error() {
+    let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (error_tx, mut error_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let mut srv = test_server(move || {
+        let started_tx = started_tx.clone();
+        let error_tx = error_tx.clone();
+
+        HttpService::build()
+            .finish(move |mut req: Request| {
+                let started_tx = started_tx.clone();
+                let error_tx = error_tx.clone();
+
+                async move {
+                    started_tx.send(()).unwrap();
+                    let err = req.take_payload().next().await.unwrap().unwrap_err();
+                    error_tx.send(err).unwrap();
+
+                    Ok::<_, Infallible>(Response::ok())
+                }
+            })
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+    let (mut client, connection) = h2::client::handshake(tcp).await.unwrap();
+    let connection = tokio::spawn(connection);
+    let request = http::Request::builder()
+        .method("POST")
+        .uri("/")
+        .body(())
+        .unwrap();
+    let (_response, mut body) = client.send_request(request, false).unwrap();
+
+    timeout(Duration::from_secs(5), started_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    body.send_reset(h2::Reason::CANCEL);
+
+    let err = timeout(Duration::from_secs(5), error_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let actix_http::error::PayloadError::Http2Payload(err) = err else {
+        panic!("expected the existing HTTP/2 payload error variant");
+    };
+
+    // This assignment also checks the existing public dependency type.
+    let err: h2::Error = err;
+    assert_eq!(err.reason(), Some(h2::Reason::CANCEL));
+    assert!(err.is_reset());
+    assert!(err.is_remote());
+    assert!(!err.is_library());
+    assert!(!err.is_go_away());
+    assert!(!err.is_io());
+
+    connection.abort();
+    srv.stop().await;
+}

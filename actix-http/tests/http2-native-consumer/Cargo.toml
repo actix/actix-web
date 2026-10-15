@@ -1,0 +1,24 @@
+[package]
+name = "http2-native-consumer"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+
+# Keep the dependency graph separate from workspace dev-dependencies, which use AWC.
+[workspace]
+resolver = "3"
+
+[dependencies]
+actix-web = { path = "../../../actix-web", default-features = false, features = ["http2-native"] }
+
+[dev-dependencies]
+actix-rt = "2"
+bytes = "1"
+futures-util = "0.3"
+h2 = "0.4.20"
+http = "1"
+tokio = { version = "1", features = ["sync"] }
+
+[patch.crates-io]
+actix-http = { path = "../.." }

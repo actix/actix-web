@@ -17,7 +17,7 @@ pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadErr
 #[deprecated(since = "3.0.0", note = "Renamed to `BoxedPayloadStream`.")]
 pub type PayloadStream = BoxedPayloadStream;
 
-#[cfg(not(feature = "http2"))]
+#[cfg(not(feature = "http2-native"))]
 pin_project! {
     /// A streaming payload.
     #[project = PayloadProj]
@@ -28,7 +28,7 @@ pin_project! {
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(feature = "http2-native")]
 pin_project! {
     /// A streaming payload.
     #[project = PayloadProj]
@@ -63,7 +63,7 @@ impl<S> From<Vec<u8>> for Payload<S> {
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(feature = "http2-native")]
 impl<S> From<crate::h2::Payload> for Payload<S> {
     #[inline]
     fn from(payload: crate::h2::Payload) -> Self {
@@ -108,7 +108,7 @@ where
             PayloadProj::None => Poll::Ready(None),
             PayloadProj::H1 { payload } => Pin::new(payload).poll_next(cx),
 
-            #[cfg(feature = "http2")]
+            #[cfg(feature = "http2-native")]
             PayloadProj::H2 { payload } => Pin::new(payload).poll_next(cx),
 
             PayloadProj::Stream { payload } => payload.poll_next(cx),
