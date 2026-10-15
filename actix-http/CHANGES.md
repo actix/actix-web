@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, so the buffer no longer keeps the size of the largest response it sent.
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse header quality values as exact decimals and reject invalid numeric syntax.
 - Round float quality conversions to the nearest thousandth to preserve all three decimal places.
