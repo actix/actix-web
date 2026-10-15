@@ -7,6 +7,8 @@
 - Round float quality conversions to the nearest thousandth to preserve all three decimal places.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
+- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets.
+- Reword the `ws::ProtocolError::Overflow` message, which described only the size limit, to cover an invalid payload length.
 
 ## 3.18.13
 

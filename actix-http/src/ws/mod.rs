@@ -62,8 +62,11 @@ pub enum ProtocolError {
     #[display("Bad opcode")]
     BadOpCode,
 
-    /// A payload reached size limit.
-    #[display("Payload reached size limit")]
+    /// A payload length is invalid, or exceeds the configured size limit.
+    ///
+    /// A 64-bit length with its most significant bit set is invalid (RFC 6455 §5.2), as is one that
+    /// does not fit in `usize`, or one whose addition to the frame offset overflows.
+    #[display("Payload length is invalid or exceeds the size limit")]
     Overflow,
 
     /// Continuation has not started.
@@ -251,6 +254,16 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 mod tests {
     use super::*;
     use crate::{header, test::TestRequest};
+
+    // The message is user-visible, so pin it: it describes every case the variant covers, not only
+    // the payload size limit it used to name.
+    #[test]
+    fn test_overflow_message_covers_invalid_lengths() {
+        assert_eq!(
+            ProtocolError::Overflow.to_string(),
+            "Payload length is invalid or exceeds the size limit"
+        );
+    }
 
     #[test]
     fn test_handshake() {
