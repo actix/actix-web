@@ -668,7 +668,7 @@ mod tests {
     // The payload length of the #3723 repro, whose MSB is set. That report was an unchecked
     // addition that overflowed; `checked_add` was added to fix it, and the most-significant-bit
     // check now rejects this input before either runs, so this pins the regression only.
-    // The 32-bit test that covers the `checked_add` guard is not compiled on this target.
+    // The `checked_add` guard is covered separately by a 32-bit-only test.
     #[test]
     fn test_parse_rejects_msb_length_from_3723() {
         let buf: [u8; 14] = [

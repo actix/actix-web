@@ -2,13 +2,14 @@
 
 ## Unreleased
 
+## 3.19.0
+
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse header quality values as exact decimals and reject invalid numeric syntax.
 - Round float quality conversions to the nearest thousandth to preserve all three decimal places.
+- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets, using `ws::ProtocolError::Overflow`.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
-- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets.
-- Reword the `ws::ProtocolError::Overflow` message, which described only the size limit, to cover an invalid payload length.
 
 ## 3.18.13
 

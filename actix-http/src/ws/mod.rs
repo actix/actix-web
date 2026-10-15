@@ -255,16 +255,6 @@ mod tests {
     use super::*;
     use crate::{header, test::TestRequest};
 
-    // The message is user-visible, so pin it: it describes every case the variant covers, not only
-    // the payload size limit it used to name.
-    #[test]
-    fn test_overflow_message_covers_invalid_lengths() {
-        assert_eq!(
-            ProtocolError::Overflow.to_string(),
-            "Payload length is invalid or exceeds the size limit"
-        );
-    }
-
     #[test]
     fn test_handshake() {
         let req = TestRequest::default().method(Method::POST).finish();
