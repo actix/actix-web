@@ -112,7 +112,27 @@ where
 
         loop {
             match Pin::new(&mut this.connection).poll_accept(cx)? {
-                Poll::Ready(Some((req, tx))) => {
+                Poll::Ready(Some((req, mut tx))) => {
+                    if this
+                        .config
+                        .max_headers()
+                        .is_some_and(|max| req.headers().len() > max)
+                    {
+                        let response =
+                            Response::new(http::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
+                        let response = prepare_response(
+                            this.config.clone(),
+                            response.head(),
+                            &mut BodySize::Sized(0),
+                        );
+
+                        if let Err(err) = tx.send_response(response, true) {
+                            tracing::trace!("Error sending response: {err:?}");
+                        }
+
+                        continue;
+                    }
+
                     let (parts, body) = req.into_parts();
                     let payload = crate::h2::Payload::new(body);
                     let pl = Payload::H2 { payload };

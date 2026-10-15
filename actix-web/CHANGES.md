@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `HttpServer::max_headers()` to limit request header field counts for HTTP/1 and HTTP/2.
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
 
 ## 4.16.0

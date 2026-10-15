@@ -33,6 +33,7 @@ struct Config {
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     h1_allow_half_closed: bool,
+    max_headers: Option<usize>,
     h1_write_buffer_size: Option<usize>,
     h2_initial_window_size: Option<u32>,
     h2_initial_connection_window_size: Option<u32>,
@@ -127,6 +128,7 @@ where
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
+                max_headers: None,
                 h1_write_buffer_size: None,
                 h2_initial_window_size: None,
                 h2_initial_connection_window_size: None,
@@ -290,6 +292,21 @@ where
     /// The default behavior is to allow, i.e. `true`
     pub fn h1_allow_half_closed(self, allow: bool) -> Self {
         self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum number of header fields in a request head.
+    ///
+    /// Each field counts toward the limit, including `Host` and repeated header names.
+    /// Requests that exceed the limit receive a `431 Request Header Fields Too Large` response.
+    ///
+    /// For HTTP/2, the count excludes pseudo-header fields and is checked after decoding.
+    /// The HTTP/2 header list size limit also applies.
+    ///
+    /// By default, HTTP/1 allows 96 fields and HTTP/2 has no explicit field count limit.
+    /// A limit of 0 allows no header fields.
+    pub fn max_headers(self, max: usize) -> Self {
+        self.config.lock().unwrap().max_headers = Some(max);
         self
     }
 
@@ -666,6 +683,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(max) = cfg.max_headers {
+                        svc = svc.max_headers(max);
+                    }
+
                     if let Some(size) = cfg.h1_write_buffer_size {
                         svc = svc.h1_write_buffer_size(size);
                     }
@@ -731,6 +752,10 @@ where
 
                     if let Some(enabled) = cfg.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(max) = cfg.max_headers {
+                        svc = svc.max_headers(max);
                     }
 
                     if let Some(size) = cfg.h1_write_buffer_size {
@@ -833,6 +858,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
+                    }
+
                     if let Some(size) = c.h1_write_buffer_size {
                         svc = svc.h1_write_buffer_size(size);
                     }
@@ -904,6 +933,10 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
                     }
 
                     if let Some(size) = c.h1_write_buffer_size {
@@ -995,6 +1028,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
+                    }
+
                     if let Some(size) = c.h1_write_buffer_size {
                         svc = svc.h1_write_buffer_size(size);
                     }
@@ -1082,6 +1119,10 @@ where
 
                     if let Some(enabled) = c.tcp_nodelay {
                         svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
                     }
 
                     if let Some(size) = c.h1_write_buffer_size {
@@ -1174,6 +1215,10 @@ where
                         svc = svc.tcp_nodelay(enabled);
                     }
 
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
+                    }
+
                     if let Some(size) = c.h1_write_buffer_size {
                         svc = svc.h1_write_buffer_size(size);
                     }
@@ -1259,6 +1304,10 @@ where
                         .client_disconnect_timeout(c.client_disconnect_timeout)
                         .h1_allow_half_closed(c.h1_allow_half_closed);
 
+                    if let Some(max) = c.max_headers {
+                        svc = svc.max_headers(max);
+                    }
+
                     if let Some(size) = c.h1_write_buffer_size {
                         svc = svc.h1_write_buffer_size(size);
                     }
@@ -1315,6 +1364,10 @@ where
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
+                }
+
+                if let Some(max) = c.max_headers {
+                    svc = svc.max_headers(max);
                 }
 
                 if let Some(size) = c.h1_write_buffer_size {

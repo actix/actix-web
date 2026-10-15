@@ -9,13 +9,19 @@ use http::{
 use tracing::{debug, error, trace};
 
 use super::chunked::ChunkedState;
-use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
+use crate::{
+    config::DEFAULT_H1_MAX_HEADERS, error::ParseError, header::HeaderMap, ConnectionType, Request,
+    ResponseHead,
+};
 
 pub(crate) const MAX_BUFFER_SIZE: usize = 131_072;
-const MAX_HEADERS: usize = 96;
+const MAX_HEADERS: usize = DEFAULT_H1_MAX_HEADERS;
 
 /// Incoming message decoder
-pub(crate) struct MessageDecoder<T: MessageType>(PhantomData<T>);
+pub(crate) struct MessageDecoder<T: MessageType> {
+    max_headers: usize,
+    _phantom: PhantomData<T>,
+}
 
 #[derive(Debug)]
 /// Incoming request type
@@ -27,7 +33,16 @@ pub(crate) enum PayloadType {
 
 impl<T: MessageType> Default for MessageDecoder<T> {
     fn default() -> Self {
-        MessageDecoder(PhantomData)
+        Self::new(MAX_HEADERS)
+    }
+}
+
+impl<T: MessageType> MessageDecoder<T> {
+    pub(crate) fn new(max_headers: usize) -> Self {
+        Self {
+            max_headers,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -36,7 +51,7 @@ impl<T: MessageType> Decoder for MessageDecoder<T> {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        T::decode(src)
+        T::decode(src, self.max_headers)
     }
 }
 
@@ -70,7 +85,10 @@ pub(crate) trait MessageType: Sized {
 
     fn headers_mut(&mut self) -> &mut HeaderMap;
 
-    fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError>;
+    fn decode(
+        src: &mut BytesMut,
+        max_headers: usize,
+    ) -> Result<Option<(Self, PayloadType)>, ParseError>;
 
     fn set_headers(
         &mut self,
@@ -257,8 +275,20 @@ impl MessageType for Request {
         &mut self.head_mut().headers
     }
 
-    fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
+    fn decode(
+        src: &mut BytesMut,
+        max_headers: usize,
+    ) -> Result<Option<(Self, PayloadType)>, ParseError> {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
+        let mut heap_headers;
+
+        // Keep the default limit on the stack; larger limits need heap storage.
+        let headers = if max_headers > MAX_HEADERS {
+            heap_headers = vec![EMPTY_HEADER_INDEX; max_headers];
+            &mut heap_headers[..]
+        } else {
+            &mut headers[..max_headers]
+        };
 
         let (len, method, uri, ver, h_len) = {
             // SAFETY:
@@ -269,10 +299,18 @@ impl MessageType for Request {
                 MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
                     .assume_init()
             };
+            let mut heap_parsed;
+
+            let parsed = if max_headers > MAX_HEADERS {
+                heap_parsed = vec![MaybeUninit::uninit(); max_headers];
+                &mut heap_parsed[..]
+            } else {
+                &mut parsed[..max_headers]
+            };
 
             let mut req = httparse::Request::new(&mut []);
 
-            match req.parse_with_uninit_headers(src, &mut parsed)? {
+            match req.parse_with_uninit_headers(src, parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
                         .map_err(|_| ParseError::Method)?;
@@ -282,7 +320,7 @@ impl MessageType for Request {
                     } else {
                         Version::HTTP_10
                     };
-                    HeaderIndex::record(src, req.headers, &mut headers);
+                    HeaderIndex::record(src, req.headers, headers);
 
                     (len, method, uri, version, req.headers.len())
                 }
@@ -380,7 +418,10 @@ impl MessageType for ResponseHead {
         &mut self.headers
     }
 
-    fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
+    fn decode(
+        src: &mut BytesMut,
+        _max_headers: usize,
+    ) -> Result<Option<(Self, PayloadType)>, ParseError> {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, ver, status, h_len) = {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `HttpServiceBuilder::max_headers()` and `ServiceConfigBuilder::max_headers()` to limit request header field counts for HTTP/1 and HTTP/2.
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse header quality values as exact decimals and reject invalid numeric syntax.
 - Round float quality conversions to the nearest thousandth to preserve all three decimal places.

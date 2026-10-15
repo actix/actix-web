@@ -970,6 +970,85 @@ async fn h2c_auto() {
 }
 
 #[actix_rt::test]
+async fn h2_max_headers_enforces_request_limits() {
+    use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+
+    for (configured_limit, limit) in [(None, 128), (Some(0), 0), (Some(1), 1), (Some(128), 128)] {
+        let mut server = HttpServer::new(|| {
+            App::new().route(
+                "/",
+                web::to(|req: HttpRequest| async move {
+                    HttpResponse::Ok()
+                        .insert_header(("x-header-count", req.headers().len().to_string()))
+                        .finish()
+                }),
+            )
+        })
+        .workers(1)
+        .disable_signals();
+
+        if let Some(max) = configured_limit {
+            server = server.max_headers(max);
+        }
+
+        let server = server.bind_auto_h2c(("127.0.0.1", 0)).unwrap();
+        let addr = server.addrs()[0];
+        let server = server.run();
+        let server_handle = server.handle();
+        let server_task = actix_rt::spawn(server);
+
+        let tcp = TcpStream::connect(addr).await.unwrap();
+        let (mut client, connection) = h2::client::handshake(tcp).await.unwrap();
+        let connection_task = actix_rt::spawn(connection);
+
+        // A rejected stream must not prevent a later request on the same connection.
+        for count in [limit, limit + 1, limit] {
+            client = client.ready().await.unwrap();
+
+            let mut request = ::http::Request::builder()
+                .uri("http://localhost/")
+                .body(())
+                .unwrap();
+
+            // The URI also produces pseudo-header fields, which do not count toward the limit.
+            for _ in 0..count {
+                request
+                    .headers_mut()
+                    .append("x-test", header::HeaderValue::from_static("value"));
+            }
+
+            let (response, _) = client.send_request(request, true).unwrap();
+            let response = timeout(Duration::from_secs(5), response)
+                .await
+                .expect("server did not send a response")
+                .unwrap();
+
+            let expected_status = if configured_limit.is_some() && count > limit {
+                StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
+            } else {
+                StatusCode::OK
+            };
+
+            assert_eq!(response.status(), expected_status);
+
+            if expected_status == StatusCode::OK {
+                assert_eq!(
+                    response.headers()["x-header-count"].to_str().unwrap(),
+                    count.to_string()
+                );
+            }
+        }
+
+        drop(client);
+        connection_task.abort();
+        let _ = connection_task.await;
+
+        server_handle.stop(false).await;
+        server_task.await.unwrap().unwrap();
+    }
+}
+
+#[actix_rt::test]
 async fn h2_flow_control_window_sizes() {
     let mut srv = test_server(|| {
         HttpService::build()

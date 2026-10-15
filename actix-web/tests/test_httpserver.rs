@@ -40,6 +40,129 @@ async fn read_http1_response_head(stream: &mut TcpStream) -> io::Result<Vec<u8>>
 }
 
 #[actix_rt::test]
+async fn h1_max_headers_accepts_larger_requests() {
+    let server = HttpServer::new(|| {
+        App::new().route(
+            "/",
+            web::to(|req: HttpRequest| async move {
+                HttpResponse::Ok()
+                    .insert_header(("x-header-count", req.headers().len().to_string()))
+                    .finish()
+            }),
+        )
+    })
+    .workers(1)
+    .disable_signals()
+    .max_headers(128)
+    .bind(("127.0.0.1", 0))
+    .unwrap();
+
+    let addr = server.addrs()[0];
+    let server = server.run();
+    let server_handle = server.handle();
+    let server_task = actix_web::rt::spawn(server);
+
+    let mut connection = TcpStream::connect(addr).await.unwrap();
+    let request = format!(
+        "GET / HTTP/1.1\r\nhost: localhost\r\n{}\r\n",
+        "x-test: value\r\n".repeat(127)
+    );
+
+    // Each request has 128 fields, including repeated names and Host.
+    for _ in 0..2 {
+        connection.write_all(request.as_bytes()).await.unwrap();
+
+        let response = timeout(
+            Duration::from_secs(5),
+            read_http1_response_head(&mut connection),
+        )
+        .await
+        .expect("server did not send a response")
+        .unwrap();
+
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "unexpected response: {}",
+            String::from_utf8_lossy(&response)
+        );
+
+        assert!(std::str::from_utf8(&response)
+            .unwrap()
+            .contains("\r\nx-header-count: 128\r\n"));
+    }
+
+    drop(connection);
+    server_handle.stop(false).await;
+    server_task.await.unwrap().unwrap();
+}
+
+#[actix_rt::test]
+async fn h1_max_headers_enforces_request_limits() {
+    for (configured_limit, limit, version) in [
+        (None, 96, "HTTP/1.1"),
+        (Some(0), 0, "HTTP/1.0"),
+        (Some(1), 1, "HTTP/1.1"),
+        (Some(128), 128, "HTTP/1.1"),
+    ] {
+        let mut server = HttpServer::new(|| {
+            App::new().route("/", web::to(|| async { HttpResponse::Ok().finish() }))
+        })
+        .workers(1)
+        .disable_signals();
+
+        if let Some(max) = configured_limit {
+            server = server.max_headers(max);
+        }
+
+        let server = server.bind(("127.0.0.1", 0)).unwrap();
+        let addr = server.addrs()[0];
+        let server = server.run();
+        let server_handle = server.handle();
+        let server_task = actix_web::rt::spawn(server);
+
+        for (count, expected_status) in [
+            (limit, "200 OK"),
+            (limit + 1, "431 Request Header Fields Too Large"),
+        ] {
+            let mut connection = TcpStream::connect(addr).await.unwrap();
+            let request = if count == 0 {
+                format!("GET / {version}\r\n\r\n")
+            } else {
+                format!(
+                    "GET / {version}\r\nhost: localhost\r\n{}\r\n",
+                    "x-test: value\r\n".repeat(count - 1)
+                )
+            };
+
+            connection.write_all(request.as_bytes()).await.unwrap();
+
+            let response = timeout(
+                Duration::from_secs(5),
+                read_http1_response_head(&mut connection),
+            )
+            .await
+            .expect("server did not send a response")
+            .unwrap();
+
+            let status_line = std::str::from_utf8(&response)
+                .unwrap()
+                .lines()
+                .next()
+                .unwrap();
+            let (_, status) = status_line.split_once(' ').unwrap();
+
+            assert_eq!(
+                status, expected_status,
+                "unexpected response for {count} fields with limit {limit}"
+            );
+        }
+
+        server_handle.stop(false).await;
+        server_task.await.unwrap().unwrap();
+    }
+}
+
+#[actix_rt::test]
 async fn test_start() {
     let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
