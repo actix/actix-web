@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.89.
+
 ## 3.10.0
 
 - Parse all `Connection` header options when validating WebSocket handshakes.

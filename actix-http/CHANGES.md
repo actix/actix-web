@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.89.
+
 ## 3.19.0
 
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.

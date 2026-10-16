@@ -55,7 +55,7 @@
 //! - SSL support using OpenSSL or Rustls
 //! - Middlewares ([Logger, Session, CORS, etc](middleware))
 //! - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-//! - Runs on stable Rust 1.88+
+//! - Runs on stable Rust 1.89+
 //!
 //! # Crate Features
 //! - `cookies` - cookies support (enabled by default)
