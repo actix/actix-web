@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `dev::AppConfig::new()` for configuring applications served by custom servers. [#3180]
+
+[#3180]: https://github.com/actix/actix-web/issues/3180
+
 ## 4.17.0
 
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
