@@ -80,8 +80,14 @@ curl -v --request POST \
   -F file=@./Cargo.lock
 ```
 
-[`MultipartForm`]: struct@form::MultipartForm
-
 <!-- cargo-rdme end -->
 
 [More available in the examples repo &rarr;](https://github.com/actix/examples/tree/main/forms/multipart)
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>
+
+[`MultipartForm`]: struct@form::MultipartForm

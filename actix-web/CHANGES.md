@@ -3,9 +3,19 @@
 ## Unreleased
 
 - Add `dev::AppConfig::new()` for configuring applications served by custom servers. [#3180]
-- The TLS crate features no longer enable the `http2` crate feature.
 
 [#3180]: https://github.com/actix/actix-web/issues/3180
+
+## 4.17.0
+
+- Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
+- Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
+
+## 4.16.0
+
+- The TLS crate features no longer enable the `http2` crate feature.
+- Prevent `TestRequest` app data retention by disabling its request pooling.
 
 ## 4.15.0
 

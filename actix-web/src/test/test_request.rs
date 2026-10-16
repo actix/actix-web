@@ -271,7 +271,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         ServiceRequest::new(
             HttpRequest::new(
@@ -297,7 +298,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         HttpRequest::new(
             self.path,
@@ -315,7 +317,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         let req = HttpRequest::new(
             self.path,
@@ -347,10 +350,24 @@ impl TestRequest {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::{sync::Arc, time::SystemTime};
 
     use super::*;
     use crate::{http::header, test::init_service, web, App, Error, Responder};
+
+    #[actix_rt::test]
+    async fn test_request_app_data_is_dropped() {
+        fn assert_dropped(make_request: impl FnOnce(TestRequest)) {
+            let data = Arc::new(());
+            let weak = Arc::downgrade(&data);
+            make_request(TestRequest::default().app_data(Data::new(data)));
+            assert!(weak.upgrade().is_none());
+        }
+
+        assert_dropped(|req| drop(req.to_srv_request()));
+        assert_dropped(|req| drop(req.to_http_request()));
+        assert_dropped(|req| drop(req.to_http_parts()));
+    }
 
     #[actix_rt::test]
     async fn test_basics() {
