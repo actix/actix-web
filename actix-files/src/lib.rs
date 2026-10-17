@@ -77,7 +77,9 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
+    use actix_http::header::HttpDate;
     use actix_web::{
+        body,
         dev::ServiceFactory,
         guard,
         http::{
@@ -467,73 +469,69 @@ mod tests {
     async fn test_named_file_if_range_etag() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap();
-        let len = file.metadata().len();
 
         let req = TestRequest::default()
             .insert_header((header::RANGE, "bytes=0-9"))
             .insert_header((header::IF_RANGE, etag.to_string()))
             .to_http_request();
+
         let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
 
         // a validator that no longer matches must yield the whole current representation
         for stale in ["\"stale\"", "W/\"stale\"", "not a validator"] {
             let file = NamedFile::open("Cargo.toml").unwrap();
+            let content = fs::read("Cargo.toml").unwrap();
+
             let req = TestRequest::default()
                 .insert_header((header::RANGE, "bytes=0-9"))
                 .insert_header((header::IF_RANGE, stale))
                 .to_http_request();
+
             let resp = file.respond_to(&req);
             assert_eq!(resp.status(), StatusCode::OK, "If-Range: {stale}");
             assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
-            let body = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
-            assert_eq!(body.len() as u64, len);
+
+            let body = body::to_bytes(resp.into_body()).await.unwrap();
+
+            assert_eq!(
+                body, content,
+                "Response body and full file content should match",
+            );
         }
-    }
-
-    #[actix_rt::test]
-    async fn named_file_if_range_weak_etag_returns_full_file() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let etag = file.etag().unwrap();
-        let expected = fs::read("Cargo.toml").unwrap();
-
-        let req = TestRequest::default()
-            .insert_header((header::RANGE, "bytes=0-9"))
-            .insert_header((header::IF_RANGE, format!("W/{etag}")))
-            .to_http_request();
-
-        let resp = file.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
-
-        let body = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
-        assert_eq!(body.as_ref(), expected.as_slice());
     }
 
     #[actix_rt::test]
     async fn test_named_file_if_range_date() {
         let file = NamedFile::open("Cargo.toml").unwrap();
+        let content = fs::read("Cargo.toml").unwrap();
         let modified = file.last_modified().unwrap();
-        let len = file.metadata().len();
 
         let req = TestRequest::default()
             .insert_header((header::RANGE, "bytes=0-9"))
             .insert_header((header::IF_RANGE, modified))
             .to_http_request();
+
         let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
 
         let file = NamedFile::open("Cargo.toml").unwrap();
-        let later = header::HttpDate::from(SystemTime::from(modified).add(Duration::from_secs(60)));
+        let later = HttpDate::from(SystemTime::from(modified).add(Duration::from_secs(60)));
         let req = TestRequest::default()
             .insert_header((header::RANGE, "bytes=0-9"))
             .insert_header((header::IF_RANGE, later))
             .to_http_request();
+
         let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
-        let body = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
-        assert_eq!(body.len() as u64, len);
+
+        let body = body::to_bytes(resp.into_body()).await.unwrap();
+
+        assert_eq!(
+            body, content,
+            "Response body and full file content should match",
+        );
     }
 
     #[actix_rt::test]

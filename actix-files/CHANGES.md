@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.89.
-- Fix `NamedFile` serving a partial response when the `If-Range` validator no longer matches the file.
+## 0.7.1
+
+- Honor `If-Range` headers when serving a `NamedFile`.
 - Use the Windows file index in `NamedFile` ETags to distinguish different files with the same size and modification time.
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 0.7.0
 

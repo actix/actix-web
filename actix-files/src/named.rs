@@ -367,7 +367,12 @@ impl NamedFile {
         self
     }
 
-    /// Creates an `ETag` in a format is similar to Apache's.
+    /// Creates a strong ETag from the file's metadata.
+    ///
+    /// Returns `None` if the platform does not provide the file's modification time. (See
+    /// [`File::modified()`] docs for more.)
+    ///
+    /// [`File::modified()`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.modified
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
         let mtime = self.modified?;
 
