@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.89.
+- Document that `HttpServer::on_connect()` must be called before `bind()`.
 
 ## 4.17.0
 
