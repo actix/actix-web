@@ -16,7 +16,7 @@ use actix_web::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
             ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
@@ -502,10 +502,12 @@ impl NamedFile {
             false
         };
 
+        let is_get_or_head = matches!(*req.method(), Method::GET | Method::HEAD);
+
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if !is_get_or_head || req.headers().contains_key(header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -584,7 +586,7 @@ impl NamedFile {
             };
         };
 
-        if precondition_failed {
+        if precondition_failed || (not_modified && !is_get_or_head) {
             return res.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
             return res
