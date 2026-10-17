@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fs::Metadata,
     io,
     path::{Path, PathBuf},
@@ -561,9 +562,25 @@ impl NamedFile {
             .headers()
             .get(header::RANGE)
             .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+            // RFC 9110 section 14.2 requires unknown range units to be ignored.
+            .filter(|ranges| {
+                ranges
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.split_once('='))
+                    .is_none_or(|(unit, _)| unit.eq_ignore_ascii_case("bytes"))
+            })
         {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Some(range) = HttpRange::parse(ranges_header, length)
+                // Range units are case-insensitive, but http-range requires literal `bytes=`.
+                let ranges_header = match ranges_header.split_once('=') {
+                    Some((unit, set)) if unit.eq_ignore_ascii_case("bytes") && unit != "bytes" => {
+                        Cow::Owned(format!("bytes={set}"))
+                    }
+                    _ => Cow::Borrowed(ranges_header),
+                };
+
+                if let Some(range) = HttpRange::parse(&ranges_header, length)
                     .ok()
                     .and_then(|ranges| ranges.first().copied())
                 {
