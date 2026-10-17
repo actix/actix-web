@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Ignore `If-Unmodified-Since` when `If-Match` is present when serving a `NamedFile`.
+
 ## 0.7.1
 
 - Honor `If-Range` headers when serving a `NamedFile`.
