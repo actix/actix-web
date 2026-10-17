@@ -8,13 +8,13 @@ workflows:
     '.github/workflows/ci-post-merge.yml':
         - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
-        - 'rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621'
+        - 'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36'
         - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
         - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
         - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
-        - 'rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621'
+        - 'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36'
         - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
         - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
     '.github/workflows/coverage.yml':
@@ -80,9 +80,9 @@ dependencies:
         commit: 'sha1-72793074d3c8cdda771dba85f6deafe00623038b'
         owner_id: 1256587
         repo_id: 211647646
-    'rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621':
-        ref: 'v1'
-        commit: 'sha1-10ca16bf91dc22e05ebdc935cad9c75ea248f621'
+    'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36':
+        ref: 'main'
+        commit: 'sha1-da13e0b42e392e3a45d1215033a2270b849d7d36'
         owner_id: 47400
         repo_id: 479867630
     'swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6':
