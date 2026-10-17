@@ -16,7 +16,7 @@ use actix_web::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
             ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
@@ -556,10 +556,11 @@ impl NamedFile {
         let mut offset = 0;
         let mut ranged_req = false;
 
-        // check for range header
+        // RFC 9110 Section 14.2 defines range handling only for GET.
         if let Some(ranges) = req
             .headers()
             .get(header::RANGE)
+            .filter(|_| req.method() == Method::GET)
             .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
         {
             if let Ok(ranges_header) = ranges.to_str() {
