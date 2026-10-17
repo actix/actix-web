@@ -31,6 +31,9 @@ percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
 v_htmlescape = "0.17"
 
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1"
+
 [dev-dependencies]
 actix-rt = "2.7"
 actix-test = "0.1"

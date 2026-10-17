@@ -375,13 +375,18 @@ impl NamedFile {
             let ino = {
                 #[cfg(unix)]
                 {
-                    #[cfg(unix)]
                     use std::os::unix::fs::MetadataExt as _;
 
                     self.md.ino()
                 }
 
-                #[cfg(not(unix))]
+                #[cfg(windows)]
+                {
+                    // MetadataExt::file_index is not yet stable.
+                    winapi_util::file::information(&self.file).map_or(0, |info| info.file_index())
+                }
+
+                #[cfg(not(any(unix, windows)))]
                 {
                     0
                 }

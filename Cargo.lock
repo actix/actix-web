@@ -43,6 +43,7 @@ dependencies = [
  "pin-project-lite",
  "tempfile",
  "v_htmlescape",
+ "winapi-util",
 ]
 
 [[package]]
