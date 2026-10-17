@@ -19,7 +19,7 @@ workflows:
         - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1'
+        - 'actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52'
         - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
         - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
     '.github/workflows/labeler.yml':
@@ -55,9 +55,9 @@ dependencies:
         commit: 'sha1-bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
         owner_id: 44036562
         repo_id: 177139928
-    'actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1':
-        ref: 'v1.4.1'
-        commit: 'sha1-1c15be36fc3733ba839b1dd643bd9556e4426dc1'
+    'actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52':
+        ref: 'v1.4.4'
+        commit: 'sha1-2b21a77928be8d5168c2b9581a67f2adbebacc52'
         owner_id: 44036562
         repo_id: 1220171870
     'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25':
