@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.89.
+
 ## 4.17.0
 
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
