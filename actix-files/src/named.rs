@@ -536,7 +536,7 @@ impl NamedFile {
             res.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
-        if let Some(etag) = etag {
+        if let Some(etag) = &etag {
             res.insert_header((header::ETAG, etag.to_string()));
         }
 
@@ -547,7 +547,11 @@ impl NamedFile {
         let mut ranged_req = false;
 
         // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE) {
+        if let Some(ranges) = req
+            .headers()
+            .get(header::RANGE)
+            .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+        {
             if let Ok(ranges_header) = ranges.to_str() {
                 if let Some(range) = HttpRange::parse(ranges_header, length)
                     .ok()
@@ -605,6 +609,31 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 
             false
         }
+    }
+}
+
+/// Returns true if `req` has no `If-Range` header or one whose validator matches the file.
+fn if_range_matches(
+    etag: Option<&header::EntityTag>,
+    last_modified: Option<header::HttpDate>,
+    req: &HttpRequest,
+) -> bool {
+    if !req.headers().contains_key(header::IF_RANGE) {
+        return true;
+    }
+
+    match req.get_header::<header::IfRange>() {
+        Some(header::IfRange::EntityTag(ref tag)) => etag.is_some_and(|etag| etag.strong_eq(tag)),
+        Some(header::IfRange::Date(date)) => last_modified.is_some_and(|m| {
+            let t1: SystemTime = m.into();
+            let t2: SystemTime = date.into();
+
+            match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
+                (Ok(t1), Ok(t2)) => t1.as_secs() == t2.as_secs(),
+                _ => false,
+            }
+        }),
+        None => false,
     }
 }
 
