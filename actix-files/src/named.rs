@@ -511,8 +511,6 @@ impl NamedFile {
             false
         };
 
-        let range_applies = if_range_matches(etag.as_ref(), last_modified, req);
-
         let mut res = HttpResponse::build(self.status_code);
 
         let ct = if self.flags.contains(Flags::PREFER_UTF8) {
@@ -538,7 +536,7 @@ impl NamedFile {
             res.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
-        if let Some(etag) = etag {
+        if let Some(etag) = &etag {
             res.insert_header((header::ETAG, etag.to_string()));
         }
 
@@ -549,7 +547,11 @@ impl NamedFile {
         let mut ranged_req = false;
 
         // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE).filter(|_| range_applies) {
+        if let Some(ranges) = req
+            .headers()
+            .get(header::RANGE)
+            .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+        {
             if let Ok(ranges_header) = ranges.to_str() {
                 if let Some(range) = HttpRange::parse(ranges_header, length)
                     .ok()
