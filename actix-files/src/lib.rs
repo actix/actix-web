@@ -492,6 +492,25 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn named_file_if_range_weak_etag_returns_full_file() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap();
+        let expected = fs::read("Cargo.toml").unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((header::RANGE, "bytes=0-9"))
+            .insert_header((header::IF_RANGE, format!("W/{etag}")))
+            .to_http_request();
+
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
+
+        let body = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
+        assert_eq!(body.as_ref(), expected.as_slice());
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_if_range_date() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let modified = file.last_modified().unwrap();
