@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Apply `Files::path_filter` to default directory listings. [#3207]
+
+[#3207]: https://github.com/actix/actix-web/issues/3207
+
 ## 0.7.1
 
 - Honor `If-Range` headers when serving a `NamedFile`.
