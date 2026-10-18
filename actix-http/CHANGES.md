@@ -2,8 +2,25 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 3.19.0
+
+- Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
+- Parse header quality values as exact decimals and reject invalid numeric syntax.
+- Round float quality conversions to the nearest thousandth to preserve all three decimal places.
+- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets, using `ws::ProtocolError::Overflow`.
+- Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
+
+## 3.18.13
+
+- Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
 - Parse all HTTP/1 `Connection` header options consistently.
 - Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
+- Reject WebSocket handshakes with a `Sec-WebSocket-Key` value that is not valid Base64 or does not decode to 16 bytes.
+- Reject WebSocket Close frames with payloads larger than 125 bytes.
+- Return a 426 Upgrade Required response when an unsupported WebSocket version is requested.
 
 ## 3.18.12
 

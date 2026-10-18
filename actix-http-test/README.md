@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
 [![Documentation](https://docs.rs/actix-http-test/badge.svg?version=3.3.0)](https://docs.rs/actix-http-test/3.3.0)
-![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http-test)
 <br>
 [![Dependency Status](https://deps.rs/crate/actix-http-test/3.3.0/status.svg)](https://deps.rs/crate/actix-http-test/3.3.0)
@@ -18,3 +18,9 @@
 Various helpers for Actix applications to use during testing.
 
 <!-- cargo-rdme end -->
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>

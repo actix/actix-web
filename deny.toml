@@ -48,4 +48,8 @@ ignore = [
     "RUSTSEC-2026-0104",
     # FIXME: needs to update h2
     "RUSTSEC-2026-0258",
+    # FIXME: needs to eliminate old rustls dependency
+    "RUSTSEC-2026-0346",
+    "RUSTSEC-2026-0348",
+    "RUSTSEC-2026-0349",
 ]

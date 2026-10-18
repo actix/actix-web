@@ -20,7 +20,7 @@ concurrency:
 jobs:
   read_msrv:
     name: Read MSRV
-    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@b95a3a81b0efee6438b858b41a84aff627e01351 # v0.1.1
+    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@983d9d27da8fe8aaa47732160b7a14805004d4b2 # v0.1.3
 
   build_and_test:
     needs: read_msrv
@@ -60,7 +60,7 @@ jobs:
 
       - name: Setup mold linker
         if: matrix.target.name == 'Linux'
-        uses: rui314/setup-mold@10ca16bf91dc22e05ebdc935cad9c75ea248f621 # v1 # zizmor: ignore[ref-version-mismatch] v1 is a rolling tag; the SHA is intentionally pinned
+        uses: rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36 # v1 # zizmor: ignore[ref-version-mismatch] v1 is a rolling tag; the SHA is intentionally pinned
 
       - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
@@ -68,7 +68,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -103,7 +103,7 @@ jobs:
           toolchain: nightly
 
       - name: Install just
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: just
 

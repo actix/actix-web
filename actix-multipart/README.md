@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-multipart?label=latest)](https://crates.io/crates/actix-multipart)
 [![Documentation](https://docs.rs/actix-multipart/badge.svg?version=0.8.5)](https://docs.rs/actix-multipart/0.8.5)
-![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-multipart.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-multipart/0.8.5/status.svg)](https://deps.rs/crate/actix-multipart/0.8.5)
@@ -80,8 +80,14 @@ curl -v --request POST \
   -F file=@./Cargo.lock
 ```
 
-[`MultipartForm`]: struct@form::MultipartForm
-
 <!-- cargo-rdme end -->
 
 [More available in the examples repo &rarr;](https://github.com/actix/examples/tree/main/forms/multipart)
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>
+
+[`MultipartForm`]: struct@form::MultipartForm
