@@ -493,6 +493,60 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_if_none_match_before_range() {
+        let req = TestRequest::get().to_http_request();
+        let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+        let etag = resp.headers().get(header::ETAG).unwrap().clone();
+
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_NONE_MATCH, etag.clone()))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_MODIFIED,
+                "matching If-None-Match with {range} should return 304"
+            );
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "conditional response with {range} should omit Content-Range"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_if_match_before_range() {
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_MATCH, "\"stale\""))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::PRECONDITION_FAILED,
+                "nonmatching If-Match with {range} should return 412"
+            );
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "conditional response with {range} should omit Content-Range"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_if_range_etag() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap();

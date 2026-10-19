@@ -554,6 +554,15 @@ impl NamedFile {
 
         res.insert_header((header::ACCEPT_RANGES, "bytes"));
 
+        if precondition_failed {
+            return res.status(StatusCode::PRECONDITION_FAILED).finish();
+        } else if not_modified {
+            return res
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
+        }
+
         let mut length = self.md.len();
         let mut offset = 0;
         let mut ranged_req = false;
@@ -585,15 +594,6 @@ impl NamedFile {
                 return res.status(StatusCode::BAD_REQUEST).finish();
             };
         };
-
-        if precondition_failed {
-            return res.status(StatusCode::PRECONDITION_FAILED).finish();
-        } else if not_modified {
-            return res
-                .status(StatusCode::NOT_MODIFIED)
-                .body(body::None::new())
-                .map_into_boxed_body();
-        }
 
         let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
