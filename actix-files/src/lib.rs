@@ -111,15 +111,11 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_if_none_match_by_method() {
+    async fn test_if_none_match_get_and_head() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap().to_string();
 
-        for (method, expected) in [
-            (Method::GET, StatusCode::NOT_MODIFIED),
-            (Method::HEAD, StatusCode::NOT_MODIFIED),
-            (Method::POST, StatusCode::PRECONDITION_FAILED),
-        ] {
+        for method in [Method::GET, Method::HEAD] {
             for value in [etag.as_str(), "*"] {
                 let req = TestRequest::default()
                     .method(method.clone())
@@ -127,38 +123,89 @@ mod tests {
                     .to_http_request();
                 let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
 
-                assert_eq!(resp.status(), expected, "{method}: {value}");
-                assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
+                assert_eq!(
+                    resp.status(),
+                    StatusCode::NOT_MODIFIED,
+                    "{method} with matching If-None-Match {value} should return 304"
+                );
+                assert!(
+                    body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                    "{method} with matching If-None-Match {value} should have an empty body"
+                );
             }
         }
     }
 
     #[actix_rt::test]
-    async fn test_if_modified_since_by_method() {
+    async fn test_if_none_match_post() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap().to_string();
+
+        for value in [etag.as_str(), "*"] {
+            let req = TestRequest::post()
+                .insert_header((header::IF_NONE_MATCH, value))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::PRECONDITION_FAILED,
+                "POST with matching If-None-Match {value} should return 412"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "POST with matching If-None-Match {value} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_if_modified_since_get_and_head() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
 
-        for (method, expected) in [
-            (Method::GET, StatusCode::NOT_MODIFIED),
-            (Method::HEAD, StatusCode::NOT_MODIFIED),
-            (Method::POST, StatusCode::OK),
-        ] {
+        for method in [Method::GET, Method::HEAD] {
             let req = TestRequest::default()
                 .method(method.clone())
                 .insert_header((header::IF_MODIFIED_SINCE, since))
                 .to_http_request();
             let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
 
-            assert_eq!(resp.status(), expected, "{method}");
-
-            let bytes = body::to_bytes(resp.into_body()).await.unwrap();
-
-            if method == Method::POST {
-                assert_eq!(bytes.as_ref(), fs::read("Cargo.toml").unwrap());
-            } else {
-                assert!(bytes.is_empty());
-            }
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_MODIFIED,
+                "{method} with matching If-Modified-Since should return 304"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "{method} with matching If-Modified-Since should have an empty body"
+            );
         }
+    }
+
+    #[actix_rt::test]
+    async fn test_if_modified_since_post() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::post()
+            .insert_header((header::IF_MODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.into_response(&req);
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "POST should ignore If-Modified-Since and return 200"
+        );
+
+        let bytes = body::to_bytes(resp.into_body()).await.unwrap();
+
+        assert_eq!(
+            bytes.as_ref(),
+            fs::read("Cargo.toml").unwrap(),
+            "POST should return the full file despite If-Modified-Since"
+        );
     }
 
     #[actix_rt::test]
