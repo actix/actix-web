@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     fs::Metadata,
     io,
     path::{Path, PathBuf},
@@ -586,15 +585,7 @@ impl NamedFile {
             })
         {
             if let Ok(ranges_header) = ranges.to_str() {
-                // Range units are case-insensitive, but http-range requires literal `bytes=`.
-                let ranges_header = match ranges_header.split_once('=') {
-                    Some((unit, set)) if unit.eq_ignore_ascii_case("bytes") && unit != "bytes" => {
-                        Cow::Owned(format!("bytes={set}"))
-                    }
-                    _ => Cow::Borrowed(ranges_header),
-                };
-
-                if let Some(range) = HttpRange::parse(&ranges_header, length)
+                if let Some(range) = HttpRange::parse(ranges_header, length)
                     .ok()
                     .and_then(|ranges| ranges.first().copied())
                 {
