@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Ignore `If-Unmodified-Since` when `If-Match` is present when serving a `NamedFile`.
+- Evaluate request preconditions before processing Range headers when serving a `NamedFile`.
 
 ## 0.7.1
 
