@@ -505,12 +505,19 @@ mod tests {
                 .to_http_request();
             let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
 
-            assert_eq!(resp.status(), StatusCode::NOT_MODIFIED, "{range}");
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_MODIFIED,
+                "matching If-None-Match with {range} should return 304"
+            );
             assert!(
                 !resp.headers().contains_key(header::CONTENT_RANGE),
-                "{range}"
+                "conditional response with {range} should omit Content-Range"
             );
-            assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
         }
     }
 
@@ -523,12 +530,19 @@ mod tests {
                 .to_http_request();
             let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
 
-            assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED, "{range}");
+            assert_eq!(
+                resp.status(),
+                StatusCode::PRECONDITION_FAILED,
+                "nonmatching If-Match with {range} should return 412"
+            );
             assert!(
                 !resp.headers().contains_key(header::CONTENT_RANGE),
-                "{range}"
+                "conditional response with {range} should omit Content-Range"
             );
-            assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
         }
     }
 
