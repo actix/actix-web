@@ -644,6 +644,91 @@ mod tests {
         }
     }
 
+    #[actix_web::test]
+    async fn byte_range_units_are_case_insensitive() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in ["Bytes=2-4", "BYTES=2-4", "bYtEs=2-4", "bytes=2-4"] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::PARTIAL_CONTENT,
+                "range {range} should produce the expected status"
+            );
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                "bytes 2-4/10"
+            );
+            assert_eq!(
+                body::to_bytes(response.into_body()).await.unwrap(),
+                b"234"[..]
+            );
+        }
+    }
+
+    #[actix_web::test]
+    async fn unknown_range_units_are_ignored() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in ["items=2-4", "BYTESX=2-4", "items=first", "items=100-200"] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "range {range} should produce the expected status"
+            );
+            assert!(!response.headers().contains_key(header::CONTENT_RANGE));
+            assert_eq!(
+                body::to_bytes(response.into_body()).await.unwrap(),
+                b"0123456789"[..]
+            );
+        }
+    }
+
+    #[actix_web::test]
+    async fn invalid_byte_ranges_remain_unsatisfiable() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in [
+            "bytes=4-2",
+            "Bytes=4-2",
+            "bytes=10-",
+            "BYTES=10-",
+            "bytes=",
+            "Bytes=",
+        ] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "range {range} should produce the expected status"
+            );
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                "bytes */10"
+            );
+            assert!(body::to_bytes(response.into_body())
+                .await
+                .unwrap()
+                .is_empty());
+        }
+    }
+
     #[actix_rt::test]
     async fn test_named_file_if_range_etag() {
         let file = NamedFile::open("Cargo.toml").unwrap();
