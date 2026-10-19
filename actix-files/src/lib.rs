@@ -493,44 +493,43 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_named_file_preconditions_before_range() {
+    async fn test_named_file_if_none_match_before_range() {
         let req = TestRequest::get().to_http_request();
         let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
         let etag = resp.headers().get(header::ETAG).unwrap().clone();
-        let mut results = Vec::new();
 
-        for condition in [header::IF_NONE_MATCH, header::IF_MATCH] {
-            let validator = if condition == header::IF_NONE_MATCH {
-                etag.clone()
-            } else {
-                header::HeaderValue::from_static("\"stale\"")
-            };
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_NONE_MATCH, etag.clone()))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
 
-            for range in ["bytes=999999999-", "bytes=0-9"] {
-                let req = TestRequest::get()
-                    .insert_header((condition.clone(), validator.clone()))
-                    .insert_header((header::RANGE, range))
-                    .to_http_request();
-                let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
-
-                results.push((
-                    resp.status(),
-                    resp.headers().contains_key(header::CONTENT_RANGE),
-                ));
-
-                assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
-            }
+            assert_eq!(resp.status(), StatusCode::NOT_MODIFIED, "{range}");
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "{range}"
+            );
+            assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
         }
+    }
 
-        assert_eq!(
-            results,
-            [
-                (StatusCode::NOT_MODIFIED, false),
-                (StatusCode::NOT_MODIFIED, false),
-                (StatusCode::PRECONDITION_FAILED, false),
-                (StatusCode::PRECONDITION_FAILED, false),
-            ]
-        );
+    #[actix_rt::test]
+    async fn test_named_file_if_match_before_range() {
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_MATCH, "\"stale\""))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED, "{range}");
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "{range}"
+            );
+            assert!(body::to_bytes(resp.into_body()).await.unwrap().is_empty());
+        }
     }
 
     #[actix_rt::test]
