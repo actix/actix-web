@@ -23,7 +23,7 @@ bitflags = "2"
 bytes = "1"
 derive_more = { version = "2", features = ["deref", "deref_mut", "display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-http-range = "0.1.4"
+http-range = "0.1.6"
 log = "0.4"
 mime = "0.3.9"
 mime_guess = "2.0.1"
