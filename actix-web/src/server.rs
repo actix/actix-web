@@ -344,6 +344,11 @@ where
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
     /// [Extensions] container so that connection data can be accessed in middleware and handlers.
     ///
+    /// # Call Order
+    /// The callback is captured when a listener is bound, so this must be called **before**
+    /// [`bind()`](Self::bind()) (or any other `bind_*`/`listen_*` method). Calling it afterwards
+    /// has no effect on the already-bound listeners.
+    ///
     /// # Connection Types
     /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using OpenSSL.
     /// - `actix_tls::accept::rustls_0_20::TlsStream<actix_web::rt::net::TcpStream>` when using
