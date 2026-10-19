@@ -488,6 +488,8 @@ impl NamedFile {
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {

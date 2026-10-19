@@ -148,6 +148,33 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_if_match_overrides_if_unmodified_since() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap();
+        let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_MATCH, etag))
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_match_failure_with_if_unmodified_since() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_MATCH, "\"nonmatching-etag\""))
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
+    }
+
+    #[actix_rt::test]
     async fn test_if_unmodified_since() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
