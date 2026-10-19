@@ -5,6 +5,7 @@
 - Ignore `If-Unmodified-Since` when `If-Match` is present when serving a `NamedFile`.
 - Evaluate request preconditions before processing Range headers when serving a `NamedFile`.
 - Ignore Range headers for methods other than GET when serving a `NamedFile`.
+- Return 412 for matching If-None-Match on methods other than GET and HEAD, and ignore If-Modified-Since on those methods when serving a `NamedFile`.
 
 ## 0.7.1
 
