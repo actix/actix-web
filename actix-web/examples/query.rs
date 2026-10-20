@@ -21,10 +21,8 @@ async fn search_handler(query: web::Json<SearchQuery>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new().service(search_handler)
-    })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+    HttpServer::new(|| App::new().service(search_handler))
+        .bind(("127.0.0.1", 8080))?
+        .run()
+        .await
 }

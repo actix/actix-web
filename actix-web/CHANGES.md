@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add support for the HTTP QUERY method (RFC 10008) via `guard::Query()`, `web::query()`, and `#[query]`. [#4342]
 - Minimum supported Rust version (MSRV) is now 1.89.
 - Document that `HttpServer::on_connect()` must be called before `bind()`.
 
