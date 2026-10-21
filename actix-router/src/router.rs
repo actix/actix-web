@@ -52,7 +52,11 @@ impl<T, U> Router<T, U> {
         F: FnMut(&R, &U) -> bool,
     {
         for (rdef, val, ctx) in self.routes.iter() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
+            if !check(resource, ctx) {
+                continue;
+            }
+
+            if rdef.capture_match_info(resource) {
                 return Some((val, ResourceId(rdef.id())));
             }
         }
@@ -72,7 +76,11 @@ impl<T, U> Router<T, U> {
         F: FnMut(&R, &U) -> bool,
     {
         for (rdef, val, ctx) in self.routes.iter_mut() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
+            if !check(resource, ctx) {
+                continue;
+            }
+
+            if rdef.capture_match_info(resource) {
                 return Some((val, ResourceId(rdef.id())));
             }
         }
@@ -330,6 +338,23 @@ mod tests {
             .recognize_fn(&mut path, |_, allowed| *allowed)
             .is_none());
         assert_eq!(path.unprocessed(), "/exact");
+    }
+
+    #[test]
+    fn recognize_fn_routes_by_context_guard() {
+        // Simulates Method / Virtual Host dispatch on identical paths
+        let mut builder = Router::<&'static str, &'static str>::build();
+        *builder.path("/users/{id}", "get_handler").2 = "GET";
+        *builder.path("/users/{id}", "post_handler").2 = "POST";
+        let router = builder.finish();
+
+        let mut path = Path::new("/users/42");
+        let (val, _) = router
+            .recognize_fn(&mut path, |_, method| *method == "POST")
+            .unwrap();
+
+        assert_eq!(*val, "post_handler");
+        assert_eq!(path.get("id").unwrap(), "42");
     }
 
     #[test]

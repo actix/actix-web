@@ -634,51 +634,6 @@ impl ResourceDef {
     /// assert_eq!(path.unprocessed(), "");
     /// ```
     pub fn capture_match_info<R: Resource>(&self, resource: &mut R) -> bool {
-        self.capture_match_info_fn(resource, |_| true)
-    }
-
-    /// Collects dynamic segment values into `resource` after matching paths and executing
-    /// check function.
-    ///
-    /// The check function is given a reference to the passed resource and optional arbitrary data.
-    /// This is useful if you want to conditionally match on some non-path related aspect of the
-    /// resource type.
-    ///
-    /// Returns `true` if resource path matches this resource definition _and_ satisfies the
-    /// given check function.
-    ///
-    /// # Examples
-    /// ```
-    /// use actix_router::{Path, ResourceDef};
-    ///
-    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
-    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
-    ///
-    ///     resource.capture_match_info_fn(
-    ///         path,
-    ///         // when env var is not set, reject when path contains "admin"
-    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
-    ///     )
-    /// }
-    ///
-    /// let resource = ResourceDef::prefix("/user/{id}");
-    ///
-    /// // path matches; segment values are collected into path
-    /// let mut path = Path::new("/user/james/stars");
-    /// assert!(try_match(&resource, &mut path));
-    /// assert_eq!(path.get("id").unwrap(), "james");
-    /// assert_eq!(path.unprocessed(), "/stars");
-    ///
-    /// // path matches but fails check function; no segments are collected
-    /// let mut path = Path::new("/user/admin/stars");
-    /// assert!(!try_match(&resource, &mut path));
-    /// assert_eq!(path.unprocessed(), "/user/admin/stars");
-    /// ```
-    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
-    where
-        R: Resource,
-        F: FnOnce(&R) -> bool,
-    {
         let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
         let path = resource.resource_path();
         let path_str = path.unprocessed();
@@ -732,10 +687,6 @@ impl ResourceDef {
             }
         };
 
-        if !check_fn(resource) {
-            return false;
-        }
-
         // Modify `path` to skip matched part and store matched segments
         let path = resource.resource_path();
 
@@ -748,6 +699,55 @@ impl ResourceDef {
         path.skip(matched_len as u16);
 
         true
+    }
+
+    /// Collects dynamic segment values into `resource` after executing the check function
+    /// and matching paths.
+    ///
+    /// The check function is given a reference to the passed resource and optional arbitrary data.
+    /// This is useful if you want to conditionally match on some non-path related aspect of the
+    /// resource type.
+    ///
+    /// Returns `true` if resource satisfies the given check function _and_ path matches this
+    /// resource definition.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_router::{Path, ResourceDef};
+    ///
+    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
+    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
+    ///
+    ///     resource.capture_match_info_fn(
+    ///         path,
+    ///         // when env var is not set, reject when path contains "admin"
+    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
+    ///     )
+    /// }
+    ///
+    /// let resource = ResourceDef::prefix("/user/{id}");
+    ///
+    /// // path matches; segment values are collected into path
+    /// let mut path = Path::new("/user/james/stars");
+    /// assert!(try_match(&resource, &mut path));
+    /// assert_eq!(path.get("id").unwrap(), "james");
+    /// assert_eq!(path.unprocessed(), "/stars");
+    ///
+    /// // path matches but fails check function; no segments are collected
+    /// let mut path = Path::new("/user/admin/stars");
+    /// assert!(!try_match(&resource, &mut path));
+    /// assert_eq!(path.unprocessed(), "/user/admin/stars");
+    /// ```
+    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
+    where
+        R: Resource,
+        F: FnOnce(&R) -> bool,
+    {
+        if !check_fn(resource) {
+            return false;
+        }
+
+        self.capture_match_info(resource)
     }
 
     /// Assembles resource path using a closure that maps variable segment names to values.
