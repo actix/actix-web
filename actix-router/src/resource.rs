@@ -1256,8 +1256,18 @@ mod tests {
         let regex_rdef = ResourceDef::new(r"/users/{id:[^/]+}/posts/{slug:[^/]+}");
 
         let test_cases = [
-            ("/users/42/posts/first-post", true, Some("42"), Some("first-post")),
-            ("/users/alice_bob/posts/deep_dive", true, Some("alice_bob"), Some("deep_dive")),
+            (
+                "/users/42/posts/first-post",
+                true,
+                Some("42"),
+                Some("first-post"),
+            ),
+            (
+                "/users/alice_bob/posts/deep_dive",
+                true,
+                Some("alice_bob"),
+                Some("deep_dive"),
+            ),
             ("/users/42/posts/", false, None, None),
             ("/users//posts/slug", false, None, None),
             ("/users/42/posts/first/extra", false, None, None),
@@ -1271,8 +1281,16 @@ mod tests {
             let fast_matched = fast_rdef.capture_match_info(&mut path_fast);
             let regex_matched = regex_rdef.capture_match_info(&mut path_regex);
 
-            assert_eq!(fast_matched, should_match, "Fast-path match disagree on: {}", url);
-            assert_eq!(regex_matched, should_match, "Regex match disagree on: {}", url);
+            assert_eq!(
+                fast_matched, should_match,
+                "Fast-path match disagree on: {}",
+                url
+            );
+            assert_eq!(
+                regex_matched, should_match,
+                "Regex match disagree on: {}",
+                url
+            );
 
             assert_eq!(fast_rdef.is_match(url), should_match);
             assert_eq!(regex_rdef.is_match(url), should_match);
