@@ -4,6 +4,7 @@
 
 - Optimize `Router::recognize_fn` and `Router::recognize_mut_fn` by evaluating guard predicates before dynamic path matching.
 - Decouple `ResourceDef::capture_match_info` from `capture_match_info_fn` to eliminate dummy closure overhead.
+- Auto-detect slash-bounded dynamic routes to bypass regex DFA execution via fast-path segment slicing.
 - Minimum supported Rust version (MSRV) is now 1.89.
 - Add support for extracting multi-component path params into a sequence (Vec, tuple, ...). [#3432]
 
