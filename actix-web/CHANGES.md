@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `TestRequest::query()` for constructing HTTP `QUERY` test requests. [#4140]
+
+[#4140]: https://github.com/actix/actix-web/pull/4140
+
 ## 4.18.0
 
 - Add `#[query]` route handler macro.
