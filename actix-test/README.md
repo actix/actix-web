@@ -3,11 +3,11 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-test?label=latest)](https://crates.io/crates/actix-test)
-[![Documentation](https://docs.rs/actix-test/badge.svg?version=0.1.5)](https://docs.rs/actix-test/0.1.5)
+[![Documentation](https://docs.rs/actix-test/badge.svg?version=0.1.6)](https://docs.rs/actix-test/0.1.6)
 ![Version](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-test.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-test/0.1.5/status.svg)](https://deps.rs/crate/actix-test/0.1.5)
+[![dependency status](https://deps.rs/crate/actix-test/0.1.6/status.svg)](https://deps.rs/crate/actix-test/0.1.6)
 [![Download](https://img.shields.io/crates/d/actix-test.svg)](https://crates.io/crates/actix-test)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
