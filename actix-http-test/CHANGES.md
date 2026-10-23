@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Add `TestServer::{query, squery}()` for issuing HTTP `QUERY` requests (RFC 10008). [#4140]
-- Minimum supported Rust version (MSRV) is now 1.89.
+## 3.4.0
 
-[#4140]: https://github.com/actix/actix-web/pull/4140
+- Add `TestServer::{query, squery}()` methods for constructing HTTP `QUERY` requests.
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.3.0
 
