@@ -194,5 +194,33 @@ fn compare_routers(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, compare_routers);
+fn bench_engine_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Dynamic Engine Comparison");
+
+    // 1. Auto-detected SimpleDynamic fast path
+    let fast_rdef = actix_router::ResourceDef::new("/users/{id}/posts/{slug}");
+
+    // 2. Heavy Regex path (bypasses fast path with custom regex constraint)
+    let regex_rdef = actix_router::ResourceDef::new(r"/users/{id:[^/]+}/posts/{slug:[^/]+}");
+
+    let sample_url = "/users/1337/posts/systems-design-in-rust";
+
+    group.bench_function("simple_dynamic (fast-path)", |b| {
+        b.iter(|| {
+            let mut path = actix_router::Path::new(std::hint::black_box(sample_url));
+            std::hint::black_box(fast_rdef.capture_match_info(&mut path))
+        });
+    });
+
+    group.bench_function("regex_dynamic (heavy DFA)", |b| {
+        b.iter(|| {
+            let mut path = actix_router::Path::new(std::hint::black_box(sample_url));
+            std::hint::black_box(regex_rdef.capture_match_info(&mut path))
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, compare_routers, bench_engine_comparison);
 criterion_main!(benches);

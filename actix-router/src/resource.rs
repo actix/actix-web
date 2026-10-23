@@ -242,6 +242,9 @@ enum PatternType {
     /// Single constant/literal segment.
     Static(String),
 
+    /// Dynamic variables without custom regex: /users/{id}
+    SimpleDynamic(Vec<&'static str>),
+
     /// Single regular expression and list of dynamic segment names.
     Dynamic(Regex, Vec<&'static str>),
 
@@ -559,6 +562,7 @@ impl ResourceDef {
 
         match &self.pat_type {
             PatternType::Static(pattern) => self.static_match(pattern, path).is_some(),
+            PatternType::SimpleDynamic(_) => self.simple_match(path, None).is_some(),
             PatternType::Dynamic(re, _) => re.is_match(path),
             PatternType::DynamicSet(re, _) => re.is_match(path),
         }
@@ -603,6 +607,8 @@ impl ResourceDef {
         match &self.pat_type {
             PatternType::Static(pattern) => self.static_match(pattern, path),
 
+            PatternType::SimpleDynamic(_) => self.simple_match(path, None),
+
             PatternType::Dynamic(re, _) => Some(re.captures(path)?[1].len()),
 
             PatternType::DynamicSet(re, params) => {
@@ -634,51 +640,6 @@ impl ResourceDef {
     /// assert_eq!(path.unprocessed(), "");
     /// ```
     pub fn capture_match_info<R: Resource>(&self, resource: &mut R) -> bool {
-        self.capture_match_info_fn(resource, |_| true)
-    }
-
-    /// Collects dynamic segment values into `resource` after matching paths and executing
-    /// check function.
-    ///
-    /// The check function is given a reference to the passed resource and optional arbitrary data.
-    /// This is useful if you want to conditionally match on some non-path related aspect of the
-    /// resource type.
-    ///
-    /// Returns `true` if resource path matches this resource definition _and_ satisfies the
-    /// given check function.
-    ///
-    /// # Examples
-    /// ```
-    /// use actix_router::{Path, ResourceDef};
-    ///
-    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
-    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
-    ///
-    ///     resource.capture_match_info_fn(
-    ///         path,
-    ///         // when env var is not set, reject when path contains "admin"
-    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
-    ///     )
-    /// }
-    ///
-    /// let resource = ResourceDef::prefix("/user/{id}");
-    ///
-    /// // path matches; segment values are collected into path
-    /// let mut path = Path::new("/user/james/stars");
-    /// assert!(try_match(&resource, &mut path));
-    /// assert_eq!(path.get("id").unwrap(), "james");
-    /// assert_eq!(path.unprocessed(), "/stars");
-    ///
-    /// // path matches but fails check function; no segments are collected
-    /// let mut path = Path::new("/user/admin/stars");
-    /// assert!(!try_match(&resource, &mut path));
-    /// assert_eq!(path.unprocessed(), "/user/admin/stars");
-    /// ```
-    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
-    where
-        R: Resource,
-        F: FnOnce(&R) -> bool,
-    {
         let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
         let path = resource.resource_path();
         let path_str = path.unprocessed();
@@ -688,6 +649,13 @@ impl ResourceDef {
                 Some(len) => (len, None),
                 None => return false,
             },
+
+            PatternType::SimpleDynamic(names) => {
+                match self.simple_match(path_str, Some(&mut segments)) {
+                    Some(len) => (len, Some(names)),
+                    None => return false,
+                }
+            }
 
             PatternType::Dynamic(re, names) => {
                 let captures = match re.captures(path.unprocessed()) {
@@ -732,10 +700,6 @@ impl ResourceDef {
             }
         };
 
-        if !check_fn(resource) {
-            return false;
-        }
-
         // Modify `path` to skip matched part and store matched segments
         let path = resource.resource_path();
 
@@ -748,6 +712,55 @@ impl ResourceDef {
         path.skip(matched_len as u16);
 
         true
+    }
+
+    /// Collects dynamic segment values into `resource` after executing the check function
+    /// and matching paths.
+    ///
+    /// The check function is given a reference to the passed resource and optional arbitrary data.
+    /// This is useful if you want to conditionally match on some non-path related aspect of the
+    /// resource type.
+    ///
+    /// Returns `true` if resource satisfies the given check function _and_ path matches this
+    /// resource definition.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_router::{Path, ResourceDef};
+    ///
+    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
+    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
+    ///
+    ///     resource.capture_match_info_fn(
+    ///         path,
+    ///         // when env var is not set, reject when path contains "admin"
+    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
+    ///     )
+    /// }
+    ///
+    /// let resource = ResourceDef::prefix("/user/{id}");
+    ///
+    /// // path matches; segment values are collected into path
+    /// let mut path = Path::new("/user/james/stars");
+    /// assert!(try_match(&resource, &mut path));
+    /// assert_eq!(path.get("id").unwrap(), "james");
+    /// assert_eq!(path.unprocessed(), "/stars");
+    ///
+    /// // path matches but fails check function; no segments are collected
+    /// let mut path = Path::new("/user/admin/stars");
+    /// assert!(!try_match(&resource, &mut path));
+    /// assert_eq!(path.unprocessed(), "/user/admin/stars");
+    /// ```
+    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
+    where
+        R: Resource,
+        F: FnOnce(&R) -> bool,
+    {
+        if !check_fn(resource) {
+            return false;
+        }
+
+        self.capture_match_info(resource)
     }
 
     /// Assembles resource path using a closure that maps variable segment names to values.
@@ -844,6 +857,61 @@ impl ResourceDef {
         }
     }
 
+    /// Fast-path matcher for simple dynamic segments without custom regex constraints.
+    fn simple_match(
+        &self,
+        path: &str,
+        mut segments_out: Option<&mut [PathItem; MAX_DYNAMIC_SEGMENTS]>,
+    ) -> Option<usize> {
+        let mut rem = path;
+        let mut total_matched_len = 0;
+        let mut var_idx = 0;
+
+        for seg in &self.segments {
+            match seg {
+                PatternSegment::Const(val) => {
+                    if !rem.starts_with(val.as_str()) {
+                        return None;
+                    }
+                    rem = &rem[val.len()..];
+                    total_matched_len += val.len();
+                }
+
+                PatternSegment::Var(_) => {
+                    let end = rem.find('/').unwrap_or(rem.len());
+                    if end == 0 {
+                        return None;
+                    }
+
+                    if let Some(ref mut segs) = segments_out {
+                        segs[var_idx] = PathItem::Segment(
+                            total_matched_len as u16,
+                            (total_matched_len + end) as u16,
+                        );
+                        var_idx += 1;
+                    }
+
+                    rem = &rem[end..];
+                    total_matched_len += end;
+                }
+            }
+        }
+
+        if self.is_prefix {
+            let ends_with_slash = matches!(
+                self.segments.last(),
+                Some(PatternSegment::Const(s)) if s.ends_with('/')
+            );
+            if !rem.is_empty() && !ends_with_slash && !rem.starts_with('/') {
+                return None;
+            }
+        } else if !rem.is_empty() {
+            return None;
+        }
+
+        Some(total_matched_len)
+    }
+
     fn construct<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
         let patterns = paths.patterns();
 
@@ -900,10 +968,11 @@ impl ResourceDef {
     /// - the segment's regex to check values against
     /// - the remaining, unprocessed string slice
     /// - whether the parsed parameter represents a tail pattern
+    /// - whether a custom regex was provided
     ///
     /// # Panics
     /// Panics if given patterns does not contain a dynamic segment.
-    fn parse_param(pattern: &str) -> (PatternSegment, String, &str, bool) {
+    fn parse_param(pattern: &str) -> (PatternSegment, String, &str, bool, bool) {
         const DEFAULT_PATTERN: &str = "[^/]+";
         const DEFAULT_PATTERN_TAIL: &str = ".*";
 
@@ -934,12 +1003,12 @@ impl ResourceDef {
 
         let tail = unprocessed == "*";
 
-        let (name, pattern) = match param.find(':') {
+        let (name, pattern, is_custom) = match param.find(':') {
             Some(idx) => {
                 assert!(!tail, "custom regex is not supported for tail match");
 
                 let (name, pattern) = param.split_at(idx);
-                (name, &pattern[1..])
+                (name, &pattern[1..], true)
             }
             None => (
                 param,
@@ -949,13 +1018,14 @@ impl ResourceDef {
                 } else {
                     DEFAULT_PATTERN
                 },
+                false,
             ),
         };
 
         let segment = PatternSegment::Var(name.to_string());
         let regex = format!(r"(?P<{name}>{pattern})");
 
-        (segment, regex, unprocessed, tail)
+        (segment, regex, unprocessed, tail, is_custom)
     }
 
     /// Parse `pattern` using `is_prefix` and `force_dynamic` flags.
@@ -986,6 +1056,7 @@ impl ResourceDef {
         let mut re = format!("{}^", REGEX_FLAGS);
         let mut dyn_segment_count = 0;
         let mut has_tail_segment = false;
+        let mut has_custom_regex = false;
 
         while let Some(idx) = unprocessed.find('{') {
             let (prefix, rem) = unprocessed.split_at(idx);
@@ -993,7 +1064,11 @@ impl ResourceDef {
             segments.push(PatternSegment::Const(prefix.to_owned()));
             re.push_str(&escape(prefix));
 
-            let (param_pattern, re_part, rem, tail) = Self::parse_param(rem);
+            let (param_pattern, re_part, rem, tail, is_custom) = Self::parse_param(rem);
+
+            if is_custom {
+                has_custom_regex = true;
+            }
 
             if tail {
                 has_tail_segment = true;
@@ -1075,7 +1150,23 @@ impl ResourceDef {
             .filter_map(|name| name.map(|name| Box::leak(Box::new(name.to_owned())).as_str()))
             .collect();
 
-        (PatternType::Dynamic(re, names), segments)
+        let is_pure_simple = !force_dynamic
+            && !is_prefix
+            && !has_custom_regex
+            && !has_tail_segment
+            && segments.windows(2).all(|w| match (&w[0], &w[1]) {
+                (PatternSegment::Var(_), PatternSegment::Const(c)) => c.starts_with('/'),
+                (PatternSegment::Const(c), PatternSegment::Var(_)) => c.ends_with('/'),
+                _ => true,
+            });
+
+        let pat_type = if is_pure_simple {
+            PatternType::SimpleDynamic(names)
+        } else {
+            PatternType::Dynamic(re, names)
+        };
+
+        (pat_type, segments)
     }
 }
 
@@ -1154,6 +1245,67 @@ mod tests {
         assert_ne!(ResourceDef::new(""), ResourceDef::prefix(""));
         assert_ne!(ResourceDef::new("/"), ResourceDef::prefix("/"));
         assert_ne!(ResourceDef::new("/{id}"), ResourceDef::prefix("/{id}"));
+    }
+
+    #[test]
+    fn test_fast_path_and_regex_bypass_equivalence() {
+        // 1. Auto-detected Fast Path (SimpleDynamic):
+        let fast_rdef = ResourceDef::new("/users/{id}/posts/{slug}");
+
+        // 2. Bypasses Auto-Detect (forcing Dynamic via custom regex `[^/]+`):
+        let regex_rdef = ResourceDef::new(r"/users/{id:[^/]+}/posts/{slug:[^/]+}");
+
+        let test_cases = [
+            (
+                "/users/42/posts/first-post",
+                true,
+                Some("42"),
+                Some("first-post"),
+            ),
+            (
+                "/users/alice_bob/posts/deep_dive",
+                true,
+                Some("alice_bob"),
+                Some("deep_dive"),
+            ),
+            ("/users/42/posts/", false, None, None),
+            ("/users//posts/slug", false, None, None),
+            ("/users/42/posts/first/extra", false, None, None),
+            ("/wrong/42/posts/first", false, None, None),
+        ];
+
+        for (url, should_match, exp_id, exp_slug) in test_cases {
+            let mut path_fast = Path::new(url);
+            let mut path_regex = Path::new(url);
+
+            let fast_matched = fast_rdef.capture_match_info(&mut path_fast);
+            let regex_matched = regex_rdef.capture_match_info(&mut path_regex);
+
+            assert_eq!(
+                fast_matched, should_match,
+                "Fast-path match disagree on: {}",
+                url
+            );
+            assert_eq!(
+                regex_matched, should_match,
+                "Regex match disagree on: {}",
+                url
+            );
+
+            assert_eq!(fast_rdef.is_match(url), should_match);
+            assert_eq!(regex_rdef.is_match(url), should_match);
+
+            assert_eq!(fast_rdef.find_match(url).is_some(), should_match);
+            assert_eq!(regex_rdef.find_match(url).is_some(), should_match);
+
+            if should_match {
+                assert_eq!(path_fast.get("id"), exp_id);
+                assert_eq!(path_regex.get("id"), exp_id);
+
+                assert_eq!(path_fast.get("slug"), exp_slug);
+                assert_eq!(path_regex.get("slug"), exp_slug);
+            }
+        }
     }
 
     #[test]
