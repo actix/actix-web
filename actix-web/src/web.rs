@@ -129,6 +129,22 @@ method_route!(delete, DELETE);
 method_route!(head, HEAD);
 method_route!(trace, TRACE);
 
+/// Creates a new route with `QUERY` method guard.
+///
+/// # Examples
+/// In this example, one `QUERY /{project_id}` route is set up:
+/// ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::query().to(|| HttpResponse::Ok()))
+/// );
+/// ```
+pub fn query() -> Route {
+    method(Method::from_bytes(b"QUERY").unwrap())
+}
+
 /// Creates a new route with specified method guard.
 ///
 /// # Examples
