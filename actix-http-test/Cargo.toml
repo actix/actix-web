@@ -42,7 +42,7 @@ actix-rt = "2.2"
 actix-server = "2"
 actix-service = "2"
 actix-utils = "3"
-awc = { version = "3", default-features = false }
+awc = { version = "3.11", default-features = false }
 
 bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }

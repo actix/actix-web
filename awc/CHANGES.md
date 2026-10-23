@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Add `Client::query()` for constructing HTTP `QUERY` requests (RFC 10008). [#4140]
-- Minimum supported Rust version (MSRV) is now 1.89.
+## 3.11.0
 
-[#4140]: https://github.com/actix/actix-web/pull/4140
+- Add `Client::query()` method for constructing HTTP `QUERY` requests.
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.10.0
 
