@@ -401,6 +401,7 @@ where
     route_shortcut!(put, "PUT");
     route_shortcut!(patch, "PATCH");
     route_shortcut!(delete, "DELETE");
+    route_shortcut!(query, "QUERY");
     route_shortcut!(head, "HEAD");
     route_shortcut!(trace, "TRACE");
 }

@@ -1,28 +1,41 @@
+use std::io;
+
 use actix_web::{query, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct SearchQuery {
     user_id: u64,
     status: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct SearchResult {
     found: bool,
 }
 
-#[query("/search")]
-async fn search_handler(query: web::Json<SearchQuery>) -> impl Responder {
-    HttpResponse::Ok().json(SearchResult {
+async fn search(query: SearchQuery) -> SearchResult {
+    SearchResult {
         found: query.user_id == 42 && query.status == "active",
-    })
+    }
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(search_handler))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+async fn search_get(query: web::Query<SearchQuery>) -> impl Responder {
+    HttpResponse::Ok()
+        .insert_header(("Accept-Query", mime::APPLICATION_JSON))
+        .json(query.into_inner())
+}
+
+async fn search_query(web::Json(form): web::Json<SearchQuery>) -> impl Responder {
+    HttpResponse::Ok().json(search(form))
+}
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    HttpServer::new(|| {
+        App::new().service(web::resource("/search").get(search_get).query(search_query))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
