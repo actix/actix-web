@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "actix-web"
-version = "4.17.0"
+version = "4.18.0"
 dependencies = [
  "actix-codec",
  "actix-files",
