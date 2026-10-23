@@ -4,7 +4,7 @@
 
 ## 4.18.0
 
-- Add `#[query]` route handler macro
+- Add `#[query]` route handler macro.
 - Add support for `method = "QUERY"` in `#[route]`.
 - Add `guard::Query()` method guard.
 - Document that `HttpServer::on_connect()` must be called before `bind()`.

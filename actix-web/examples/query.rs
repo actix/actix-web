@@ -1,6 +1,6 @@
 use std::io;
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, query, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +20,7 @@ fn search(query: SearchQuery) -> SearchResult {
     }
 }
 
+#[get("/search")]
 async fn search_get(query: web::Query<SearchQuery>) -> impl Responder {
     let result = search(query.into_inner());
 
@@ -28,6 +29,7 @@ async fn search_get(query: web::Query<SearchQuery>) -> impl Responder {
         .json(result)
 }
 
+#[query("/search")]
 async fn search_query(web::Json(form): web::Json<SearchQuery>) -> impl Responder {
     let result = search(form);
 
@@ -36,10 +38,8 @@ async fn search_query(web::Json(form): web::Json<SearchQuery>) -> impl Responder
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    HttpServer::new(|| {
-        App::new().service(web::resource("/search").get(search_get).query(search_query))
-    })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+    HttpServer::new(|| App::new().service(search_get).service(search_query(json)))
+        .bind(("127.0.0.1", 8080))?
+        .run()
+        .await
 }
