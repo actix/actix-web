@@ -697,6 +697,11 @@ impl TestServer {
         self.client.patch(self.url(path.as_ref()).as_str())
     }
 
+    /// Create `QUERY` request.
+    pub fn query(&self, path: impl AsRef<str>) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
+    }
+
     /// Create `DELETE` request.
     pub fn delete(&self, path: impl AsRef<str>) -> ClientRequest {
         self.client.delete(self.url(path.as_ref()).as_str())
