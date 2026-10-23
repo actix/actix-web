@@ -157,5 +157,6 @@ codegen_reexport!(trace);
 codegen_reexport!(connect);
 codegen_reexport!(options);
 codegen_reexport!(scope);
+codegen_reexport!(query);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;
