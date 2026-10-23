@@ -38,7 +38,7 @@ async fn search_query(web::Json(form): web::Json<SearchQuery>) -> impl Responder
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    HttpServer::new(|| App::new().service(search_get).service(search_query(json)))
+    HttpServer::new(|| App::new().service(search_get).service(search_query))
         .bind(("127.0.0.1", 8080))?
         .run()
         .await
