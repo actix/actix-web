@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Add `TestRequest::query()` for constructing HTTP `QUERY` test requests. [#4140]
+## 4.18.1
 
-[#4140]: https://github.com/actix/actix-web/pull/4140
+- Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
 
 ## 4.18.0
 
