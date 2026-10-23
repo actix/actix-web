@@ -1,6 +1,6 @@
 use std::io;
 
-use actix_web::{query, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -14,20 +14,24 @@ struct SearchResult {
     found: bool,
 }
 
-async fn search(query: SearchQuery) -> SearchResult {
+fn search(query: SearchQuery) -> SearchResult {
     SearchResult {
         found: query.user_id == 42 && query.status == "active",
     }
 }
 
 async fn search_get(query: web::Query<SearchQuery>) -> impl Responder {
+    let result = search(query.into_inner());
+
     HttpResponse::Ok()
         .insert_header(("Accept-Query", mime::APPLICATION_JSON))
-        .json(query.into_inner())
+        .json(result)
 }
 
 async fn search_query(web::Json(form): web::Json<SearchQuery>) -> impl Responder {
-    HttpResponse::Ok().json(search(form))
+    let result = search(form);
+
+    HttpResponse::Ok().json(result)
 }
 
 #[tokio::main]
