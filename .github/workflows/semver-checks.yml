@@ -23,7 +23,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@v2.87.27
+        uses: taiki-e/install-action@v2.87.30
         with:
           tool: cargo-semver-checks
 
