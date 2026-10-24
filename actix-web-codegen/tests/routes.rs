@@ -10,7 +10,7 @@ use actix_web::{
     web, App, Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_web_codegen::{
-    connect, delete, get, head, options, patch, post, put, route, routes, trace,
+    connect, delete, get, head, options, patch, post, put, query, route, routes, trace,
 };
 use futures_core::future::LocalBoxFuture;
 
@@ -22,6 +22,11 @@ async fn config() -> impl Responder {
 
 #[get("/test")]
 async fn test_handler() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[query("/test")]
+async fn query_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -382,4 +387,18 @@ async fn test_wrap() {
     let body = response.body().await.unwrap();
     let body = String::from_utf8(body.to_vec()).unwrap();
     assert!(body.contains("wrong number of parameters"));
+}
+
+#[actix_rt::test]
+async fn test_query() {
+    let srv = actix_test::start(|| App::new().service(query_test));
+
+    let query_method = http::Method::from_bytes(b"QUERY").unwrap();
+    let request = srv.request(query_method, srv.url("/test"));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let request = srv.request(http::Method::GET, srv.url("/test"));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

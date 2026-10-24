@@ -143,19 +143,20 @@ macro_rules! codegen_reexport {
     };
 }
 
+codegen_reexport!(connect);
+codegen_reexport!(delete);
+codegen_reexport!(get);
+codegen_reexport!(head);
 codegen_reexport!(main);
-codegen_reexport!(test);
+codegen_reexport!(options);
+codegen_reexport!(patch);
+codegen_reexport!(post);
+codegen_reexport!(put);
+codegen_reexport!(query);
 codegen_reexport!(route);
 codegen_reexport!(routes);
-codegen_reexport!(head);
-codegen_reexport!(get);
-codegen_reexport!(post);
-codegen_reexport!(patch);
-codegen_reexport!(put);
-codegen_reexport!(delete);
-codegen_reexport!(trace);
-codegen_reexport!(connect);
-codegen_reexport!(options);
 codegen_reexport!(scope);
+codegen_reexport!(test);
+codegen_reexport!(trace);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

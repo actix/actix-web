@@ -21,18 +21,18 @@ jobs:
   coverage:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - uses: useblacksmith/checkout@v1.8.1
         with:
           persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
         with:
           toolchain: nightly
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@v2.87.30
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 
@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload coverage to GitHub
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52 # v1.4.4
+        uses: actions/upload-code-coverage@v1.4.4
         with:
           file: cobertura.xml
           language: Rust

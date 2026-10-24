@@ -12,18 +12,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - uses: useblacksmith/checkout@v1.8.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
         with:
           toolchain: stable
 
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@v2.87.30
         with:
           tool: cargo-semver-checks
 

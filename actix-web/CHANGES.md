@@ -2,9 +2,18 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.89.
+## 4.18.1
+
+- Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
+
+## 4.18.0
+
+- Add `#[query]` route handler macro.
+- Add support for `method = "QUERY"` in `#[route]`.
+- Add `guard::Query()` method guard.
 - Document that `HttpServer::on_connect()` must be called before `bind()`.
 - Add `dev::AppConfig::new()` for configuring applications served by custom servers. [#3180]
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 [#3180]: https://github.com/actix/actix-web/issues/3180
 

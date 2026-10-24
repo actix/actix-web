@@ -4,41 +4,41 @@
 version: 'v0.0.3'
 workflows:
     '.github/workflows/bench.yml':
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/ci-post-merge.yml':
-        - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
-        - 'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36'
-        - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
+        - 'ilammy/setup-nasm@v1.5.2'
+        - 'rui314/setup-mold@v1'
+        - 'taiki-e/install-action@v2.87.30'
+        - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/ci.yml':
-        - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b'
-        - 'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36'
-        - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
+        - 'ilammy/setup-nasm@v1.5.2'
+        - 'rui314/setup-mold@v1'
+        - 'taiki-e/install-action@v2.87.30'
+        - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/coverage.yml':
-        - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52'
-        - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
+        - 'actions/upload-code-coverage@v1.4.4'
+        - 'taiki-e/install-action@v2.87.30'
+        - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/labeler.yml':
-        - 'actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'actions/labeler@v7.0.0'
+        - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/lint.yml':
-        - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25'
-        - 'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0'
-        - 'taiki-e/cache-cargo-install-action@9ee83daaa7b96a6fab930949ecf1122bba04a389'
-        - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
-        - 'zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482'
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
+        - 'embarkstudios/cargo-deny-action@v2.1.1'
+        - 'giraffate/clippy-action@v1.0.1'
+        - 'taiki-e/cache-cargo-install-action@v3.0.8'
+        - 'taiki-e/install-action@v2.87.30'
+        - 'useblacksmith/checkout@v1.8.1'
+        - 'zizmorcore/zizmor-action@v0.7.1'
     '.github/workflows/semver-checks.yml':
-        - 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f'
-        - 'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe'
-        - 'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a'
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
+        - 'taiki-e/install-action@v2.87.30'
+        - 'useblacksmith/checkout@v1.8.1'
 dependencies:
-    'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f':
+    'actions-rust-lang/setup-rust-toolchain@v2.0.0':
         ref: 'v2.0.0'
         commit: 'sha1-ecabd13d1c56bd1345c230e542e9144811ad706f'
         owner_id: 103899579
@@ -50,39 +50,39 @@ dependencies:
         commit: 'sha1-55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
         owner_id: 44036562
         repo_id: 215566462
-    'actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13':
+    'actions/labeler@v7.0.0':
         ref: 'v7.0.0'
         commit: 'sha1-bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
         owner_id: 44036562
         repo_id: 177139928
-    'actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52':
+    'actions/upload-code-coverage@v1.4.4':
         ref: 'v1.4.4'
         commit: 'sha1-2b21a77928be8d5168c2b9581a67f2adbebacc52'
         owner_id: 44036562
         repo_id: 1220171870
-    'embarkstudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25':
+    'embarkstudios/cargo-deny-action@v2.1.1':
         ref: 'v2.1.1'
         commit: 'sha1-3c6349835b2b7b196a839186cb8b78e02f7b5f25'
         owner_id: 44887257
         repo_id: 228054692
-    'giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0':
+    'giraffate/clippy-action@v1.0.1':
         ref: 'v1.0.1'
         commit: 'sha1-13b9d32482f25d29ead141b79e7e04e7900281e0'
         owner_id: 17407489
         repo_id: 560300269
-    'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938':
-        ref: 'v4.37.9'
-        commit: 'sha1-cdf488f595d80d6e07e03d4674febd5ab45fa938'
+    'github/codeql-action@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2':
+        ref: 'v4.38.2'
+        commit: 'sha1-2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2'
         owner_id: 9919
         repo_id: 259445878
-    'ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b':
+    'ilammy/setup-nasm@v1.5.2':
         ref: 'v1.5.2'
         commit: 'sha1-72793074d3c8cdda771dba85f6deafe00623038b'
         owner_id: 1256587
         repo_id: 211647646
-    'rui314/setup-mold@da13e0b42e392e3a45d1215033a2270b849d7d36':
-        ref: 'main'
-        commit: 'sha1-da13e0b42e392e3a45d1215033a2270b849d7d36'
+    'rui314/setup-mold@v1':
+        ref: 'v1'
+        commit: 'sha1-339e96b4ff1f3bd865856ba4cbbe8818a7acb038'
         owner_id: 47400
         repo_id: 479867630
     'swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6':
@@ -90,27 +90,27 @@ dependencies:
         commit: 'sha1-6323deb102c322ba6fcbdcafc7e3dddab59af2b6'
         owner_id: 580492
         repo_id: 298565987
-    'taiki-e/cache-cargo-install-action@9ee83daaa7b96a6fab930949ecf1122bba04a389':
+    'taiki-e/cache-cargo-install-action@v3.0.8':
         ref: 'v3.0.8'
         commit: 'sha1-9ee83daaa7b96a6fab930949ecf1122bba04a389'
         owner_id: 43724913
         repo_id: 588643148
         uses:
             - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-    'taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe':
-        ref: 'v2.87.27'
-        commit: 'sha1-ab6895351a88b908e96a4697860d4ffea5e57dbe'
+    'taiki-e/install-action@v2.87.30':
+        ref: 'v2.87.30'
+        commit: 'sha1-a4d3f3f761dcd95cce1b72cb61cb6d1963438177'
         owner_id: 43724913
         repo_id: 442947557
-    'useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a':
+    'useblacksmith/checkout@v1.8.1':
         ref: 'v1.8.1'
         commit: 'sha1-25227e61ff9dafe400e22fa487b673eac4e4409a'
         owner_id: 156274793
         repo_id: 1107788336
-    'zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482':
-        ref: 'v0.6.4'
-        commit: 'sha1-cc914d7f3750a2d13d75c7f184a1060aa0e9d482'
+    'zizmorcore/zizmor-action@v0.7.1':
+        ref: 'v0.7.1'
+        commit: 'sha1-85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e'
         owner_id: 210636713
         repo_id: 985558803
         uses:
-            - 'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938'
+            - 'github/codeql-action@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2'

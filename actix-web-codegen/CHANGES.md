@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 4.5.0
+
+- Add `#[query]` route handler macro.
+- Add support for `method = "QUERY"` in `#[route]`.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 4.4.0
