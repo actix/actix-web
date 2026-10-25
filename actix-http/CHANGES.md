@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `body::channel()` and `body::Sender` for streaming response bodies from other tasks or threads.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.19.0
