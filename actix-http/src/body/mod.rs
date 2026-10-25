@@ -7,6 +7,7 @@
 
 mod body_stream;
 mod boxed;
+mod channel;
 mod either;
 mod message_body;
 mod none;
@@ -18,6 +19,7 @@ pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::{
     body_stream::BodyStream,
     boxed::BoxBody,
+    channel::{channel, Sender},
     either::EitherBody,
     message_body::MessageBody,
     none::None,

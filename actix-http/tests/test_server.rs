@@ -614,6 +614,34 @@ async fn h1_body() {
 }
 
 #[actix_rt::test]
+async fn h1_channel_body_skips_empty_chunks() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|_| {
+                let (mut sender, body) = body::channel::<Infallible>();
+
+                sender.send(Bytes::from_static(b"before")).unwrap();
+                sender.send(Bytes::new()).unwrap();
+                sender.send(Bytes::from_static(b"after")).unwrap();
+                sender.close();
+
+                ready(Ok::<_, Infallible>(Response::ok().set_body(body)))
+            })
+            .tcp()
+    })
+    .await;
+
+    let response = srv.get("/").send().await.unwrap();
+    assert_eq!(
+        response.headers().get(header::TRANSFER_ENCODING).unwrap(),
+        "chunked"
+    );
+    assert_eq!(srv.load_body(response).await.unwrap(), "beforeafter");
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
 async fn h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
