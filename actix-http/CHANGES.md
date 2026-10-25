@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.19.0

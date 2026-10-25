@@ -14,7 +14,7 @@ use bytes::BytesMut;
 use futures_util::future::lazy;
 use tokio::time::{sleep, timeout};
 
-use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
+use super::*;
 use crate::{
     body::BoxBody,
     config::ServiceConfig,
@@ -1142,7 +1142,7 @@ async fn handler_drop_payload() {
         POST /drop-payload HTTP/1.1
         Host: localhost
         Content-Length: 3
-        
+
         abc
         ",
     ));
@@ -1205,7 +1205,7 @@ async fn handler_drop_payload() {
             POST /drop-payload HTTP/1.1
             Host: localhost
             Content-Length: 200
-            
+
             abc
             ",
         ));
@@ -1289,7 +1289,7 @@ async fn handler_drop_payload_drains_body() {
         POST /drop-payload HTTP/1.1
         Host: localhost
         Transfer-Encoding: chunked
-        
+
         ",
     ));
 
@@ -1579,7 +1579,7 @@ fn http_msg_creates_msg() {
             r"
             POST / HTTP/1.1
             Content-Length: 3
-            
+
             abc
             "
         ),
@@ -1591,7 +1591,7 @@ fn http_msg_creates_msg() {
             r"
             GET / HTTP/1.1
             Content-Length: 3
-            
+
             "
         ),
         "GET / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"
