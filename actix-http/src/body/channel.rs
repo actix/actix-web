@@ -60,25 +60,28 @@ impl<E> Sender<E> {
             })
     }
 
-    /// Releases this sender, optionally queuing an error after buffered chunks.
+    /// Releases this sender.
     ///
-    /// Other senders remain usable. Without an error, the body ends only after all
-    /// senders are dropped. A body error aborts transmission of the response.
+    /// Other senders remain usable. The body ends after all senders are dropped
+    /// and buffered chunks are consumed.
+    pub fn close(self) {
+        drop(self);
+    }
+
+    /// Queues an error after buffered chunks and releases this sender.
+    ///
+    /// Other senders remain usable until the body is dropped. A body error aborts
+    /// transmission of the response.
     ///
     /// # Errors
     /// Returns the supplied error if the body was dropped.
-    pub fn close(self, error: Option<E>) -> Result<(), E> {
-        if let Some(error) = error {
-            return self
-                .tx
-                .send(Err(error))
-                .map_err(|SendError(item)| match item {
-                    Err(error) => error,
-                    Ok(_) => unreachable!(),
-                });
-        }
-
-        Ok(())
+    pub fn error(self, error: E) -> Result<(), E> {
+        self.tx
+            .send(Err(error))
+            .map_err(|SendError(item)| match item {
+                Err(error) => error,
+                Ok(_) => unreachable!(),
+            })
     }
 }
 
@@ -125,7 +128,7 @@ mod tests {
 
         sender.send(Bytes::from_static(b"one")).unwrap();
         other.send(Bytes::from_static(b"two")).unwrap();
-        sender.close(Some(io::Error::other("failed"))).unwrap();
+        sender.error(io::Error::other("failed")).unwrap();
         drop(other);
 
         for expected in [b"one", b"two"] {
@@ -152,7 +155,7 @@ mod tests {
         let mut other = sender.clone();
         let mut body = tokio_test::task::spawn(body);
 
-        sender.close(None).unwrap();
+        sender.close();
         assert!(body.enter(|cx, body| body.poll_next(cx)).is_pending());
 
         other
@@ -161,7 +164,7 @@ mod tests {
         let chunk = tokio_test::assert_ready!(body.enter(|cx, body| body.poll_next(cx)));
         assert_eq!(chunk.unwrap().unwrap(), "remaining producer");
 
-        other.close(None).unwrap();
+        other.close();
         assert!(tokio_test::assert_ready!(body.enter(|cx, body| body.poll_next(cx))).is_none());
     }
 
@@ -176,7 +179,7 @@ mod tests {
         );
         assert_eq!(
             sender
-                .close(Some(io::Error::other("unsent error")))
+                .error(io::Error::other("unsent error"))
                 .unwrap_err()
                 .to_string(),
             "unsent error"
@@ -216,7 +219,7 @@ mod tests {
         let mut body = tokio_test::task::spawn(body);
 
         assert!(body.enter(|cx, body| body.poll_next(cx)).is_pending());
-        sender.close(Some(io::Error::other("failed"))).unwrap();
+        sender.error(io::Error::other("failed")).unwrap();
 
         assert!(body.is_woken());
         let error = tokio_test::assert_ready!(body.enter(|cx, body| body.poll_next(cx)));
@@ -234,7 +237,7 @@ mod tests {
         sender.send(Bytes::new()).unwrap();
         sender.send(Bytes::from_static(b"hello")).unwrap();
         sender.send(Bytes::new()).unwrap();
-        sender.close(None).unwrap();
+        sender.close();
 
         assert_eq!(body.size(), BodySize::Stream);
         assert_eq!(

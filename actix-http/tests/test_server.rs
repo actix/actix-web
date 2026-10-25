@@ -623,7 +623,7 @@ async fn h1_channel_body_skips_empty_chunks() {
                 sender.send(Bytes::from_static(b"before")).unwrap();
                 sender.send(Bytes::new()).unwrap();
                 sender.send(Bytes::from_static(b"after")).unwrap();
-                sender.close(None).unwrap();
+                sender.close();
 
                 ready(Ok::<_, Infallible>(Response::ok().set_body(body)))
             })
