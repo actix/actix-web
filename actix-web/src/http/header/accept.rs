@@ -14,6 +14,10 @@ common_header! {
     /// small set of desired types, as in the case of a request for an
     /// in-line image
     ///
+    /// Quality parameters are recognized regardless of their position among media type parameters,
+    /// as described in [RFC 9110 §12.5.1](https://httpwg.org/specs/rfc9110.html#field.accept).
+    /// Quoted parameter values are preserved without interpreting their contents as quality.
+    ///
     /// # ABNF
     /// ```plain
     /// Accept = #( media-range [ accept-params ] )
@@ -235,6 +239,37 @@ impl Accept {
 mod tests {
     use super::*;
     use crate::http::header::q;
+
+    #[test]
+    fn quality_parameter_order_preserves_preferences() {
+        for first in [
+            "text/plain; q=0.2; charset=utf-8",
+            "text/plain; charset=utf-8; q=0.2",
+        ] {
+            let req = actix_http::test::TestRequest::default()
+                .append_header((header::ACCEPT, first))
+                .append_header((header::ACCEPT, "text/html; q=0.8"))
+                .finish();
+            let accept = <Accept as header::Header>::parse(&req).unwrap();
+            assert_eq!(accept.len(), 2);
+            assert_eq!(accept[0].item, mime::TEXT_PLAIN_UTF_8);
+            assert_eq!(accept[0].quality, q(0.2));
+            assert_eq!(accept.preference(), mime::TEXT_HTML);
+            assert_eq!(accept.ranked(), [mime::TEXT_HTML, mime::TEXT_PLAIN_UTF_8]);
+        }
+    }
+
+    #[test]
+    fn quoted_parameter_preserves_quality_and_media_type() {
+        let req = actix_http::test::TestRequest::default()
+            .insert_header((header::ACCEPT, r#"text/plain; note="x; q=0.8""#))
+            .finish();
+        let accept = <Accept as header::Header>::parse(&req).unwrap();
+        assert_eq!(accept.len(), 1);
+        assert_eq!(accept[0].quality, q(1.0));
+        assert_eq!(accept[0].item.get_param("note").unwrap(), "x; q=0.8");
+        assert_eq!(accept.preference(), accept[0].item);
+    }
 
     #[test]
     fn ranking_precedence() {

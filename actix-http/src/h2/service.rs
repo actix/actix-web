@@ -11,6 +11,7 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::{
     fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
 use tokio::net::TcpStream;
@@ -83,6 +84,7 @@ where
     B: MessageBody + 'static,
 {
     /// Create plain TCP based service
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<

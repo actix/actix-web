@@ -160,9 +160,9 @@ impl<P> Request<P> {
     /// Check if request requires connection upgrade
     #[inline]
     pub fn upgrade(&self) -> bool {
-        if let Some(conn) = self.head().headers.get(header::CONNECTION) {
-            if let Ok(s) = conn.to_str() {
-                return s.to_lowercase().contains("upgrade");
+        for conn in self.head().headers.get_all(header::CONNECTION) {
+            if conn.to_str().is_ok() {
+                return self.head().upgrade();
             }
         }
         self.head().method == Method::CONNECT

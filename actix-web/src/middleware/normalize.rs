@@ -3,6 +3,7 @@
 use actix_http::uri::{PathAndQuery, Uri};
 use actix_router::Url;
 use actix_service::{Service, Transform};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 #[cfg(feature = "unicode")]
@@ -134,6 +135,7 @@ impl NormalizePath {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for NormalizePath
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -231,6 +233,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_http::StatusCode;
     use actix_service::IntoService;
 

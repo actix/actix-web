@@ -1,6 +1,7 @@
 use std::{future::Future, marker::PhantomData, rc::Rc};
 
 use actix_service::boxed::{self, BoxFuture, RcService};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use futures_core::future::LocalBoxFuture;
 
@@ -94,6 +95,7 @@ pub struct MiddlewareFn<F, Es> {
     _phantom: PhantomData<Es>,
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, F, Fut, B, B2> Transform<S, ServiceRequest> for MiddlewareFn<F, ()>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -148,6 +150,7 @@ where
 
 macro_rules! impl_middleware_fn_service {
     ($($ext_type:ident),*) => {
+        #[expect(deprecated, reason = "preserve the public ready future type")]
         impl<S, F, Fut, B, B2, $($ext_type),*> Transform<S, ServiceRequest> for MiddlewareFn<F, ($($ext_type),*,)>
         where
             S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,

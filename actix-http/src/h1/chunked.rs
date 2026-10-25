@@ -80,7 +80,7 @@ impl ChunkedState {
     }
 
     fn read_size_rest(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
-        let radix = 16;
+        const HEX_RADIX: u64 = 16;
 
         let rem = match byte!(rdr) {
             b @ b'0'..=b'9' => b - b'0',
@@ -97,7 +97,7 @@ impl ChunkedState {
             }
         };
 
-        match size.checked_mul(radix) {
+        match size.checked_mul(HEX_RADIX) {
             Some(n) => {
                 *size = n;
                 *size += rem as u64;

@@ -112,11 +112,16 @@ update-readmes: && fmt
 feature_combo_skip_list := "__tls,__compress"
 
 # Checks compatibility of feature combinations.
-check-feature-combinations:
+check-feature-combinations partition="1/1":
     cargo hack --workspace \
         --feature-powerset --depth=4 \
         --skip={{ feature_combo_skip_list }} \
+        --partition={{ partition }} \
         check
+
+# Check security advisories.
+check-advisories:
+    cargo deny --log-level warn --workspace --all-features check advisories
 
 # Check for unintentional external type exposure on all crates in workspace.
 check-external-types-all toolchain="+nightly":

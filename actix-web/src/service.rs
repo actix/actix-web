@@ -723,8 +723,9 @@ service_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::Service;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -738,7 +739,7 @@ mod tests {
         let srv =
             init_service(
                 App::new().service(web::service("/test").name("test").finish(
-                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                    |req: ServiceRequest| ready(Ok(req.into_response(HttpResponse::Ok().finish()))),
                 )),
             )
             .await;
@@ -746,13 +747,12 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let srv =
-            init_service(
-                App::new().service(web::service("/test").guard(guard::Get()).finish(
-                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
-                )),
-            )
-            .await;
+        let srv = init_service(
+            App::new().service(web::service("/test").guard(guard::Get()).finish(
+                |req: ServiceRequest| ready(Ok(req.into_response(HttpResponse::Ok().finish()))),
+            )),
+        )
+        .await;
         let req = TestRequest::with_uri("/test")
             .method(http::Method::PUT)
             .to_request();
@@ -772,7 +772,7 @@ mod tests {
                         .name("test")
                         .finish(|req: ServiceRequest| {
                             assert_eq!(req.app_data::<web::Data<u32>>().unwrap().as_ref(), &42);
-                            ok(req.into_response(HttpResponse::Ok().finish()))
+                            ready(Ok(req.into_response(HttpResponse::Ok().finish())))
                         }),
                 ),
         )

@@ -14,10 +14,9 @@
 
 extern crate tls_rustls_023 as rustls;
 
-use std::io;
+use std::{future::ready, io};
 
 use actix_http::{Error, HttpService, Request, Response};
-use actix_utils::future::ok;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -34,7 +33,7 @@ async fn main() -> io::Result<()> {
                         Protocol: {:?}",
                         req.head().version
                     );
-                    ok::<_, Error>(Response::ok().set_body(body))
+                    ready(Ok::<_, Error>(Response::ok().set_body(body)))
                 })
                 .rustls_0_23(rustls_config())
         })?

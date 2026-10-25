@@ -1,7 +1,6 @@
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, future::ready, rc::Rc};
 
 use actix_service::{fn_service, Service};
-use actix_utils::future::ready;
 use bytes::{Buf, Bytes, BytesMut};
 
 use super::ready_chunk_body::ReadyChunkBody;

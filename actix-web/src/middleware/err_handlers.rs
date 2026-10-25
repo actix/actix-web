@@ -403,8 +403,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::IntoService;
-    use actix_utils::future::ok;
     use bytes::Bytes;
     use futures_util::FutureExt as _;
 
@@ -449,7 +450,7 @@ mod tests {
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
 
             Ok(ErrorHandlerResponse::Future(
-                ok(res.map_into_left_body()).boxed_local(),
+                ready(Ok(res.map_into_left_body())).boxed_local(),
             ))
         }
 

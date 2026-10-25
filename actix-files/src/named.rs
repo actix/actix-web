@@ -16,7 +16,7 @@ use actix_web::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
             ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
@@ -367,7 +367,12 @@ impl NamedFile {
         self
     }
 
-    /// Creates an `ETag` in a format is similar to Apache's.
+    /// Creates a strong ETag from the file's metadata.
+    ///
+    /// Returns `None` if the platform does not provide the file's modification time. (See
+    /// [`File::modified()`] docs for more.)
+    ///
+    /// [`File::modified()`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.modified
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
         let mtime = self.modified?;
 
@@ -375,13 +380,18 @@ impl NamedFile {
             let ino = {
                 #[cfg(unix)]
                 {
-                    #[cfg(unix)]
                     use std::os::unix::fs::MetadataExt as _;
 
                     self.md.ino()
                 }
 
-                #[cfg(not(unix))]
+                #[cfg(windows)]
+                {
+                    // MetadataExt::file_index is not yet stable.
+                    winapi_util::file::information(&self.file).map_or(0, |info| info.file_index())
+                }
+
+                #[cfg(not(any(unix, windows)))]
                 {
                     0
                 }
@@ -478,6 +488,8 @@ impl NamedFile {
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
@@ -492,10 +504,12 @@ impl NamedFile {
             false
         };
 
+        let is_get_or_head = matches!(*req.method(), Method::GET | Method::HEAD);
+
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if !is_get_or_head || req.headers().contains_key(header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -536,18 +550,40 @@ impl NamedFile {
             res.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
-        if let Some(etag) = etag {
+        if let Some(etag) = &etag {
             res.insert_header((header::ETAG, etag.to_string()));
         }
 
         res.insert_header((header::ACCEPT_RANGES, "bytes"));
 
+        if precondition_failed || (not_modified && !is_get_or_head) {
+            return res.status(StatusCode::PRECONDITION_FAILED).finish();
+        } else if not_modified {
+            return res
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
+        }
+
         let mut length = self.md.len();
         let mut offset = 0;
         let mut ranged_req = false;
 
-        // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE) {
+        // RFC 9110 Section 14.2 defines range handling only for GET.
+        if let Some(ranges) = req
+            .headers()
+            .get(header::RANGE)
+            .filter(|_| req.method() == Method::GET)
+            .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+            // RFC 9110 section 14.2 requires unknown range units to be ignored.
+            .filter(|ranges| {
+                ranges
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.split_once('='))
+                    .is_none_or(|(unit, _)| unit.eq_ignore_ascii_case("bytes"))
+            })
+        {
             if let Ok(ranges_header) = ranges.to_str() {
                 if let Some(range) = HttpRange::parse(ranges_header, length)
                     .ok()
@@ -569,15 +605,6 @@ impl NamedFile {
                 return res.status(StatusCode::BAD_REQUEST).finish();
             };
         };
-
-        if precondition_failed {
-            return res.status(StatusCode::PRECONDITION_FAILED).finish();
-        } else if not_modified {
-            return res
-                .status(StatusCode::NOT_MODIFIED)
-                .body(body::None::new())
-                .map_into_boxed_body();
-        }
 
         let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
@@ -605,6 +632,31 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 
             false
         }
+    }
+}
+
+/// Returns true if `req` has no `If-Range` header or one whose validator matches the file.
+fn if_range_matches(
+    etag: Option<&header::EntityTag>,
+    last_modified: Option<header::HttpDate>,
+    req: &HttpRequest,
+) -> bool {
+    if !req.headers().contains_key(header::IF_RANGE) {
+        return true;
+    }
+
+    match req.get_header::<header::IfRange>() {
+        Some(header::IfRange::EntityTag(ref tag)) => etag.is_some_and(|etag| etag.strong_eq(tag)),
+        Some(header::IfRange::Date(date)) => last_modified.is_some_and(|m| {
+            let t1: SystemTime = m.into();
+            let t2: SystemTime = date.into();
+
+            match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
+                (Ok(t1), Ok(t2)) => t1.as_secs() == t2.as_secs(),
+                _ => false,
+            }
+        }),
+        None => false,
     }
 }
 
@@ -708,6 +760,51 @@ mod tests {
         assert_eq!(
             cd.to_string(),
             "inline; filename=\"test%0A%0B%0C%0Dnewline.text\"",
+        );
+    }
+
+    #[cfg(any(unix, windows))]
+    #[actix_web::test]
+    async fn if_none_match_does_not_match_a_different_file_with_same_size_and_mtime() {
+        use std::fs;
+
+        use actix_web::{body::to_bytes, test::TestRequest};
+        use filetime::{set_file_mtime, FileTime};
+
+        let dir = tempfile::tempdir().unwrap();
+        let first_path = dir.path().join("first.txt");
+        let second_path = dir.path().join("second.txt");
+
+        fs::write(&first_path, b"first").unwrap();
+        fs::write(&second_path, b"other").unwrap();
+
+        let mtime = FileTime::from_unix_time(1_600_000_000, 0);
+
+        set_file_mtime(&first_path, mtime).unwrap();
+        set_file_mtime(&second_path, mtime).unwrap();
+
+        let first_md = fs::metadata(&first_path).unwrap();
+        let second_md = fs::metadata(&second_path).unwrap();
+
+        assert_eq!(first_md.len(), second_md.len());
+        assert_eq!(first_md.modified().unwrap(), second_md.modified().unwrap());
+
+        let req = TestRequest::default().to_http_request();
+        let first = NamedFile::from_file(File::open(&first_path).unwrap(), "file.txt").unwrap();
+        let res = first.into_response(&req);
+        let etag = res.headers().get(header::ETAG).unwrap().clone();
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_NONE_MATCH, etag.clone()))
+            .to_http_request();
+        let second = NamedFile::from_file(File::open(&second_path).unwrap(), "file.txt").unwrap();
+        let res = second.into_response(&req);
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_ne!(res.headers().get(header::ETAG).unwrap(), &etag);
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            b"other".as_slice()
         );
     }
 }

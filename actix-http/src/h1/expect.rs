@@ -1,10 +1,12 @@
 use actix_service::{Service, ServiceFactory};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::{Error, Request};
 
 pub struct ExpectHandler;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl ServiceFactory<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;
@@ -18,6 +20,7 @@ impl ServiceFactory<Request> for ExpectHandler {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl Service<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;

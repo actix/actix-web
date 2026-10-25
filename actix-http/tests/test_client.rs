@@ -1,9 +1,8 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, future::ready};
 
 use actix_http::{body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode};
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
-use actix_utils::future;
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::StreamExt as _;
@@ -34,7 +33,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -62,7 +61,7 @@ async fn h1_v2() {
 async fn connection_close() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
             .map(|_| ())
     })

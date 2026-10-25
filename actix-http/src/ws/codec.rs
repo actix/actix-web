@@ -81,11 +81,14 @@ bitflags! {
     }
 }
 
+/// Default maximum frame size (64 KiB).
+pub const DEFAULT_MAX_FRAME_SIZE: usize = 64 * 1024;
+
 impl Codec {
     /// Create new WebSocket frames decoder.
     pub const fn new() -> Codec {
         Codec {
-            max_size: 65_536,
+            max_size: DEFAULT_MAX_FRAME_SIZE,
             flags: Flags::SERVER,
         }
     }

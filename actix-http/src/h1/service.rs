@@ -10,6 +10,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 use tokio::net::TcpStream;
@@ -79,6 +80,7 @@ where
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>

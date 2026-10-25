@@ -9,6 +9,7 @@ use std::{
 };
 
 use actix_http::error::HttpError;
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
@@ -105,6 +106,7 @@ impl DefaultHeaders {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for DefaultHeaders
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -185,8 +187,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::IntoService;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -213,11 +216,11 @@ mod tests {
     async fn no_override_existing() {
         let req = TestRequest::default().to_srv_request();
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(
+            ready(Ok(req.into_response(
                 HttpResponse::Ok()
                     .insert_header((CONTENT_TYPE, "0002"))
                     .finish(),
-            ))
+            )))
         };
         let mw = DefaultHeaders::new()
             .add((CONTENT_TYPE, "0001"))

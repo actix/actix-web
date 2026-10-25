@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-router?label=latest)](https://crates.io/crates/actix-router)
 [![Documentation](https://docs.rs/actix-router/badge.svg?version=0.5.3)](https://docs.rs/actix-router/0.5.3)
-![Version](https://img.shields.io/badge/rustc-1.88+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-router.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-router/0.5.3/status.svg)](https://deps.rs/crate/actix-router/0.5.3)
@@ -18,3 +18,9 @@
 Resource path matching and router.
 
 <!-- cargo-rdme end -->
+
+## Sponsors
+
+<a href="https://www.blacksmith.sh/">
+  <img src="https://raw.githubusercontent.com/actix/actix-web/main/.github/sponsors/blacksmith.png" alt="CI powered by Blacksmith" width="280" />
+</a>

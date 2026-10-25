@@ -471,8 +471,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::Service as _;
-    use actix_utils::future::{err, ok};
     use bytes::Bytes;
 
     use super::*;
@@ -504,12 +505,12 @@ mod tests {
                 .service(
                     web::resource("/test2")
                         .default_service(|r: ServiceRequest| {
-                            ok(r.into_response(HttpResponse::Created()))
+                            ready(Ok(r.into_response(HttpResponse::Created())))
                         })
                         .route(web::get().to(HttpResponse::Ok)),
                 )
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    ready(Ok(r.into_response(HttpResponse::MethodNotAllowed())))
                 }),
         )
         .await;
@@ -535,7 +536,7 @@ mod tests {
     async fn test_data_factory() {
         let srv = init_service(
             App::new()
-                .data_factory(|| ok::<_, ()>(10usize))
+                .data_factory(|| ready(Ok::<_, ()>(10usize)))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;
@@ -545,7 +546,7 @@ mod tests {
 
         let srv = init_service(
             App::new()
-                .data_factory(|| ok::<_, ()>(10u32))
+                .data_factory(|| ready(Ok::<_, ()>(10u32)))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;
@@ -560,7 +561,7 @@ mod tests {
     async fn test_data_factory_errors() {
         let srv = try_init_service(
             App::new()
-                .data_factory(|| err::<u32, _>(()))
+                .data_factory(|| ready(Err::<u32, _>(())))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;

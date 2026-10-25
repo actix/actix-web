@@ -1,4 +1,5 @@
-use actix_utils::future::ok;
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::ready;
 
 use crate::{
     body::BoxBody,
@@ -14,11 +15,14 @@ pub fn ok_service(
 }
 
 /// Creates service that always responds with given status code and no body.
+#[expect(deprecated, reason = "preserve the public ready future type")]
 pub fn status_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
     fn_service(move |req: ServiceRequest| {
-        ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
+        ready(Ok(req.into_response(
+            HttpResponseBuilder::new(status_code).finish(),
+        )))
     })
 }
 

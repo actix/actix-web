@@ -11,7 +11,7 @@ crate::http::header::common_header! {
     ///
     /// # ABNF
     /// ```plain
-    /// Expires = HTTP-date
+    /// Last-Modified = HTTP-date
     /// ```
     ///
     /// # Example Values

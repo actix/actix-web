@@ -1,8 +1,6 @@
 //! See [`Redirect`] for service/responder documentation.
 
-use std::borrow::Cow;
-
-use actix_utils::future::ready;
+use std::{borrow::Cow, future::ready};
 
 use crate::{
     dev::{fn_service, AppService, HttpServiceFactory, ResourceDef, ServiceRequest},

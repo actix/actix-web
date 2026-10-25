@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.15.0"
+version = "4.18.1"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -135,9 +135,9 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = "3.13.3"
+actix-http = "3.19"
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
-actix-web-codegen = { version = "=4.4.0", optional = true, default-features = false }
+actix-web-codegen = { version = "=4.5.0", optional = true, default-features = false }
 
 bytes = "1"
 bytestring = "1"
@@ -172,7 +172,7 @@ actix-files = "0.7"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
-brotli = "8"
+brotli = "9"
 const-str = "1.1"
 core_affinity = "0.8"
 criterion = { version = "0.8", features = ["html_reports"] }
@@ -188,7 +188,7 @@ tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
 tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7", default-features = false, features = ["time"] }
-zstd = "0.13"
+zstd = "0.14"
 
 [lints]
 workspace = true

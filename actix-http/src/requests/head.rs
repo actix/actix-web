@@ -107,16 +107,21 @@ impl RequestHead {
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        self.headers()
-            .get(header::CONNECTION)
-            .map(|hdr| {
-                if let Ok(s) = hdr.to_str() {
-                    s.to_ascii_lowercase().contains("upgrade")
-                } else {
-                    false
+        let mut upgrade = false;
+
+        for conn in self.headers().get_all(header::CONNECTION) {
+            if let Ok(conn) = conn.to_str() {
+                for option in conn.split(',').map(str::trim) {
+                    if option.eq_ignore_ascii_case("close") {
+                        return false;
+                    } else if option.eq_ignore_ascii_case("upgrade") {
+                        upgrade = true;
+                    }
                 }
-            })
-            .unwrap_or(false)
+            }
+        }
+
+        upgrade
     }
 
     #[inline]

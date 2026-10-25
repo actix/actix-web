@@ -448,10 +448,12 @@ where
 
                 #[cfg(feature = "dangerous-h2c")]
                 {
-                    use std::io;
+                    use std::{
+                        future::{ready, Ready},
+                        io,
+                    };
 
                     use actix_tls::connect::Connection;
-                    use actix_utils::future::{ready, Ready};
 
                     #[allow(non_local_definitions)]
                     impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {

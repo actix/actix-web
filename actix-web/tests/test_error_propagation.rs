@@ -1,6 +1,8 @@
-use std::sync::Arc;
+use std::{
+    future::{ready, Ready},
+    sync::Arc,
+};
 
-use actix_utils::future::{ok, Ready};
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     get,
@@ -44,10 +46,10 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(Middleware {
+        ready(Ok(Middleware {
             was_error: self.0.clone(),
             service,
-        })
+        }))
     }
 }
 

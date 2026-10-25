@@ -2,6 +2,7 @@
 
 use std::{fmt, ops};
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::{
@@ -56,6 +57,7 @@ where
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T> FromRequest for Header<T>
 where
     T: ParseHeader,

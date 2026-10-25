@@ -1,6 +1,7 @@
 use std::{convert::Infallible, net::SocketAddr};
 
-use actix_utils::future::{err, ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use derive_more::{Display, Error};
 
 use crate::{
@@ -210,12 +211,13 @@ impl ConnectionInfo {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for ConnectionInfo {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.connection_info().clone())
+        ready(Ok(req.connection_info().clone()))
     }
 }
 
@@ -252,16 +254,17 @@ pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PeerAddr {
     type Error = MissingPeerAddr;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         match req.peer_addr() {
-            Some(addr) => ok(PeerAddr(addr)),
+            Some(addr) => ready(Ok(PeerAddr(addr))),
             None => {
                 log::error!("Missing peer address.");
-                err(MissingPeerAddr)
+                ready(Err(MissingPeerAddr))
             }
         }
     }

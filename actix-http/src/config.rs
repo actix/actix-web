@@ -9,7 +9,10 @@ use std::{
 
 use bytes::BytesMut;
 
-use crate::{date::DateService, KeepAlive};
+use crate::{
+    date::{DateService, DATE_VALUE_LENGTH},
+    KeepAlive,
+};
 
 pub(crate) type GracefulShutdownFuture = Pin<Box<dyn Future<Output = ()>>>;
 
@@ -330,15 +333,19 @@ impl ServiceConfig {
     /// than normal. Note that a CRLF (`\r\n`) is included in what is written.
     #[doc(hidden)]
     pub fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
-        let mut buf: [u8; 37] = [0; 37];
+        const PREFIX_LEN: usize = 6;
+        const CRLF_LEN: usize = 2;
+        const DATE_HEADER_LEN: usize = PREFIX_LEN + DATE_VALUE_LENGTH + CRLF_LEN;
 
-        buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
+        let mut buf: [u8; DATE_HEADER_LEN] = [0; DATE_HEADER_LEN];
 
-        self.0
-            .date_service
-            .with_date(|date| buf[6..35].copy_from_slice(&date.bytes));
+        buf[..PREFIX_LEN].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
 
-        buf[35..].copy_from_slice(b"\r\n");
+        self.0.date_service.with_date(|date| {
+            buf[PREFIX_LEN..PREFIX_LEN + DATE_VALUE_LENGTH].copy_from_slice(&date.bytes)
+        });
+
+        buf[PREFIX_LEN + DATE_VALUE_LENGTH..].copy_from_slice(b"\r\n");
         dst.extend_from_slice(&buf);
     }
 
