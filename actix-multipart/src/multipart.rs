@@ -329,14 +329,20 @@ impl Inner {
             return Err(Error::BoundaryMissing);
         };
 
-        if chunk == LINE_BREAK {
-            // boundary is followed by line-break, indicating more fields to come
-            return Ok(Some(false));
+        // the delimiter may be followed by transport padding before the line-break
+        if let Some(padding) = chunk.strip_suffix(LINE_BREAK) {
+            if trim_transport_padding(padding).is_empty() {
+                // boundary is followed by line-break, indicating more fields to come
+                return Ok(Some(false));
+            }
         }
 
         // boundary is followed by marker
-        if chunk == BOUNDARY_MARKER || chunk == b"--\r\n" {
-            return Ok(Some(true));
+        if let Some(rest) = chunk.strip_prefix(BOUNDARY_MARKER) {
+            let padding = rest.strip_suffix(LINE_BREAK).unwrap_or(rest);
+            if trim_transport_padding(padding).is_empty() {
+                return Ok(Some(true));
+            }
         }
 
         Err(Error::BoundaryMissing)
@@ -363,6 +369,7 @@ impl Inner {
                     let Some(line) = chunk.as_ref().strip_suffix(b"\r\n") else {
                         continue;
                     };
+                    let line = trim_transport_padding(line);
 
                     if let Some(line) = line.strip_prefix(b"--") {
                         if line == boundary {
@@ -529,6 +536,16 @@ impl Drop for Inner {
         // InnerMultipartItem::Field has to be dropped first because of Safety.
         self.item = Item::None;
     }
+}
+
+/// Strips the transport padding (spaces and tabs) that RFC 2046 §5.1.1 allows between a boundary
+/// delimiter and the line-break that ends it.
+fn trim_transport_padding(line: &[u8]) -> &[u8] {
+    let end = line
+        .iter()
+        .rposition(|&b| b != b' ' && b != b'\t')
+        .map_or(0, |i| i + 1);
+    &line[..end]
 }
 
 #[cfg(test)]
@@ -943,6 +960,37 @@ mod tests {
             None => {}
             _ => unreachable!(),
         }
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_transport_padding() {
+        let (sender, payload) = create_stream();
+        let bytes = Bytes::from(
+            "--abbc761f78ff4d7cb7573b5a23f96ef0  \r\n\
+             Content-Disposition: form-data; name=\"first\"\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\t\r\n\
+             Content-Disposition: form-data; name=\"second\"\r\n\r\n\
+             data\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0-- \t\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        sender.send(Ok(bytes)).unwrap();
+        drop(sender); // eof
+
+        let mut multipart = Multipart::new(&headers, payload);
+        for (name, data) in [("first", "test"), ("second", "data")] {
+            let mut field = multipart.next().await.unwrap().unwrap();
+            assert_eq!(field.name(), Some(name));
+            assert_eq!(get_whole_field(&mut field).await, data);
+        }
+        assert!(multipart.next().await.is_none());
     }
 
     // Loops, collecting all bytes until end-of-field

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Accept transport padding (spaces and tabs) after boundary delimiters, as allowed by RFC 2046. A padded first delimiter used to make the whole form appear empty, and a padded closing delimiter was rejected.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 0.8.5
