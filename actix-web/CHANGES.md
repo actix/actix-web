@@ -2,7 +2,23 @@
 
 ## Unreleased
 
+## 4.18.1
+
+- Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
+
+## 4.18.0
+
+- Add `#[query]` route handler macro.
+- Add support for `method = "QUERY"` in `#[route]`.
+- Add `guard::Query()` method guard.
+- Document that `HttpServer::on_connect()` must be called before `bind()`.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 4.17.0
+
 - Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
+- Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
 
 ## 4.16.0
 

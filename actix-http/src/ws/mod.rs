@@ -62,8 +62,11 @@ pub enum ProtocolError {
     #[display("Bad opcode")]
     BadOpCode,
 
-    /// A payload reached size limit.
-    #[display("Payload reached size limit")]
+    /// A payload length is invalid, or exceeds the configured size limit.
+    ///
+    /// A 64-bit length with its most significant bit set is invalid (RFC 6455 §5.2), as is one that
+    /// does not fit in `usize`, or one whose addition to the frame offset overflows.
+    #[display("Payload length is invalid or exceeds the size limit")]
     Overflow,
 
     /// Continuation has not started.

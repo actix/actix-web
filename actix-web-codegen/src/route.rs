@@ -92,15 +92,16 @@ macro_rules! standard_method_type {
 }
 
 standard_method_type! {
+    Connect,   CONNECT, connect,
+    Delete,    DELETE,  delete,
     Get,       GET,     get,
+    Head,      HEAD,    head,
+    Options,   OPTIONS, options,
+    Patch,     PATCH,   patch,
     Post,      POST,    post,
     Put,       PUT,     put,
-    Delete,    DELETE,  delete,
-    Head,      HEAD,    head,
-    Connect,   CONNECT, connect,
-    Options,   OPTIONS, options,
+    Query,     QUERY,   query,
     Trace,     TRACE,   trace,
-    Patch,     PATCH,   patch,
 }
 
 impl TryFrom<&syn::LitStr> for MethodType {
