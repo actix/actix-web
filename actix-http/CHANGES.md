@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
 - Minimum supported Rust version (MSRV) is now 1.89.
 - Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, so the buffer no longer keeps the size of the largest response it sent.
 

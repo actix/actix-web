@@ -40,6 +40,9 @@ const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
+/// Write buffer capacity at which we reallocate it after flushing.
+const WRITE_BUFFER_RETENTION_LIMIT: usize = 1024 * 128;
+
 bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
@@ -181,10 +184,16 @@ pin_project! {
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
-        pub(super) write_buf: BytesMut,
+        write_buf: BytesMut,
         // a large body chunk written after `write_buf` without being copied into it
         write_body: Option<Bytes>,
+
+        // Number of bytes to busy-buffer before flushing.
         h1_write_buffer_size: usize,
+
+        // True if backing allocation of `write_buf` needs to be released.
+        write_buf_needs_reset: bool,
+
         codec: Codec,
     }
 }
@@ -301,6 +310,7 @@ where
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_body: None,
                     h1_write_buffer_size: config.h1_write_buffer_size(),
+                    write_buf_needs_reset: false,
                     codec: Codec::new(config),
                 },
             },
@@ -356,9 +366,21 @@ where
             io,
             write_buf,
             write_body,
+            h1_write_buffer_size,
+            write_buf_needs_reset,
             ..
         } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
+
+        // Allow normal buffer growth, but do not retain allocations caused by large response
+        // chunks on idle connections.
+        let retention_limit = (*h1_write_buffer_size).max(WRITE_BUFFER_RETENTION_LIMIT);
+
+        if write_buf.capacity() > retention_limit {
+            // Needs stored flag because `write_buf.advance(n)` reduces reported capacity without
+            // releasing the backing allocation.
+            *write_buf_needs_reset = true;
+        }
 
         let len = write_buf.len();
         let mut written = 0;
@@ -399,8 +421,13 @@ where
         }
         debug_assert_eq!(written, len);
 
-        // everything has written to I/O; clear buffer
-        write_buf.clear();
+        // All bytes have been accepted by the I/O stream, so the buffer can be reused or released.
+        if *write_buf_needs_reset {
+            *write_buf = BytesMut::with_capacity(HW_BUFFER_SIZE);
+            *write_buf_needs_reset = false;
+        } else {
+            write_buf.clear();
+        }
         *write_body = None;
 
         // flush the I/O and check if get blocked
@@ -1559,3 +1586,11 @@ fn trace_timer_states(
         trace!("  shutdown {}", &shutdown_timer);
     }
 }
+
+#[cfg(test)]
+#[path = "dispatcher_tests.rs"]
+mod dispatcher_tests;
+
+#[cfg(test)]
+#[path = "dispatcher_buffer_tests.rs"]
+mod buffer_tests;
