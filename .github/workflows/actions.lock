@@ -9,18 +9,18 @@ workflows:
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
-        - 'taiki-e/install-action@v2.87.30'
+        - 'taiki-e/install-action@v2.87.31'
         - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
-        - 'taiki-e/install-action@v2.87.30'
+        - 'taiki-e/install-action@v2.87.31'
         - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'actions/upload-code-coverage@v1.4.4'
-        - 'taiki-e/install-action@v2.87.30'
+        - 'taiki-e/install-action@v2.87.31'
         - 'useblacksmith/checkout@v1.8.1'
     '.github/workflows/labeler.yml':
         - 'actions/labeler@v7.0.0'
@@ -30,12 +30,12 @@ workflows:
         - 'embarkstudios/cargo-deny-action@v2.1.1'
         - 'giraffate/clippy-action@v1.0.1'
         - 'taiki-e/cache-cargo-install-action@v3.0.8'
-        - 'taiki-e/install-action@v2.87.30'
+        - 'taiki-e/install-action@v2.87.31'
         - 'useblacksmith/checkout@v1.8.1'
         - 'zizmorcore/zizmor-action@v0.8.0'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
-        - 'taiki-e/install-action@v2.87.30'
+        - 'taiki-e/install-action@v2.87.31'
         - 'useblacksmith/checkout@v1.8.1'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@v2.0.0':
@@ -97,9 +97,9 @@ dependencies:
         repo_id: 588643148
         uses:
             - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-    'taiki-e/install-action@v2.87.30':
-        ref: 'v2.87.30'
-        commit: 'sha1-a4d3f3f761dcd95cce1b72cb61cb6d1963438177'
+    'taiki-e/install-action@v2.87.31':
+        ref: 'v2.87.31'
+        commit: 'sha1-1e29709c0ec63babbe8f266397a465f29a825f91'
         owner_id: 43724913
         repo_id: 442947557
     'useblacksmith/checkout@v1.8.1':
