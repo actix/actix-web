@@ -108,6 +108,7 @@ httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
 language-tags = "0.3"
+memchr = "2.4"
 mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
@@ -146,7 +147,6 @@ criterion = { version = "0.8", features = ["html_reports"] }
 divan = "0.1.8"
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
-memchr = "2.4"
 once_cell = "1.21"
 rcgen = "0.14"
 regex = "1.3"
@@ -178,4 +178,8 @@ required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
 
 [[bench]]
 name = "date-formatting"
+harness = false
+
+[[bench]]
+name = "request-decoding"
 harness = false
