@@ -297,12 +297,12 @@ impl Inner {
     ///
     /// ```plain
     /// --foo    <-- in-between fields
-    /// --foo--  <-- end of request body, should be followed by EOF
+    /// --foo--  <-- final boundary; an epilogue may follow its CRLF
     /// ```
     ///
     /// Returns:
     ///
-    /// - `Ok(Some(true))` - final field boundary read (EOF)
+    /// - `Ok(Some(true))` - final field boundary read
     /// - `Ok(Some(false))` - field boundary read
     /// - `Ok(None)` - boundary not found, more data needs reading
     /// - `Err(BoundaryMissing)` - multipart boundary is missing
@@ -312,6 +312,8 @@ impl Inner {
         }
 
         // TODO: need to read epilogue
+        // Read a complete line, or the remaining bytes at EOF. A partial line must wait
+        // for more input while the stream is open. Examples: b"--foo \t\r\n", b"--foo-- \t".
         let chunk = match payload.readline_or_eof()? {
             // TODO: this might be okay as a let Some() else return Ok(None)
             None => return Ok(payload.eof.then_some(true)),
@@ -321,25 +323,31 @@ impl Inner {
         const BOUNDARY_MARKER: &[u8] = b"--";
         const LINE_BREAK: &[u8] = b"\r\n";
 
+        // Remove the leading "--", shared by intermediate and closing delimiters.
+        // For example, b"--foo-- \t\r\n" becomes b"foo-- \t\r\n".
         let Some(chunk) = chunk.as_ref().strip_prefix(BOUNDARY_MARKER) else {
             return Err(Error::BoundaryMissing);
         };
 
+        // Remove the boundary value. For "foo", the remaining suffix is now
+        // b" \t\r\n" (intermediate) or b"-- \t\r\n" (closing), for example.
         let Some(chunk) = chunk.strip_prefix(boundary.as_bytes()) else {
             return Err(Error::BoundaryMissing);
         };
 
-        // the delimiter may be followed by transport padding before the line-break
+        // An intermediate delimiter requires CRLF, preceded only by optional spaces/tabs.
+        // For b" \t\r\n", removing CRLF and padding leaves an empty slice.
         if let Some(padding) = chunk.strip_suffix(LINE_BREAK) {
             if trim_transport_padding(padding).is_empty() {
-                // boundary is followed by line-break, indicating more fields to come
                 return Ok(Some(false));
             }
         }
 
-        // boundary is followed by marker
+        // The original suffix is unchanged by the intermediate-delimiter check above.
+        // A closing delimiter may omit CRLF at EOF: b"-- \t\r\n" or b"-- \t".
         let chunk = chunk.strip_suffix(LINE_BREAK).unwrap_or(chunk);
 
+        // After removing padding, only the closing "--" may remain.
         if trim_transport_padding(chunk) == BOUNDARY_MARKER {
             return Ok(Some(true));
         }
