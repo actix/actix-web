@@ -338,11 +338,10 @@ impl Inner {
         }
 
         // boundary is followed by marker
-        if let Some(rest) = chunk.strip_prefix(BOUNDARY_MARKER) {
-            let padding = rest.strip_suffix(LINE_BREAK).unwrap_or(rest);
-            if trim_transport_padding(padding).is_empty() {
-                return Ok(Some(true));
-            }
+        let chunk = chunk.strip_suffix(LINE_BREAK).unwrap_or(chunk);
+
+        if trim_transport_padding(chunk) == BOUNDARY_MARKER {
+            return Ok(Some(true));
         }
 
         Err(Error::BoundaryMissing)
