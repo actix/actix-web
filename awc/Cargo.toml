@@ -104,7 +104,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", features = ["connect", "uri"] }
 actix-utils = "3"
 
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1"
 cfg-if = "1"
 derive_more = { version = "2", features = ["display", "error", "from"] }
