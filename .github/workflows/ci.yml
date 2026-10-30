@@ -45,6 +45,31 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Probe Windows Defender status
+        if: matrix.target.name == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Output 'Windows Defender status (issue #4369)'
+          try {
+            Get-MpComputerStatus -ErrorAction Stop |
+              Select-Object AMRunningMode, AMServiceEnabled, AntivirusEnabled,
+                RealTimeProtectionEnabled, OnAccessProtectionEnabled,
+                IoavProtectionEnabled, BehaviorMonitorEnabled, IsTamperProtected |
+              Format-List
+          } catch {
+            Write-Warning "Could not read Defender status: $_"
+          }
+
+          Write-Output 'Windows Defender scan settings and exclusions'
+          try {
+            Get-MpPreference -ErrorAction Stop |
+              Select-Object DisableRealtimeMonitoring, DisableIOAVProtection,
+                ExclusionPath, ExclusionProcess, ExclusionExtension |
+              Format-List
+          } catch {
+            Write-Warning "Could not read Defender preferences: $_"
+          }
+
       - name: Install nasm
         if: matrix.target.name == 'Windows'
         uses: ilammy/setup-nasm@v1.5.2
