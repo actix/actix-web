@@ -1609,6 +1609,54 @@ mod tests {
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
     }
 
+    #[cfg(unix)]
+    #[actix_rt::test]
+    async fn test_directory_listing_href_escaping() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            ("safe.txt", "/safe.txt"),
+            (
+                "x\"><img src=x onerror=alert(1)>.txt",
+                "/x%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E.txt",
+            ),
+            ("`&#? %+ .txt", "/%60%26%23%3F%20%25%2B%20.txt"),
+            ("AZaz09-._~.txt", "/AZaz09-._~.txt"),
+        ];
+
+        for (name, _) in cases {
+            std::fs::write(dir.path().join(name), "file contents").unwrap();
+        }
+
+        let service = Files::new("/", dir.path())
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body = std::str::from_utf8(&body).unwrap();
+        assert_eq!(body.matches("<a ").count(), cases.len());
+        assert_eq!(body.matches("</a>").count(), cases.len());
+
+        for anchor in body.split("<a href=\"").skip(1) {
+            let href = anchor.split('"').next().unwrap();
+            assert!(!href.contains('<'));
+            assert!(
+                href.ends_with(".txt"),
+                "href does not contain the whole file name: {href}"
+            );
+        }
+
+        for (name, href) in cases {
+            let text = v_htmlescape::escape_fmt(name);
+            assert!(body.contains(&format!("<a href=\"{href}\">{text}</a>")));
+        }
+    }
+
     #[actix_rt::test]
     async fn test_path_filter() {
         // prevent searching subdirectories
