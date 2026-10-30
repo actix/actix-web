@@ -16,8 +16,8 @@ use actix_web::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
-    PathBufWrap, PathFilter,
+    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeFallback, MimeOverride,
+    NamedFile, PathBufWrap, PathFilter,
 };
 
 /// Assembled file serving service.
@@ -40,6 +40,7 @@ pub struct FilesServiceInner {
     pub(crate) default: Option<HttpService>,
     pub(crate) renderer: Rc<DirectoryRenderer>,
     pub(crate) mime_override: Option<Rc<MimeOverride>>,
+    pub(crate) mime_fallback: Option<Rc<MimeFallback>>,
     pub(crate) path_filter: Option<Rc<PathFilter>>,
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
@@ -76,6 +77,11 @@ impl FilesService {
         mut named_file: NamedFile,
         encoding: header::ContentEncoding,
     ) -> ServiceResponse {
+        // precompressed files already had their content type resolved from the original path
+        if let (Some(fallback), header::ContentEncoding::Identity) = (&self.mime_fallback, encoding)
+        {
+            named_file.apply_mime_fallback(&**fallback);
+        }
         if let Some(ref mime_override) = self.mime_override {
             let new_disposition = mime_override(&named_file.content_type.type_());
             named_file.content_disposition.disposition = new_disposition;
@@ -182,7 +188,9 @@ impl Service<ServiceRequest> for FilesService {
                 // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
                 // Still handle directories (index/listing) through the normal branch below.
                 if this.try_compressed && !path.is_dir() {
-                    if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                    if let Some((named_file, encoding)) =
+                        find_compressed(&req, &path, this.mime_fallback.as_deref()).await
+                    {
                         return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
                     }
                 }
@@ -221,8 +229,12 @@ impl Service<ServiceRequest> for FilesService {
                         Some(index) => {
                             let named_path = path.join(index);
                             if this.try_compressed {
-                                if let Some((named_file, encoding)) =
-                                    find_compressed(&req, &named_path).await
+                                if let Some((named_file, encoding)) = find_compressed(
+                                    &req,
+                                    &named_path,
+                                    this.mime_fallback.as_deref(),
+                                )
+                                .await
                                 {
                                     return Ok(this.serve_named_file_with_encoding(
                                         req, named_file, encoding,
@@ -307,6 +319,7 @@ const SUPPORTED_PRECOMPRESSION_ENCODINGS: &[header::ContentEncoding] = &[
 async fn find_compressed(
     req: &ServiceRequest,
     original_path: &Path,
+    mime_fallback: Option<&MimeFallback>,
 ) -> Option<(NamedFile, header::ContentEncoding)> {
     use actix_web::HttpMessage;
     use header::{AcceptEncoding, ContentEncoding, Encoding};
@@ -314,7 +327,7 @@ async fn find_compressed(
     // Retrieve the content type and content disposition based on the original filename. If we
     // can't get these successfully, don't even try to find a compressed file.
     let (content_type, content_disposition) =
-        match crate::named::get_content_type_and_disposition(original_path) {
+        match crate::named::get_content_type_and_disposition(original_path, mime_fallback) {
             Ok(values) => values,
             Err(_) => return None,
         };

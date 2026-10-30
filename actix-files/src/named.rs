@@ -87,8 +87,21 @@ pub(crate) use std::fs::File;
 
 use super::chunked;
 
+fn disposition_for(ct: &Mime) -> DispositionType {
+    match ct.type_() {
+        mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
+        mime::APPLICATION => match ct.subtype() {
+            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        },
+        _ => DispositionType::Attachment,
+    }
+}
+
 pub(crate) fn get_content_type_and_disposition(
     path: &Path,
+    mime_fallback: Option<&dyn Fn(&Path) -> Mime>,
 ) -> Result<(mime::Mime, ContentDisposition), io::Error> {
     let filename = match path.file_name() {
         Some(name) => name.to_string_lossy(),
@@ -100,17 +113,12 @@ pub(crate) fn get_content_type_and_disposition(
         }
     };
 
-    let ct = mime_guess::from_path(path).first_or_octet_stream();
-
-    let disposition = match ct.type_() {
-        mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
-        mime::APPLICATION => match ct.subtype() {
-            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
-            _ => DispositionType::Attachment,
-        },
-        _ => DispositionType::Attachment,
+    let ct = match mime_fallback {
+        Some(fallback) => mime_guess::from_path(path).first_or_else(|| fallback(path)),
+        None => mime_guess::from_path(path).first_or_octet_stream(),
     };
+
+    let disposition = disposition_for(&ct);
 
     // replace special characters in filenames which could occur on some filesystems
     let mut escaped_len = filename.len();
@@ -183,7 +191,7 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
+        let (content_type, content_disposition) = get_content_type_and_disposition(&path, None)?;
 
         let md = file.metadata()?;
 
@@ -289,6 +297,18 @@ impl NamedFile {
     pub fn set_content_type(mut self, mime_type: Mime) -> Self {
         self.content_type = mime_type;
         self
+    }
+
+    /// Uses `fallback` for the `Content-Type` if the file extension is not recognized.
+    ///
+    /// Only the MIME type and disposition kind are replaced; filename and other disposition
+    /// parameters are kept.
+    pub(crate) fn apply_mime_fallback(&mut self, fallback: &dyn Fn(&Path) -> Mime) {
+        if mime_guess::from_path(&self.path).first().is_none() {
+            let ct = fallback(&self.path);
+            self.content_disposition.disposition = disposition_for(&ct);
+            self.content_type = ct;
+        }
     }
 
     /// Set the Content-Disposition for serving this file. This allows changing the
@@ -748,14 +768,15 @@ mod tests {
 
     #[test]
     fn audio_files_use_inline_content_disposition() {
-        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
+        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3"), None).unwrap();
         assert_eq!(cd.disposition, DispositionType::Inline);
     }
 
     #[test]
     fn special_chars_are_escaped_in_content_disposition_filename() {
         let (_ct, cd) =
-            get_content_type_and_disposition(Path::new("test\n\x0B\x0C\rnewline.text")).unwrap();
+            get_content_type_and_disposition(Path::new("test\n\x0B\x0C\rnewline.text"), None)
+                .unwrap();
 
         assert_eq!(
             cd.to_string(),

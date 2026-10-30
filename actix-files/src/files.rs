@@ -22,7 +22,7 @@ use futures_core::future::LocalBoxFuture;
 use crate::{
     directory_listing, named,
     service::{FilesService, FilesServiceInner},
-    Directory, DirectoryRenderer, HttpNewService, MimeOverride, PathFilter,
+    Directory, DirectoryRenderer, HttpNewService, MimeFallback, MimeOverride, PathFilter,
 };
 
 /// Static files handling service.
@@ -47,6 +47,7 @@ pub struct Files {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
+    mime_fallback: Option<Rc<MimeFallback>>,
     path_filter: Option<Rc<PathFilter>>,
     file_flags: named::Flags,
     use_guards: Option<Rc<dyn Guard>>,
@@ -75,6 +76,7 @@ impl Clone for Files {
             file_flags: self.file_flags,
             mount_path: self.mount_path.clone(),
             mime_override: self.mime_override.clone(),
+            mime_fallback: self.mime_fallback.clone(),
             path_filter: self.path_filter.clone(),
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
@@ -252,6 +254,7 @@ impl Files {
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
+            mime_fallback: None,
             path_filter: None,
             file_flags: named::Flags::default(),
             use_guards: None,
@@ -308,6 +311,33 @@ impl Files {
         F: Fn(&mime::Name<'_>) -> DispositionType + 'static,
     {
         self.mime_override = Some(Rc::new(f));
+        self
+    }
+
+    /// Sets a fallback for files whose MIME type cannot be guessed from their extension.
+    ///
+    /// The callback receives the file path and returns the `Content-Type` to use. It is only
+    /// called when extension-based detection finds no match; by default such files are served as
+    /// `application/octet-stream`. The `Content-Disposition` type is derived from the returned
+    /// MIME type (and may still be changed with [`Files::mime_override()`]).
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_files::Files;
+    ///
+    /// // serve extension-less files like `Dockerfile` as plain text
+    /// let files_service = Files::new("/", "./static").mime_fallback_fn(|path| {
+    ///     match path.file_name().and_then(|name| name.to_str()) {
+    ///         Some("Dockerfile" | "Cargo.lock") => mime::TEXT_PLAIN_UTF_8,
+    ///         _ => mime::APPLICATION_OCTET_STREAM,
+    ///     }
+    /// });
+    /// ```
+    pub fn mime_fallback_fn<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&Path) -> mime::Mime + 'static,
+    {
+        self.mime_fallback = Some(Rc::new(f));
         self
     }
 
@@ -542,6 +572,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             default: None,
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
+            mime_fallback: self.mime_fallback.clone(),
             path_filter: self.path_filter.clone(),
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
