@@ -70,6 +70,44 @@ jobs:
             Write-Warning "Could not read Defender preferences: $_"
           }
 
+          Write-Output 'Windows Defender service'
+          try {
+            $service = Get-Service -ErrorAction Stop |
+              Where-Object Name -eq 'WinDefend'
+            if ($service) {
+              $service | Select-Object Name, Status, StartType | Format-List
+            } else {
+              Write-Output 'WinDefend service is not present.'
+            }
+          } catch {
+            Write-Warning "Could not enumerate services: $_"
+          }
+
+          Write-Output 'Windows Defender process'
+          try {
+            $process = Get-Process -ErrorAction Stop |
+              Where-Object ProcessName -eq 'MsMpEng'
+            if ($process) {
+              $process | Select-Object ProcessName, Id, CPU | Format-List
+            } else {
+              Write-Output 'MsMpEng process is not running.'
+            }
+          } catch {
+            Write-Warning "Could not enumerate processes: $_"
+          }
+
+          Write-Output 'Windows Defender feature installation'
+          try {
+            $features = Get-WindowsFeature -Name '*Defender*' -ErrorAction Stop
+            if ($features) {
+              $features | Select-Object Name, InstallState | Format-List
+            } else {
+              Write-Output 'No Windows Defender features were found.'
+            }
+          } catch {
+            Write-Warning "Could not read Windows Defender features: $_"
+          }
+
       - name: Install nasm
         if: matrix.target.name == 'Windows'
         uses: ilammy/setup-nasm@v1.5.2
