@@ -716,7 +716,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[actix_rt::test]
@@ -764,7 +764,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::GET)
@@ -856,7 +856,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::GET)

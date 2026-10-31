@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
+
 ## 4.18.1
 
 - Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
