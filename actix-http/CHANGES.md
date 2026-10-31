@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, to lower peak memory while they are written.
+
 ## 3.20.0
 
 - Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
