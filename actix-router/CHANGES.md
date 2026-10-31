@@ -4,8 +4,10 @@
 
 - Minimum supported Rust version (MSRV) is now 1.89.
 - Add support for extracting multi-component path params into a sequence (Vec, tuple, ...). [#3432]
+- Compile each distinct route pattern once per process instead of once per worker. [#4283]
 
 [#3432]: https://github.com/actix/actix-web/pull/3432
+[#4283]: https://github.com/actix/actix-web/pull/4283
 
 ## 0.5.4
 
