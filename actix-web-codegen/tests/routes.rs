@@ -402,3 +402,308 @@ async fn test_query() {
     let response = request.send().await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[get(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_get() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[post(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_post() -> impl Responder {
+    HttpResponse::Created()
+}
+
+#[put(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_put() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[delete(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_delete() -> impl Responder {
+    HttpResponse::NoContent()
+}
+
+#[patch(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_patch() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[head(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_head() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[options(
+    "/test/guard_obj/methods",
+    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+)]
+async fn g_options() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[route(
+    "/test/guard_obj/route_macro",
+    method = "PUT",
+    method = "PATCH",
+    guard_obj = "actix_web::guard::Header(\"x-scope\", \"route_macro\")"
+)]
+async fn g_route_macro() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/coexist",
+    guard = "guard_module::guard",
+    guard_obj = "actix_web::guard::Header(\"x-secret\", \"allow\")"
+)]
+async fn g_coexist() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/combo",
+    guard_obj = "actix_web::guard::All(actix_web::guard::Header(\"x-a\", \"1\")).and(actix_web::guard::Header(\"x-b\", \"2\"))"
+)]
+async fn g_combo() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/multi_attr",
+    guard_obj = "actix_web::guard::Header(\"x-one\", \"1\")",
+    guard_obj = "actix_web::guard::Header(\"x-two\", \"2\")"
+)]
+async fn g_multi_attr() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+struct CustomQueryGuard;
+
+impl actix_web::guard::Guard for CustomQueryGuard {
+    fn check(&self, ctx: &actix_web::guard::GuardContext<'_>) -> bool {
+        ctx.head().uri.query() == Some("role=admin")
+    }
+}
+
+#[get("/test/guard_obj/custom", guard_obj = "CustomQueryGuard")]
+async fn g_custom() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+fn start_guard_obj_server() -> actix_test::TestServer {
+    actix_test::start(|| {
+        App::new()
+            .service(g_get)
+            .service(g_post)
+            .service(g_put)
+            .service(g_delete)
+            .service(g_patch)
+            .service(g_head)
+            .service(g_options)
+            .service(g_route_macro)
+            .service(g_coexist)
+            .service(g_combo)
+            .service(g_multi_attr)
+            .service(g_custom)
+    })
+}
+
+async fn req(
+    srv: &actix_test::TestServer,
+    method: http::Method,
+    path: &str,
+    headers: &[(&str, &str)],
+) -> StatusCode {
+    let mut r = srv.request(method, srv.url(path));
+    for &(k, v) in headers {
+        r = r.insert_header((k, v));
+    }
+    r.send().await.unwrap().status()
+}
+
+#[actix_rt::test]
+async fn test_guard_obj_all_http_methods_matrix() {
+    let srv = start_guard_obj_server();
+
+    let methods = [
+        (http::Method::GET, StatusCode::OK),
+        (http::Method::POST, StatusCode::CREATED),
+        (http::Method::PUT, StatusCode::OK),
+        (http::Method::DELETE, StatusCode::NO_CONTENT),
+        (http::Method::PATCH, StatusCode::OK),
+        (http::Method::HEAD, StatusCode::OK),
+        (http::Method::OPTIONS, StatusCode::OK),
+    ];
+
+    for (method, expected_success) in methods {
+        assert_eq!(
+            req(
+                &srv,
+                method.clone(),
+                "/test/guard_obj/methods",
+                &[("x-ver", "1")]
+            )
+            .await,
+            expected_success,
+            "Failed match for {method}"
+        );
+
+        assert_eq!(
+            req(
+                &srv,
+                method.clone(),
+                "/test/guard_obj/methods",
+                &[("x-ver", "wrong")]
+            )
+            .await,
+            StatusCode::NOT_FOUND,
+            "Failed rejection for {method}"
+        );
+
+        assert_eq!(
+            req(&srv, method, "/test/guard_obj/methods", &[]).await,
+            StatusCode::NOT_FOUND,
+            "Failed missing header check for method"
+        );
+    }
+}
+
+#[actix_rt::test]
+async fn test_guard_obj_route_macro_and_coexistence() {
+    let srv = start_guard_obj_server();
+
+    for method in [http::Method::PUT, http::Method::PATCH] {
+        assert_eq!(
+            req(
+                &srv,
+                method,
+                "/test/guard_obj/route_macro",
+                &[("x-scope", "route_macro")]
+            )
+            .await,
+            StatusCode::OK
+        );
+    }
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "image/*"), ("x-secret", "allow")]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "text/plain"), ("x-secret", "allow")]
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "image/*"), ("x-secret", "wrong")]
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[actix_rt::test]
+async fn test_guard_obj_combinators_and_custom() {
+    let srv = start_guard_obj_server();
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/combo",
+            &[("x-a", "1"), ("x-b", "2")]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/combo",
+            &[("x-a", "1")]
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/multi_attr",
+            &[("x-one", "1"), ("x-two", "2")]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/multi_attr",
+            &[("x-one", "1")]
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/custom?role=admin",
+            &[]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/custom?role=user",
+            &[]
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+}
