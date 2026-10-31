@@ -64,6 +64,8 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
 
+type MimeFallback = dyn Fn(&Path) -> mime::Mime;
+
 type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 
 #[cfg(test)]
@@ -563,6 +565,68 @@ mod tests {
             .to_str()
             .expect("Convert CONTENT_DISPOSITION to str");
         assert_eq!(content_disposition, "attachment; filename=\"Cargo.toml\"");
+    }
+
+    #[actix_rt::test]
+    async fn test_mime_fallback_fn() {
+        // unknown extension without fallback is an octet-stream attachment
+        let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
+        let res =
+            test::call_service(&srv, TestRequest::get().uri("/test.binary").to_request()).await;
+        assert_eq!(
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
+        );
+
+        // fallback is used for unknown extensions
+        let srv = test::init_service(
+            App::new()
+                .service(Files::new("/", "./tests").mime_fallback_fn(|_| mime::TEXT_PLAIN_UTF_8)),
+        )
+        .await;
+        let res =
+            test::call_service(&srv, TestRequest::get().uri("/test.binary").to_request()).await;
+        assert_eq!(
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/plain; charset=utf-8"
+        );
+        assert!(res
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("inline"));
+
+        // fallback is not used for known extensions
+        let res = test::call_service(&srv, TestRequest::get().uri("/test.png").to_request()).await;
+        assert_eq!(
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_mime_fallback_fn_with_mime_override() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .mime_fallback_fn(|_| mime::TEXT_PLAIN_UTF_8)
+                    .mime_override(|_| DispositionType::Attachment),
+            ),
+        )
+        .await;
+
+        let res =
+            test::call_service(&srv, TestRequest::get().uri("/test.binary").to_request()).await;
+        assert_eq!(
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(
+            res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"test.binary\""
+        );
     }
 
     #[actix_rt::test]

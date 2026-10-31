@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `Files::mime_fallback_fn()` to customize the MIME type of files with unrecognized extensions.
+
 ## 0.7.2
 
 - Evaluate request preconditions before processing `Range` headers when serving a `NamedFile`.
