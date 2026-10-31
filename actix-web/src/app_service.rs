@@ -11,14 +11,15 @@ use crate::{
     config::{AppConfig, AppService},
     data::FnDataFactory,
     dev::Extensions,
-    guard::Guard,
+    guard::{Guard, RegisteredMethods},
+    http::header,
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
     service::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, HttpResponse,
+    Error, HttpMessage as _, HttpResponse,
 };
 
 /// Service factory to convert [`Request`] to a [`ServiceRequest<S>`].
@@ -64,13 +65,24 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
-        // set AppService's default service to 404 NotFound
-        // if no user defined default service exists.
-        let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(HttpResponse::NotFound()))
-            })))
-        });
+        async fn default_handler(req: ServiceRequest) -> Result<ServiceResponse, Error> {
+            let allowed = req.extensions().get::<RegisteredMethods>().cloned();
+
+            let response = match allowed {
+                Some(methods) => HttpResponse::MethodNotAllowed()
+                    .insert_header(header::Allow(methods.0))
+                    .finish(),
+                None => HttpResponse::NotFound().finish(),
+            };
+
+            Ok(req.into_response(response))
+        }
+
+        // Use the built-in routing fallback if no user-defined default service exists.
+        let default = self
+            .default
+            .clone()
+            .unwrap_or_else(|| Rc::new(boxed::factory(fn_service(default_handler))));
 
         // create App config to pass to child services
         let mut config = AppService::new(config, Rc::clone(&default));
@@ -420,5 +432,109 @@ mod tests {
             let _ = app.call(req).await.unwrap();
         }
         assert!(data.load(Ordering::Relaxed));
+    }
+
+    #[cfg(feature = "macros")]
+    mod macro_routing {
+        use crate::{
+            get,
+            http::{header, Method, StatusCode},
+            post,
+            test::{call_service, init_service, TestRequest},
+            web, App, HttpResponse,
+        };
+
+        #[get("/items")]
+        async fn get_items() -> HttpResponse {
+            HttpResponse::Ok().finish()
+        }
+
+        #[post("/items")]
+        async fn post_items() -> HttpResponse {
+            HttpResponse::Created().finish()
+        }
+
+        #[actix_rt::test]
+        async fn macro_routes_allow_methods_in_any_order() {
+            for reverse_registration in [false, true] {
+                for scoped in [false, true] {
+                    let app = App::new().configure(|cfg| {
+                        let mut services = web::scope(if scoped { "/api" } else { "" });
+
+                        services = if reverse_registration {
+                            services.service(post_items).service(get_items)
+                        } else {
+                            services.service(get_items).service(post_items)
+                        };
+
+                        if scoped {
+                            cfg.service(services);
+                        } else if reverse_registration {
+                            cfg.service(post_items).service(get_items);
+                        } else {
+                            cfg.service(get_items).service(post_items);
+                        }
+                    });
+                    let app = init_service(app).await;
+                    let path = if scoped { "/api/items" } else { "/items" };
+
+                    for methods in [
+                        [Method::DELETE, Method::GET, Method::POST],
+                        [Method::DELETE, Method::POST, Method::GET],
+                        [Method::POST, Method::GET, Method::DELETE],
+                        [Method::POST, Method::DELETE, Method::GET],
+                        [Method::GET, Method::DELETE, Method::POST],
+                        [Method::GET, Method::POST, Method::DELETE],
+                    ] {
+                        for method in methods {
+                            let expected = match method {
+                                Method::GET => StatusCode::OK,
+                                Method::POST => StatusCode::CREATED,
+                                _ => StatusCode::METHOD_NOT_ALLOWED,
+                            };
+                            let req = TestRequest::with_uri(path).method(method).to_request();
+                            let res = call_service(&app, req).await;
+
+                            assert_eq!(res.status(), expected);
+
+                            if expected == StatusCode::METHOD_NOT_ALLOWED {
+                                let mut allowed: Vec<_> = res
+                                    .headers()
+                                    .get(header::ALLOW)
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .split(", ")
+                                    .collect();
+                                allowed.sort_unstable();
+
+                                assert_eq!(allowed, ["GET", "POST"]);
+                            }
+                        }
+                    }
+
+                    let res =
+                        call_service(&app, TestRequest::with_uri("/missing").to_request()).await;
+                    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+                    assert!(!res.headers().contains_key(header::ALLOW));
+                }
+            }
+        }
+
+        #[actix_rt::test]
+        async fn macro_routes_preserve_custom_default() {
+            let app = init_service(
+                App::new()
+                    .service(get_items)
+                    .service(post_items)
+                    .default_service(web::to(HttpResponse::BadRequest)),
+            )
+            .await;
+
+            let req = TestRequest::delete().uri("/items").to_request();
+            let res = call_service(&app, req).await;
+
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        }
     }
 }

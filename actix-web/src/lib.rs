@@ -83,6 +83,9 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(all(test, feature = "macros"))]
+extern crate self as actix_web;
+
 pub use actix_http::{body, HttpMessage};
 #[cfg(feature = "cookies")]
 #[doc(inline)]
