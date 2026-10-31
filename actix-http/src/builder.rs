@@ -28,6 +28,8 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
+    h2_max_header_list_size: Option<u32>,
+    h2_max_concurrent_streams: Option<u32>,
     graceful_shutdown_signal: Option<GracefulShutdownSignal>,
     expect: X,
     upgrade: Option<U>,
@@ -55,6 +57,8 @@ where
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            h2_max_header_list_size: None,
+            h2_max_concurrent_streams: None,
             graceful_shutdown_signal: None,
 
             // dispatcher parts
@@ -204,6 +208,22 @@ where
         self
     }
 
+    /// Sets the maximum size of the header list a client may send on HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_max_header_list_size`] for more details.
+    pub fn h2_max_header_list_size(mut self, size: u32) -> Self {
+        self.h2_max_header_list_size = Some(size);
+        self
+    }
+
+    /// Sets the maximum number of concurrent streams a client may open on an HTTP/2 connection.
+    ///
+    /// See [`ServiceConfigBuilder::h2_max_concurrent_streams`] for more details.
+    pub fn h2_max_concurrent_streams(mut self, max: u32) -> Self {
+        self.h2_max_concurrent_streams = Some(max);
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT: 100-Continue` header.
@@ -227,6 +247,8 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            h2_max_header_list_size: self.h2_max_header_list_size,
+            h2_max_concurrent_streams: self.h2_max_concurrent_streams,
             graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
@@ -257,6 +279,8 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            h2_max_header_list_size: self.h2_max_header_list_size,
+            h2_max_concurrent_streams: self.h2_max_concurrent_streams,
             graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
@@ -298,6 +322,8 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_header_list_size(self.h2_max_header_list_size)
+            .h2_max_concurrent_streams(self.h2_max_concurrent_streams)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
@@ -329,6 +355,8 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_header_list_size(self.h2_max_header_list_size)
+            .h2_max_concurrent_streams(self.h2_max_concurrent_streams)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
@@ -357,6 +385,8 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_header_list_size(self.h2_max_header_list_size)
+            .h2_max_concurrent_streams(self.h2_max_concurrent_streams)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 

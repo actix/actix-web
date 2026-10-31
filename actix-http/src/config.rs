@@ -170,6 +170,29 @@ impl ServiceConfigBuilder {
         self
     }
 
+    /// Sets the maximum size of the header list a client may send on HTTP/2 connections.
+    ///
+    /// The value is advertised to the client as `SETTINGS_MAX_HEADER_LIST_SIZE` and enforced on
+    /// received header blocks. It is measured as RFC 9113 defines it: the sum of each field's
+    /// name and value lengths plus 32 bytes of overhead per field.
+    ///
+    /// The default value of `None` leaves the setting unset, which keeps h2's default.
+    pub fn h2_max_header_list_size(mut self, size: Option<u32>) -> Self {
+        self.inner.h2_max_header_list_size = size;
+        self
+    }
+
+    /// Sets the maximum number of concurrent streams a client may open on an HTTP/2 connection.
+    ///
+    /// The value is advertised to the client as `SETTINGS_MAX_CONCURRENT_STREAMS` and streams
+    /// opened past it are refused.
+    ///
+    /// The default value of `None` leaves the setting unset, which advertises no limit.
+    pub fn h2_max_concurrent_streams(mut self, max: Option<u32>) -> Self {
+        self.inner.h2_max_concurrent_streams = max;
+        self
+    }
+
     /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
     pub fn build(self) -> ServiceConfig {
         ServiceConfig(Rc::new(self.inner))
@@ -193,6 +216,8 @@ struct Inner {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
+    h2_max_header_list_size: Option<u32>,
+    h2_max_concurrent_streams: Option<u32>,
     graceful_shutdown_signal: Option<GracefulShutdownSignal>,
 }
 
@@ -210,6 +235,8 @@ impl Default for Inner {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            h2_max_header_list_size: None,
+            h2_max_concurrent_streams: None,
             graceful_shutdown_signal: None,
         }
     }
@@ -236,6 +263,8 @@ impl ServiceConfig {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            h2_max_header_list_size: None,
+            h2_max_concurrent_streams: None,
             graceful_shutdown_signal: None,
         }))
     }
@@ -321,6 +350,16 @@ impl ServiceConfig {
     /// HTTP/2 initial connection-level flow control window size (in bytes).
     pub fn h2_initial_connection_window_size(&self) -> u32 {
         self.0.h2_conn_window_size
+    }
+
+    /// HTTP/2 maximum header list size (in bytes), if set.
+    pub fn h2_max_header_list_size(&self) -> Option<u32> {
+        self.0.h2_max_header_list_size
+    }
+
+    /// HTTP/2 maximum number of concurrent streams per connection, if set.
+    pub fn h2_max_concurrent_streams(&self) -> Option<u32> {
+        self.0.h2_max_concurrent_streams
     }
 
     pub(crate) fn now(&self) -> Instant {

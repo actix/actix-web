@@ -66,6 +66,14 @@ where
         .initial_window_size(config.h2_initial_window_size())
         .initial_connection_window_size(config.h2_initial_connection_window_size());
 
+    if let Some(size) = config.h2_max_header_list_size() {
+        builder.max_header_list_size(size);
+    }
+
+    if let Some(max) = config.h2_max_concurrent_streams() {
+        builder.max_concurrent_streams(max);
+    }
+
     HandshakeWithTimeout {
         handshake: builder.handshake(io),
         timer: config
@@ -105,8 +113,99 @@ where
 #[cfg(test)]
 mod tests {
     use static_assertions::assert_impl_all;
+    use tokio::net::TcpStream;
 
     use super::*;
 
     assert_impl_all!(Payload: Unpin, Send, Sync);
+
+    async fn client_settings(
+        config: ServiceConfig,
+    ) -> (
+        h2::client::SendRequest<Bytes>,
+        h2::client::Connection<TcpStream, Bytes>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        actix_rt::spawn(async move {
+            let (io, _) = listener.accept().await.unwrap();
+            let (mut conn, _timer) = handshake_with_timeout(io, &config).await.unwrap();
+            while let Some(Ok((_req, mut res))) = conn.accept().await {
+                let _ = res.send_response(http::Response::new(()), true);
+            }
+        });
+
+        let io = TcpStream::connect(addr).await.unwrap();
+        let (send, mut conn) = h2::client::handshake(io).await.unwrap();
+
+        // drive the connection until the server's first SETTINGS frame has been applied
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        while conn.max_concurrent_send_streams() == usize::MAX
+            && tokio::time::Instant::now() < deadline
+        {
+            tokio::select! {
+                _ = &mut conn => break,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+            }
+        }
+
+        (send, conn)
+    }
+
+    #[actix_rt::test]
+    async fn max_concurrent_streams_is_advertised() {
+        let config = crate::ServiceConfigBuilder::new()
+            .h2_max_concurrent_streams(Some(100))
+            .build();
+
+        let (_send, conn) = client_settings(config).await;
+        assert_eq!(conn.max_concurrent_send_streams(), 100);
+    }
+
+    #[actix_rt::test]
+    async fn max_header_list_size_is_enforced() {
+        let config = crate::ServiceConfigBuilder::new()
+            .h2_max_header_list_size(Some(16 * 1024))
+            .build();
+
+        let (send, conn) = client_settings(config).await;
+        actix_rt::spawn(async move {
+            let _ = conn.await;
+        });
+        let mut send = send.ready().await.unwrap();
+
+        let small = http::Request::get("http://localhost/").body(()).unwrap();
+        let (res, _) = send.send_request(small, true).unwrap();
+        assert_eq!(res.await.unwrap().status(), http::StatusCode::OK);
+
+        let mut big = http::Request::get("http://localhost/").body(()).unwrap();
+        for i in 0..20 {
+            big.headers_mut().insert(
+                http::HeaderName::try_from(format!("x-big-{i}")).unwrap(),
+                http::HeaderValue::from_str(&"a".repeat(1024)).unwrap(),
+            );
+        }
+        let mut send = send.ready().await.unwrap();
+        let refused = match send.send_request(big, true) {
+            Err(_) => true,
+            Ok((res, _)) => match res.await {
+                Err(_) => true,
+                Ok(res) => res.status() != http::StatusCode::OK,
+            },
+        };
+        assert!(refused, "a 20 KiB header list passed a 16 KiB limit");
+    }
+
+    #[actix_rt::test]
+    async fn h2_limits_are_unset_by_default() {
+        let config = ServiceConfig::default();
+        assert_eq!(config.h2_max_header_list_size(), None);
+        assert_eq!(config.h2_max_concurrent_streams(), None);
+
+        let config = crate::ServiceConfigBuilder::new()
+            .h2_max_header_list_size(Some(128 * 1024))
+            .build();
+        assert_eq!(config.h2_max_header_list_size(), Some(128 * 1024));
+    }
 }
