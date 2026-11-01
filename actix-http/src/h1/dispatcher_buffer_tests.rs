@@ -1,10 +1,11 @@
-use std::{cell::Cell, pin::pin};
+use std::{cell::Cell, convert::Infallible, pin::pin};
 
 use actix_service::fn_service;
 use tokio::io::ReadBuf;
 
 use super::*;
 use crate::{
+    body::BodyStream,
     config::ServiceConfigBuilder,
     h1::{ExpectHandler, UpgradeHandler},
     test::TestBuffer,
@@ -75,8 +76,13 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     }));
     let services = HttpFlow::new(
         fn_service(move |_: Request| async move {
-            // A single body chunk forces the output buffer to hold the large response.
-            Ok::<_, Error>(Response::ok().set_body(bytes::Bytes::from(vec![b'x'; body_len])))
+            // A single chunk of a chunked body goes into the output buffer whole, which forces it
+            // to hold the large response. A sized body this large skips the buffer.
+            let chunk = bytes::Bytes::from(vec![b'x'; body_len]);
+            let body = BodyStream::new(futures_util::stream::once(async move {
+                Ok::<_, Infallible>(chunk)
+            }));
+            Ok::<_, Error>(Response::ok().set_body(body))
         }),
         ExpectHandler,
         None::<UpgradeHandler>,
@@ -149,7 +155,10 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
         .position(|window| window == b"\r\n\r\n")
         .unwrap()
         + 4;
-    assert_eq!(&response[body_start..], vec![b'x'; body_len]);
+    let mut body = format!("{body_len:X}\r\n").into_bytes();
+    body.extend(vec![b'x'; body_len]);
+    body.extend_from_slice(b"\r\n0\r\n\r\n");
+    assert_eq!(&response[body_start..], body);
 
     // The connection must remain usable, including after a partial write.
     io.extend_read_buf("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
