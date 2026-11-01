@@ -73,10 +73,16 @@ impl<B> HttpResponse<B> {
         self.res.head_mut()
     }
 
-    /// The source `error` for this response
+    /// Returns a reference to the source `error` for this response.
     #[inline]
     pub fn error(&self) -> Option<&Error> {
         self.error.as_ref()
+    }
+
+    /// Returns a mutable reference to the source `error` for this response.
+    #[inline]
+    pub fn error_mut(&mut self) -> Option<&mut Error> {
+        self.error.as_mut()
     }
 
     /// Get the response status code
