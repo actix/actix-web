@@ -716,7 +716,7 @@ where
                     {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
-                                if item.len() >= HW_BUFFER_SIZE {
+                                if item.len() >= *this.h1_write_buffer_size {
                                     if let Some(chunk) = this.codec.encode_chunk_unbuffered(&item) {
                                         *this.write_body = Some(chunk);
                                         continue;
@@ -782,7 +782,7 @@ where
                     {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
-                                if item.len() >= HW_BUFFER_SIZE {
+                                if item.len() >= *this.h1_write_buffer_size {
                                     if let Some(chunk) = this.codec.encode_chunk_unbuffered(&item) {
                                         *this.write_body = Some(chunk);
                                         continue;

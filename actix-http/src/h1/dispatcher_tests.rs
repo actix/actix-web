@@ -20,7 +20,7 @@ use tokio::{
 
 use super::*;
 use crate::{
-    body::BoxBody,
+    body::{BoxBody, SizedStream},
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
@@ -1565,12 +1565,14 @@ fn sized_body_service() -> impl Service<Request, Response = Response<Bytes>, Err
     fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok().set_body(sized_body()))))
 }
 
-/// A connection that writes at most `limit` bytes per call and can refuse its first write.
+/// A connection that writes at most `limit` bytes per call, can refuse its first write and counts
+/// the writes it accepts.
 struct TrickleIo {
     io: TestBuffer,
     limit: usize,
     vectored: bool,
     block_next_write: bool,
+    writes: Rc<Cell<usize>>,
 }
 
 impl AsyncRead for TrickleIo {
@@ -1602,6 +1604,7 @@ impl AsyncWrite for TrickleIo {
             cx.waker().wake_by_ref();
             return Poll::Pending;
         }
+        self.writes.set(self.writes.get() + 1);
         let bufs = if self.vectored { bufs } else { &bufs[..1] };
         let mut taken = Vec::new();
         for buf in bufs {
@@ -1660,6 +1663,7 @@ async fn sized_body_survives_partial_writes() {
             limit: 1000,
             vectored,
             block_next_write: true,
+            writes: Rc::default(),
         };
         let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
         let h1 = Dispatcher::new(
@@ -1684,6 +1688,49 @@ async fn sized_body_survives_partial_writes() {
         })
         .await;
     }
+}
+
+#[actix_rt::test]
+async fn sized_body_batches_small_chunks() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let writes = Rc::new(Cell::new(0));
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: writes.clone(),
+    };
+    let services = HttpFlow::new(
+        fn_service(|_req: Request| {
+            // Four 8 KiB chunks fill the default 32 KiB write buffer.
+            let body = sized_body();
+            let chunks =
+                (0..4).map(move |i| Ok::<_, io::Error>(body.slice(i * 8192..(i + 1) * 8192)));
+            let body = SizedStream::new(32 * 1024, futures_util::stream::iter(chunks));
+            ready(Ok::<_, Error>(Response::ok().set_body(body)))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let h1 = Dispatcher::new(
+        io,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+        assert_eq!(res[head_end..], sized_body()[..32 * 1024]);
+        assert_eq!(writes.get(), 1);
+    })
+    .await;
 }
 
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {
