@@ -302,29 +302,23 @@ impl InnerField {
         }
 
         // check boundary
-        if len >= 4 && payload.buf[0] == b'\r' {
-            let b_len = if payload.buf.starts_with(b"\r\n") && &payload.buf[2..4] == b"--" {
-                Some(4)
-            } else if &payload.buf[1..3] == b"--" {
-                Some(3)
-            } else {
-                None
-            };
+        //
+        // A delimiter is CRLF followed by "--" and the boundary (RFC 2046 §5.1.1). A bare CR
+        // followed by "--" and the boundary is field data.
+        if payload.buf.starts_with(b"\r\n--") {
+            let b_len = 4;
+            let b_size = boundary.len() + b_len;
+            let available = len - b_len;
+            let check_len = cmp::min(available, boundary.len());
 
-            if let Some(b_len) = b_len {
-                let b_size = boundary.len() + b_len;
-                let available = len - b_len;
-                let check_len = cmp::min(available, boundary.len());
-
-                if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
-                    match (len >= b_size, payload.eof) {
-                        // full boundary delimiter found
-                        (true, _) => return Poll::Ready(None),
-                        // partial boundary prefix with stream still open; wait for more chunks
-                        (false, false) => return Poll::Pending,
-                        // partial boundary prefix at EOF indicates truncated payload
-                        (false, true) => return Poll::Ready(Some(Err(Error::Incomplete))),
-                    }
+            if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
+                match (len >= b_size, payload.eof) {
+                    // full boundary delimiter found
+                    (true, _) => return Poll::Ready(None),
+                    // partial boundary prefix with stream still open; wait for more chunks
+                    (false, false) => return Poll::Pending,
+                    // partial boundary prefix at EOF indicates truncated payload
+                    (false, true) => return Poll::Ready(Some(Err(Error::Incomplete))),
                 }
             }
         }
@@ -344,11 +338,7 @@ impl InnerField {
                     }
                 } else {
                     // check boundary
-                    if (&payload.buf[cur..cur + 2] == b"\r\n"
-                        && &payload.buf[cur + 2..cur + 4] == b"--")
-                        || (&payload.buf[cur..=cur] == b"\r"
-                            && &payload.buf[cur + 1..cur + 3] == b"--")
-                    {
+                    if &payload.buf[cur..cur + 4] == b"\r\n--" {
                         if cur != 0 {
                             // return buffer
                             Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
@@ -549,6 +539,43 @@ mod tests {
             .expect("field data should not be size limited")
             .expect("reading field data should not error");
         assert_eq!(field, "two+two+two");
+    }
+
+    #[actix_rt::test]
+    async fn bare_cr_before_boundary_is_field_data() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/form-data; boundary=abc"),
+        );
+
+        let body = Bytes::from_static(
+            b"--abc\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\n\
+              one\r--abc two\r\n--abc--\r\n",
+        );
+        let bare_cr = memchr::memmem::find(&body, b"\r--abc two").unwrap();
+
+        // whole body in one chunk, and split so that a chunk starts with the bare CR
+        for chunks in [
+            vec![body.clone()],
+            vec![body.slice(..bare_cr), body.slice(bare_cr..)],
+        ] {
+            let stream = stream::iter(chunks.into_iter().map(Ok::<_, PayloadError>));
+            let mut multipart = Multipart::new(&headers, stream);
+
+            let field = multipart
+                .next()
+                .await
+                .expect("multipart should have one field")
+                .expect("multipart body should be well formatted")
+                .bytes(usize::MAX)
+                .await
+                .expect("field data should not be size limited")
+                .expect("reading field data should not error");
+            assert_eq!(field, "one\r--abc two");
+
+            assert!(multipart.next().await.is_none());
+        }
     }
 
     #[test]
