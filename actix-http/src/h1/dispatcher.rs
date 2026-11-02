@@ -170,7 +170,10 @@ pin_project! {
         error: Option<DispatchError>,
 
         #[pin]
-        pub(super) state: State<S, B, X>,
+        pub(super) state: State<S, X>,
+        // Keep the body pinned while switching between file transfer and buffered writes.
+        #[pin]
+        response_body: Option<B>,
         // when Some(_) dispatcher is in state of receiving request payload
         payload: Option<PayloadSender>,
         // true when current request uses chunked transfer encoding (drainable when payload is dropped)
@@ -204,36 +207,34 @@ enum DispatcherMessage {
 
 pin_project! {
     #[project = StateProj]
-    pub(super) enum State<S, B, X>
+    pub(super) enum State<S, X>
     where
         S: Service<Request>,
         X: Service<Request, Response = Request>,
-        B: MessageBody,
     {
         None,
         ExpectCall { #[pin] fut: X::Future },
         ServiceCall { #[pin] fut: S::Future },
-        SendPayload { #[pin] body: B },
+        SendFile,
+        SendPayload,
         SendErrorPayload { #[pin] body: BoxBody },
     }
 }
 
-impl<S, B, X> State<S, B, X>
+impl<S, X> State<S, X>
 where
     S: Service<Request>,
     X: Service<Request, Response = Request>,
-    B: MessageBody,
 {
     pub(super) fn is_none(&self) -> bool {
         matches!(self, State::None)
     }
 }
 
-impl<S, B, X> fmt::Debug for State<S, B, X>
+impl<S, X> fmt::Debug for State<S, X>
 where
     S: Service<Request>,
     X: Service<Request, Response = Request>,
-    B: MessageBody,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -242,9 +243,8 @@ where
             Self::ServiceCall { .. } => {
                 f.debug_struct("State::ServiceCall").finish_non_exhaustive()
             }
-            Self::SendPayload { .. } => {
-                f.debug_struct("State::SendPayload").finish_non_exhaustive()
-            }
+            Self::SendFile => write!(f, "State::SendFile"),
+            Self::SendPayload => write!(f, "State::SendPayload"),
             Self::SendErrorPayload { .. } => f
                 .debug_struct("State::SendErrorPayload")
                 .finish_non_exhaustive(),
@@ -261,7 +261,7 @@ enum PollResponse {
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: Service<Request>,
     S::Error: Into<Response<BoxBody>>,
@@ -294,6 +294,7 @@ where
                     error: None,
 
                     state: State::None,
+                    response_body: None,
                     payload: None,
                     payload_drainable: false,
                     messages: VecDeque::new(),
@@ -320,7 +321,7 @@ where
 
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: Service<Request>,
     S::Error: Into<Response<BoxBody>>,
@@ -529,11 +530,23 @@ where
 
                 this.state.set(State::None);
             }
-            _ => self
-                .as_mut()
-                .project()
-                .state
-                .set(State::SendPayload { body }),
+            _ => {
+                let mut this = self.as_mut().project();
+                this.response_body.set(Some(body));
+
+                let is_file = this
+                    .response_body
+                    .as_mut()
+                    .as_pin_mut()
+                    .unwrap()
+                    .file_region()
+                    .is_some();
+                this.state.set(if is_file {
+                    State::SendFile
+                } else {
+                    State::SendPayload
+                });
+            }
         }
 
         Ok(())
@@ -595,6 +608,31 @@ where
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
+    fn finish_payload(self: Pin<&mut Self>) -> Result<(), DispatchError> {
+        let mut this = self.project();
+        this.codec.encode(Message::Chunk(None), this.write_buf)?;
+
+        // If no next request is queued, this payload belongs to the response just completed.
+        let close_for_unread_payload =
+            should_close_for_unread_payload(this.payload.as_ref(), *this.payload_drainable);
+        let not_pipelined = this.messages.is_empty();
+
+        this.response_body.set(None);
+        this.state.set(State::None);
+
+        if not_pipelined && close_for_unread_payload {
+            if this.config.client_disconnect_deadline().is_some() {
+                Self::enter_linger(this.flags);
+            } else {
+                this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+            }
+        } else {
+            this.flags.insert(Flags::FINISHED);
+        }
+
+        Ok(())
+    }
+
     fn poll_response(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -631,8 +669,7 @@ where
 
                     // handle error message
                     Some(DispatcherMessage::Error(res)) => {
-                        // send_response would update InnerDispatcher state to SendPayload or None
-                        // (If response body is empty)
+                        // send_response selects SendFile, SendPayload, or None for an empty body.
                         // continue loop to poll it
                         self.as_mut().send_error_response(res, BoxBody::new(()))?;
                     }
@@ -680,7 +717,40 @@ where
                     }
                 }
 
-                StateProj::SendPayload { mut body } => {
+                StateProj::SendFile => {
+                    if !this.codec.body_allowed() {
+                        this.codec.skip_body();
+                        self.as_mut().finish_payload()?;
+                        continue 'res;
+                    }
+
+                    // Headers and earlier pipelined responses must precede the file bytes.
+                    if !this.write_buf.is_empty() {
+                        return Ok(PollResponse::DrainWriteBuf);
+                    }
+
+                    let body = this.response_body.as_mut().as_pin_mut().unwrap();
+
+                    match super::sendfile::poll_sendfile(
+                        this.io.as_ref().unwrap(),
+                        body,
+                        this.codec,
+                        cx,
+                    ) {
+                        Some(Poll::Pending) => return Ok(PollResponse::DoNothing),
+                        Some(Poll::Ready(result)) => {
+                            result?;
+                            self.as_mut().finish_payload()?;
+                        }
+                        None => this.state.set(State::SendPayload),
+                    }
+
+                    continue 'res;
+                }
+
+                StateProj::SendPayload => {
+                    let mut body = this.response_body.as_mut().as_pin_mut().unwrap();
+
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
                     while this.write_buf.len() < *this.h1_write_buffer_size {
@@ -691,32 +761,7 @@ where
                             }
 
                             Poll::Ready(None) => {
-                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
-
-                                // if we have not yet pipelined to the next request, then
-                                // this.payload was the payload for the request we just finished
-                                // responding to. We can check to see if we finished reading it
-                                // yet, and if not, shutdown the connection.
-                                let close_for_unread_payload = should_close_for_unread_payload(
-                                    this.payload.as_ref(),
-                                    *this.payload_drainable,
-                                );
-                                let not_pipelined = this.messages.is_empty();
-
-                                // payload stream finished.
-                                // set state to None and handle next message
-                                this.state.set(State::None);
-
-                                if not_pipelined && close_for_unread_payload {
-                                    if this.config.client_disconnect_deadline().is_some() {
-                                        Self::enter_linger(this.flags);
-                                    } else {
-                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
-                                    }
-                                } else {
-                                    this.flags.insert(Flags::FINISHED);
-                                }
-
+                                self.as_mut().finish_payload()?;
                                 continue 'res;
                             }
 
@@ -1290,7 +1335,7 @@ where
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: Service<Request>,
     S::Error: Into<Response<BoxBody>>,

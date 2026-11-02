@@ -80,6 +80,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "language-tags",
+ "libc",
  "local-channel",
  "memchr",
  "mime",

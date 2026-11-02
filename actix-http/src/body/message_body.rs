@@ -12,7 +12,7 @@ use bytes::{Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-use super::{BodySize, BoxBody};
+use super::{BodySize, BoxBody, FileRegion};
 
 /// An interface for types that can be used as a response body.
 ///
@@ -63,6 +63,16 @@ pub trait MessageBody {
     ///
     /// If [`BodySize::None`] is returned, optimizations that skip reading the body are allowed.
     fn size(&self) -> BodySize;
+
+    /// Borrows the remaining file region for direct transfer, when available.
+    ///
+    /// The default implementation returns `None`. A consumer can always use `poll_next` instead.
+    /// Availability can change between calls, for example while a file read is pending.
+    /// Consumers must record successful transfers with [`FileRegion::advance`] before reading
+    /// more bytes. Wrappers that change or inspect body bytes should keep the default implementation.
+    fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+        None
+    }
 
     /// Attempt to pull out the next chunk of body bytes.
     ///
@@ -130,6 +140,10 @@ mod foreign_impls {
     {
         type Error = B::Error;
 
+        fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+            Pin::new(&mut **self.get_mut()).file_region()
+        }
+
         fn size(&self) -> BodySize {
             (**self).size()
         }
@@ -184,6 +198,10 @@ mod foreign_impls {
         B: MessageBody + Unpin + ?Sized,
     {
         type Error = B::Error;
+
+        fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+            Pin::new(self.get_mut().as_mut()).file_region()
+        }
 
         #[inline]
         fn size(&self) -> BodySize {
@@ -501,6 +519,10 @@ where
     E: Into<Box<dyn StdError>>,
 {
     type Error = E;
+
+    fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+        self.project().body.file_region()
+    }
 
     #[inline]
     fn size(&self) -> BodySize {

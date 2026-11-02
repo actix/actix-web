@@ -6,7 +6,7 @@ use std::{
 use bytes::Bytes;
 use pin_project_lite::pin_project;
 
-use super::{BodySize, BoxBody, MessageBody};
+use super::{BodySize, BoxBody, FileRegion, MessageBody};
 use crate::Error;
 
 pin_project! {
@@ -63,6 +63,13 @@ where
     R: MessageBody + 'static,
 {
     type Error = Error;
+
+    fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+        match self.project() {
+            EitherBodyProj::Left { body } => body.file_region(),
+            EitherBodyProj::Right { body } => body.file_region(),
+        }
+    }
 
     #[inline]
     fn size(&self) -> BodySize {

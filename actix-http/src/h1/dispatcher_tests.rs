@@ -1597,3 +1597,89 @@ fn http_msg_creates_msg() {
         "GET / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"
     );
 }
+
+#[actix_rt::test]
+async fn file_fallback_preserves_pinned_body() {
+    use std::{fs::File, marker::PhantomPinned};
+
+    use crate::body::{FileBody, FileRegion};
+
+    pin_project_lite::pin_project! {
+        struct PinnedFile {
+            #[pin]
+            body: FileBody,
+            address: Rc<Cell<usize>>,
+            reads: Rc<Cell<usize>>,
+            #[pin]
+            _pin: PhantomPinned,
+        }
+    }
+
+    impl MessageBody for PinnedFile {
+        type Error = io::Error;
+
+        fn size(&self) -> BodySize {
+            self.body.size()
+        }
+
+        fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+            let address = self.as_ref().get_ref() as *const Self as usize;
+            let this = self.project();
+            this.address.set(address);
+            this.body.file_region()
+        }
+
+        fn poll_next(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<bytes::Bytes, io::Error>>> {
+            let address = self.as_ref().get_ref() as *const Self as usize;
+            let this = self.project();
+            assert_eq!(this.address.get(), address, "body moved after pinning");
+            this.reads.set(this.reads.get() + 1);
+            this.body.poll_next(cx)
+        }
+    }
+
+    // TestBuffer cannot send files directly, so the response must switch to byte-stream reads.
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let reads = Rc::new(Cell::new(0));
+    let body_reads = Rc::clone(&reads);
+    let service = fn_service(move |_: Request| {
+        let body = PinnedFile {
+            body: FileBody::region(
+                File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml")).unwrap(),
+                17,
+                100,
+            )
+            .unwrap(),
+            address: Rc::new(Cell::new(0)),
+            reads: Rc::clone(&body_reads),
+            _pin: PhantomPinned,
+        };
+
+        ready(Ok::<_, std::convert::Infallible>(
+            Response::ok().set_body(body),
+        ))
+    });
+    let dispatcher = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        HttpFlow::new(service, ExpectHandler, None),
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+
+    timeout(Duration::from_secs(3), dispatcher)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(reads.get() > 0);
+    let response = buf.take_write_buf();
+    let header_end = find_slice(&response, b"\r\n\r\n", 0).unwrap() + 4;
+    assert_eq!(
+        &response[header_end..],
+        &include_bytes!("../../Cargo.toml")[17..117]
+    );
+}

@@ -10,6 +10,7 @@ mod dispatcher;
 mod encoder;
 mod expect;
 mod payload;
+mod sendfile;
 mod service;
 mod timer;
 mod upgrade;

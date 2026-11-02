@@ -7,7 +7,7 @@ use std::{
 
 use bytes::Bytes;
 
-use super::{BodySize, MessageBody, MessageBodyMapErr};
+use super::{BodySize, FileRegion, MessageBody, MessageBodyMapErr};
 use crate::body;
 
 /// A boxed message body with boxed errors.
@@ -61,6 +61,13 @@ impl BoxBody {
 
 impl MessageBody for BoxBody {
     type Error = Box<dyn StdError>;
+
+    fn file_region(self: Pin<&mut Self>) -> Option<FileRegion<'_>> {
+        match &mut self.get_mut().0 {
+            BoxBodyInner::Stream(body) => body.as_mut().file_region(),
+            _ => None,
+        }
+    }
 
     #[inline]
     fn size(&self) -> BodySize {

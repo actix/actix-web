@@ -133,6 +133,9 @@ brotli = { version = "9", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.14", optional = true }
 
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-rt = "2.2"

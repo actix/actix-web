@@ -8,6 +8,7 @@
 mod body_stream;
 mod boxed;
 mod either;
+mod file;
 mod message_body;
 mod none;
 mod size;
@@ -19,6 +20,7 @@ pub use self::{
     body_stream::BodyStream,
     boxed::BoxBody,
     either::EitherBody,
+    file::{FileBody, FileRegion},
     message_body::MessageBody,
     none::None,
     size::BodySize,

@@ -31,6 +31,7 @@ pub struct Codec {
     // encoder part
     flags: Flags,
     encoder: encoder::MessageEncoder<Response<()>>,
+    file_allowed: bool,
 }
 
 impl Default for Codec {
@@ -48,6 +49,25 @@ impl fmt::Debug for Codec {
 }
 
 impl Codec {
+    pub(super) fn body_allowed(&self) -> bool {
+        self.file_allowed
+    }
+
+    pub(super) fn skip_body(&mut self) {
+        self.encoder.te = encoder::TransferEncoding::empty();
+    }
+
+    pub(super) fn file_remaining(&self) -> Option<u64> {
+        self.file_allowed
+            .then(|| self.encoder.te.remaining())
+            .flatten()
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub(super) fn advance_file(&mut self, bytes: u64) {
+        self.encoder.te.advance(bytes);
+    }
+
     /// Create HTTP/1 codec.
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
@@ -66,6 +86,7 @@ impl Codec {
             version: Version::HTTP_11,
             conn_type: ConnectionType::Close,
             encoder: encoder::MessageEncoder::default(),
+            file_allowed: false,
         }
     }
 
@@ -156,6 +177,10 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((mut res, length)) => {
+                self.file_allowed = !self.flags.contains(Flags::HEAD)
+                    && !res.status().is_informational()
+                    && res.status() != crate::StatusCode::NO_CONTENT
+                    && res.status() != crate::StatusCode::NOT_MODIFIED;
                 // set response version
                 res.head_mut().version = self.version;
 

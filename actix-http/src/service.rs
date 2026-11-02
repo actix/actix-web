@@ -928,7 +928,7 @@ impl<S, X, U> HttpFlow<S, X, U> {
 impl<T, S, B, X, U> Service<(T, Protocol, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: Service<Request>,
     S::Error: Into<Response<BoxBody>> + 'static,
@@ -1084,7 +1084,7 @@ pin_project! {
 
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: Service<Request>,
     S::Error: Into<Response<BoxBody>> + 'static,

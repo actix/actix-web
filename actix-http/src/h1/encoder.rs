@@ -417,6 +417,20 @@ enum TransferEncodingKind {
 }
 
 impl TransferEncoding {
+    pub(super) fn remaining(&self) -> Option<u64> {
+        match self.kind {
+            TransferEncodingKind::Length(remaining) => Some(remaining),
+            _ => None,
+        }
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub(super) fn advance(&mut self, bytes: u64) {
+        if let TransferEncodingKind::Length(ref mut remaining) = self.kind {
+            *remaining -= bytes;
+        }
+    }
+
     #[inline]
     pub fn empty() -> TransferEncoding {
         TransferEncoding {
