@@ -119,6 +119,23 @@ impl AppService {
         }
     }
 
+    /// Maps factories registered by the callback without changing routing metadata.
+    pub(crate) fn map_registered_services(
+        &mut self,
+        register: impl FnOnce(&mut Self),
+        map: impl Fn(BoxedHttpServiceFactory) -> BoxedHttpServiceFactory,
+    ) {
+        let start = self.services.len();
+        register(self);
+
+        let services = self.services.split_off(start);
+        self.services.extend(
+            services
+                .into_iter()
+                .map(|(rdef, factory, guards, nested)| (rdef, map(factory), guards, nested)),
+        );
+    }
+
     /// Returns reference to configuration.
     pub fn config(&self) -> &AppConfig {
         &self.config
