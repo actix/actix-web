@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reduce allocations when parsing `Charset` values.
+
 ## 3.20.0
 
 - Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
