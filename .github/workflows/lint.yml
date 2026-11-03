@@ -52,7 +52,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2.1.1
 
   fmt:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-slim
     steps:
       - uses: useblacksmith/checkout@v1.8.1
         with:

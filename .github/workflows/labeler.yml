@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   labeler:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: useblacksmith/checkout@v1.8.1
         with:
