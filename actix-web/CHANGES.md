@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
 - Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
 
 ## 4.18.1
