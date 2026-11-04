@@ -4,39 +4,39 @@
 version: 'v0.0.3'
 workflows:
     '.github/workflows/bench.yml':
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/ci-post-merge.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
         - 'taiki-e/install-action@v2.89.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
         - 'taiki-e/install-action@v2.89.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'actions/upload-code-coverage@v1.4.4'
         - 'taiki-e/install-action@v2.89.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/labeler.yml':
         - 'actions/labeler@v7.0.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/lint.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'embarkstudios/cargo-deny-action@v2.1.1'
         - 'giraffate/clippy-action@v1.0.1'
         - 'taiki-e/cache-cargo-install-action@v3.0.8'
         - 'taiki-e/install-action@v2.89.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
         - 'zizmorcore/zizmor-action@v0.8.0'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.0'
         - 'taiki-e/install-action@v2.89.0'
-        - 'useblacksmith/checkout@v1.8.1'
+        - 'useblacksmith/checkout@v1.8.2'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@v2.0.0':
         ref: 'v2.0.0'
@@ -102,9 +102,9 @@ dependencies:
         commit: 'sha1-1919c4a95903d2c33e4a221102edca87309fc14b'
         owner_id: 43724913
         repo_id: 442947557
-    'useblacksmith/checkout@v1.8.1':
-        ref: 'v1.8.1'
-        commit: 'sha1-25227e61ff9dafe400e22fa487b673eac4e4409a'
+    'useblacksmith/checkout@v1.8.2':
+        ref: 'v1.8.2'
+        commit: 'sha1-2b9fe87d796feea153b455ec2f3125b471a7b0e7'
         owner_id: 156274793
         repo_id: 1107788336
     'zizmorcore/zizmor-action@v0.8.0':

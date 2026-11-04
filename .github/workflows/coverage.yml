@@ -21,7 +21,7 @@ jobs:
   coverage:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
 

@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           fetch-depth: 0
           persist-credentials: false
