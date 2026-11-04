@@ -15,6 +15,7 @@ use actix_web::{
 };
 use derive_more::{Display, Error};
 use futures_core::Stream;
+use memchr::memmem;
 use mime::Mime;
 
 use crate::{
@@ -206,12 +207,73 @@ impl fmt::Debug for Field {
     }
 }
 
+/// Search strategy selected once per field from its declared content type.
+///
+/// A match identifies only a candidate; delimiter validation is the same for both strategies.
+#[derive(Clone, Copy)]
+pub(crate) enum BoundarySearch {
+    /// Search for CR in types that commonly contain LF-only text.
+    Cr,
+
+    /// Search for a dash followed by the boundary's first non-dash byte.
+    Marker {
+        needle: [u8; 2],
+        /// Offset from the delimiter's first dash to the needle start.
+        marker_offset: usize,
+    },
+}
+
+impl BoundarySearch {
+    /// Selects a search strategy from a boundary and the field's declared content type.
+    ///
+    /// CSV and SQL retain the marker search because they can contain frequent CRLF lines.
+    /// Missing or unrecognized types also use the marker search. The type is only a hint;
+    /// it does not change which delimiters the parser accepts.
+    pub(crate) fn new(boundary: &str, content_type: Option<&Mime>) -> Self {
+        match content_type {
+            // CSV and SQL can contain many CRLF lines, so use the marker search to
+            // avoid checking each CR as a possible delimiter.
+            Some(ct) if matches!(ct.subtype().as_str(), "csv" | "sql") => {}
+
+            // For text and structured documents, assume LF-only lines with few CR bytes,
+            // so use the cheaper single-byte CR search.
+            Some(ct)
+                if ct.type_() == mime::TEXT
+                    || matches!(ct.subtype().as_str(), "json" | "xml" | "yaml")
+                    || ct
+                        .suffix()
+                        .is_some_and(|suffix| matches!(suffix.as_str(), "json" | "xml")) =>
+            {
+                return Self::Cr;
+            }
+
+            // Binary data can contain frequent incidental CR bytes, so use the marker
+            // search. Also use marker search for unknown or missing types.
+            None | Some(_) => {}
+        }
+
+        // Include the first non-dash boundary byte, skipping any leading dashes.
+        let prefix_end = boundary.as_bytes().iter().position(|&byte| byte != b'-');
+        let marker_offset = prefix_end.map_or(0, |idx| idx + 1);
+        let needle = [
+            b'-',
+            prefix_end.map_or(b'-', |idx| boundary.as_bytes()[idx]),
+        ];
+
+        Self::Marker {
+            needle,
+            marker_offset,
+        }
+    }
+}
+
 pub(crate) struct InnerField {
     /// Payload is initialized as Some and is `take`n when the field stream finishes.
     payload: Option<PayloadRef>,
 
     /// Field boundary (without "--" prefix).
     boundary: String,
+    boundary_search: BoundarySearch,
 
     /// True if request payload has been exhausted.
     eof: bool,
@@ -224,14 +286,17 @@ impl InnerField {
     pub(crate) fn new_in_rc(
         payload: PayloadRef,
         boundary: String,
+        boundary_search: BoundarySearch,
         headers: &HeaderMap,
     ) -> Result<Rc<RefCell<InnerField>>, PayloadError> {
-        Self::new(payload, boundary, headers).map(|this| Rc::new(RefCell::new(this)))
+        Self::new(payload, boundary, boundary_search, headers)
+            .map(|this| Rc::new(RefCell::new(this)))
     }
 
     pub(crate) fn new(
         payload: PayloadRef,
         boundary: String,
+        boundary_search: BoundarySearch,
         headers: &HeaderMap,
     ) -> Result<InnerField, PayloadError> {
         let len = if let Some(len) = headers.get(&header::CONTENT_LENGTH) {
@@ -245,6 +310,7 @@ impl InnerField {
 
         Ok(InnerField {
             boundary,
+            boundary_search,
             payload: Some(payload),
             eof: false,
             length: len,
@@ -282,18 +348,26 @@ impl InnerField {
         }
     }
 
-    /// Reads content chunk of body part with unknown length.
+    /// Reads field data up to the next multipart boundary when the field has no `Content-Length`.
     ///
-    /// The `Content-Length` header for body part is not necessary.
-    pub(crate) fn read_stream(
+    /// This is called to read the field contents, starting just after its header block and blank
+    /// line. The multipart reader has already consumed the opening boundary and headers.
+    ///
+    /// Returns field data in chunks, then `None` at the next boundary. Leaves that boundary and its
+    /// leading newline buffered so the multipart reader can start the next field or close the body.
+    pub(crate) fn read_until_boundary(
         payload: &mut PayloadBuffer,
         boundary: &str,
+        search: BoundarySearch,
     ) -> Poll<Option<Result<Bytes, Error>>> {
-        let mut pos = 0;
+        const CRLF_LEN: usize = b"\r\n".len();
+        const CRLF_PREFIX_LEN: usize = b"\r\n--".len();
 
         let len = payload.buf.len();
 
         if len == 0 {
+            // The field still needs a delimiter. An empty buffer is only temporary
+            // while the input stream can supply more bytes.
             return if payload.eof {
                 Poll::Ready(Some(Err(Error::Incomplete)))
             } else {
@@ -301,84 +375,145 @@ impl InnerField {
             };
         }
 
-        // check boundary
-        //
-        // A delimiter is CRLF followed by "--" and the boundary (RFC 2046 §5.1.1). A bare CR
-        // followed by "--" and the boundary is field data.
+        // Check for a delimiter left at the buffer start by a previous read.
+        // Leave it for the multipart reader to consume after the field ends.
+        // Only CRLF introduces a delimiter; a bare CR followed by --boundary is field data.
         if payload.buf.starts_with(b"\r\n--") {
-            let b_len = 4;
+            let b_len = CRLF_PREFIX_LEN;
             let b_size = boundary.len() + b_len;
             let available = len - b_len;
             let check_len = cmp::min(available, boundary.len());
 
+            // A matching prefix must stay buffered; a mismatch is ordinary field data.
             if payload.buf[b_len..b_len + check_len] == boundary.as_bytes()[..check_len] {
                 match (len >= b_size, payload.eof) {
-                    // full boundary delimiter found
+                    // The full boundary matches, so this field has ended.
                     (true, _) => return Poll::Ready(None),
-                    // partial boundary prefix with stream still open; wait for more chunks
+
+                    // The next chunk can complete this boundary.
                     (false, false) => return Poll::Pending,
-                    // partial boundary prefix at EOF indicates truncated payload
+
+                    // EOF cannot complete the partial boundary.
                     (false, true) => return Poll::Ready(Some(Err(Error::Incomplete))),
                 }
             }
         }
 
+        // `pos` is the next search position in this buffer. Advancing it skips rejected
+        // candidates; it does not remove data. Only the return paths consume field bytes.
+        let mut pos = 0;
+
         loop {
-            // Search for the shared marker first, then check its preceding newline.
-            let marker = memchr::memmem::find(&payload.buf[pos..], b"--");
-            let candidate = marker.and_then(|idx| {
-                let hyphen = pos + idx;
-                if hyphen >= 2 && &payload.buf[hyphen - 2..hyphen] == b"\r\n" {
-                    Some(hyphen - 2)
-                } else if hyphen >= 1 && payload.buf[hyphen - 1] == b'\r' {
-                    Some(hyphen - 1)
-                } else {
-                    None
+            let candidate_boundary_start = match search {
+                BoundarySearch::Cr => {
+                    // A CR match already points to the start of a possible delimiter.
+                    memchr::memchr(b'\r', &payload.buf[pos..]).map(|offset| pos + offset)
                 }
-            });
+                BoundarySearch::Marker {
+                    needle,
+                    marker_offset,
+                } => {
+                    // Search from `pos` for the cached two-byte needle. The result is relative
+                    // to `pos` and points inside a possible delimiter, not at its leading CR.
+                    let needle_start = memmem::find(&payload.buf[pos..], &needle);
 
-            let candidate = candidate.filter(|&idx| idx >= pos);
+                    let candidate_boundary_start = needle_start
+                        .and_then(|idx| {
+                            // Walk back to the first dash of the delimiter's `--` prefix. For
+                            // boundary `--abc`, the bytes must be `\r\n----abc`: the needle `-a`
+                            // starts at the last dash, three bytes after the first dash.
+                            let hyphen = (pos + idx).checked_sub(marker_offset)?;
 
-            if let Some(idx) = marker {
-                if candidate.is_none() {
-                    pos += idx + 1;
-                    continue;
+                            // Every byte from that first dash through the needle's dash must be
+                            // a dash. Otherwise this needle match belongs to the field contents.
+                            if !payload.buf[hyphen..=pos + idx]
+                                .iter()
+                                .all(|&byte| byte == b'-')
+                            {
+                                return None;
+                            }
+
+                            // A delimiter also needs CRLF before
+                            // its dashes. Return the CR position so the newline stays buffered too.
+                            if hyphen >= CRLF_LEN
+                                && &payload.buf[hyphen - CRLF_LEN..hyphen] == b"\r\n"
+                            {
+                                Some(hyphen - CRLF_LEN)
+                            } else {
+                                None
+                            }
+                        })
+                        // Do not reconsider a delimiter start that an earlier iteration rejected.
+                        .filter(|&idx| idx >= pos);
+
+                    if let Some(idx) = needle_start {
+                        if candidate_boundary_start.is_none() {
+                            // This match is field data. Advance one byte past its start so an
+                            // overlapping needle, such as the `--` fallback, can still match.
+                            pos += idx + 1;
+                            continue;
+                        }
+                    }
+
+                    candidate_boundary_start.or_else(|| {
+                        // No boundary candidate was found above. Check for any partial delimiter at
+                        // the buffer end so we can safely yield the preceding bytes as field data.
+                        //
+                        // Even a 2-byte needle may be split across chunks. Search the tail for its
+                        // preceding CR, allowing for CRLF and any leading dashes, and retain bytes
+                        // from there.
+
+                        const TAIL_LEN: usize = CRLF_LEN + b"-".len();
+
+                        let tail_start = len.saturating_sub(TAIL_LEN + marker_offset).max(pos);
+
+                        memchr::memchr(b'\r', &payload.buf[tail_start..])
+                            .map(|cr_offset| tail_start + cr_offset)
+                    })
                 }
-            }
+            };
 
-            // Keep the old scanner for a marker split across input chunks.
-            let tail_start = len.saturating_sub(3).max(pos);
-            let candidate = candidate.or_else(|| {
-                memchr::memchr(b'\r', &payload.buf[tail_start..]).map(|idx| tail_start + idx)
-            });
+            return if let Some(idx) = candidate_boundary_start {
+                // `idx` points at a CR.
 
-            return if let Some(cur) = candidate {
-                // check if we have enough data for boundary detection
-                if cur + 4 > len {
-                    if cur > 0 {
-                        Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
+                if idx + CRLF_PREFIX_LEN > len {
+                    if idx > 0 {
+                        // Fewer than `CRLF_PREFIX_LEN` bytes remaining so we cannot finish
+                        // checking the delimiter prefix. Emit only preceding field data.
+                        Poll::Ready(Some(Ok(payload.buf.split_to(idx).freeze())))
                     } else if payload.eof {
                         Poll::Ready(Some(Err(Error::Incomplete)))
                     } else {
                         Poll::Pending
                     }
                 } else {
-                    // check boundary
-                    if &payload.buf[cur..cur + 4] == b"\r\n--" {
-                        if cur != 0 {
-                            // return buffer
-                            Poll::Ready(Some(Ok(payload.buf.split_to(cur).freeze())))
+                    fn delimiter_starts_at(pl: &PayloadBuffer, idx: usize) -> bool {
+                        let buf = &pl.buf[idx..];
+                        buf.starts_with(b"\r\n--")
+                    }
+
+                    // Check the delimiter prefix at `idx`. This also rejects ordinary
+                    // CR bytes found by the trailing-byte search above.
+                    if delimiter_starts_at(payload, idx) {
+                        if idx > 0 {
+                            // Emit field data before the CR. On the next read, this
+                            // candidate is at offset zero for the full boundary check.
+                            Poll::Ready(Some(Ok(payload.buf.split_to(idx).freeze())))
                         } else {
-                            pos = cur + 1;
+                            // The full boundary check at entry already rejected this
+                            // offset-zero candidate. Keep scanning after its CR.
+                            pos = idx + 1;
                             continue;
                         }
                     } else {
-                        // not boundary
-                        pos = cur + 1;
+                        // This CR is field data. Continue searching after it.
+                        pos = idx + 1;
                         continue;
                     }
                 }
             } else {
+                // No delimiter candidate or partial prefix remains. Therefore,
+                // all buffered bytes belong to this field and can be yielded.
                 Poll::Ready(Some(Ok(payload.buf.split().freeze())))
             };
         }
@@ -402,7 +537,7 @@ impl InnerField {
             let res = if let Some(ref mut len) = self.length {
                 Self::read_len(&mut payload, len)
             } else {
-                Self::read_stream(&mut payload, &self.boundary)
+                Self::read_until_boundary(&mut payload, &self.boundary, self.boundary_search)
             };
 
             match ready!(res) {
@@ -466,40 +601,6 @@ mod tests {
             ),
         );
         (bytes, headers)
-    }
-
-    #[actix_rt::test]
-    async fn marker_candidates_and_all_chunk_splits_preserve_field_data() {
-        let data = "--leading\r\n--wrong\r--wrong\r\n---overlap\r\nplain\rtext--trailing";
-        let body = Bytes::from(format!(
-            "--boundary\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\n{data}\r\n--boundary--\r\n"
-        ));
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("multipart/form-data; boundary=boundary"),
-        );
-
-        for split in 1..body.len() {
-            let mut chunks = [body.slice(..split), body.slice(split..)].into_iter();
-            let mut pending = false;
-            let input = stream::poll_fn(move |cx| {
-                pending = !pending;
-                if pending {
-                    cx.waker().wake_by_ref();
-                    Poll::Pending
-                } else {
-                    Poll::Ready(chunks.next().map(Ok))
-                }
-            });
-            let mut multipart = Multipart::new(&headers, input);
-            let mut field = multipart.next().await.unwrap().unwrap();
-            let actual = field.bytes(usize::MAX).await.unwrap().unwrap();
-
-            assert_eq!(actual, data, "split at {split}");
-            drop(field);
-            assert!(multipart.next().await.is_none());
-        }
     }
 
     #[actix_rt::test]
@@ -729,5 +830,61 @@ mod tests {
             matches!(next, Some(Some(Err(crate::error::Error::Incomplete)))),
             "EOF after yielding mismatch should report an incomplete message: {next:?}",
         );
+    }
+
+    #[actix_rt::test]
+    async fn marker_candidates_and_all_chunk_splits_preserve_field_data() {
+        for content_type in [
+            "",
+            "Content-Type: text/plain\r\n",
+            "Content-Type: application/json\r\n",
+            "Content-Type: application/vnd.example+json\r\n",
+            "Content-Type: image/svg+xml\r\n",
+            "Content-Type: text/csv\r\n",
+            "Content-Type: application/sql\r\n",
+            "Content-Type: application/octet-stream\r\n",
+        ] {
+            for boundary in ["boundary", "-boundary", "----WebKitBoundary", "---", "b"] {
+                let data = format!(
+                    "--leading\r\n--wrong\r--{boundary} text\r\n---overlap\r\nplain\rtext--trailing"
+                );
+                let body = Bytes::from(format!(
+                    "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"\r\n{content_type}\r\n{data}\r\n--{boundary}--\r\n"
+                ));
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_str(&format!(
+                        "multipart/form-data; boundary={boundary}"
+                    ))
+                    .unwrap(),
+                );
+
+                for split in 1..body.len() {
+                    let mut chunks = [body.slice(..split), body.slice(split..)].into_iter();
+                    let mut pending = false;
+                    let input = stream::poll_fn(move |cx| {
+                        pending = !pending;
+                        if pending {
+                            cx.waker().wake_by_ref();
+                            Poll::Pending
+                        } else {
+                            Poll::Ready(chunks.next().map(Ok))
+                        }
+                    });
+                    let mut multipart = Multipart::new(&headers, input);
+                    let mut field = multipart.next().await.unwrap().unwrap();
+                    let actual = field.bytes(usize::MAX).await.unwrap().unwrap();
+
+                    assert_eq!(
+                        actual,
+                        data.as_str(),
+                        "{content_type:?}, boundary {boundary:?}, split at {split}"
+                    );
+                    drop(field);
+                    assert!(multipart.next().await.is_none());
+                }
+            }
+        }
     }
 }

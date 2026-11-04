@@ -19,7 +19,7 @@ use mime::Mime;
 
 use crate::{
     error::Error,
-    field::InnerField,
+    field::{BoundarySearch, InnerField},
     payload::{PayloadBuffer, PayloadRef, DEFAULT_BUFFER_LIMIT},
     safety::Safety,
     Field,
@@ -521,8 +521,12 @@ impl Inner {
                 }
             }
 
-            let field_inner =
-                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &field_headers)?;
+            let field_inner = InnerField::new_in_rc(
+                self.payload.clone(),
+                self.boundary.clone(),
+                BoundarySearch::new(&self.boundary, field_content_type.as_ref()),
+                &field_headers,
+            )?;
 
             self.item = Item::Field(Rc::clone(&field_inner));
 
