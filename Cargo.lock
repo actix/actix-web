@@ -2137,9 +2137,9 @@ dependencies = [
 
 [[package]]
 name = "local-waker"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d873d7c67ce09b42110d801813efbc9364414e356be9935700d368351657487"
+checksum = "88bab6b3971cb9cda8a370672a73e59a442b87552f005fb60ec07b67fa658f13"
 
 [[package]]
 name = "lock_api"
