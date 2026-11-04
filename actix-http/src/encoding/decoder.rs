@@ -24,6 +24,12 @@ use crate::{
 const MAX_CHUNK_SIZE_DECODE_IN_PLACE: usize = 2049;
 
 pin_project_lite::pin_project! {
+    /// Payload stream that decompresses chunks using a content encoding.
+    ///
+    /// Yields decoded [`Bytes`] as they become available. Errors from the underlying stream are
+    /// passed through; decompression errors are returned as [`PayloadError::Io`].
+    ///
+    /// See the [module-level docs](crate::encoding) for supported encodings and runtime requirements.
     pub struct Decoder<S> {
         decoder: Option<ContentDecoder>,
         #[pin]
@@ -37,7 +43,10 @@ impl<S> Decoder<S>
 where
     S: Stream<Item = Result<Bytes, PayloadError>>,
 {
-    /// Construct a decoder.
+    /// Constructs a decoder with the given content encoding.
+    ///
+    /// If `encoding` is [`ContentEncoding::Identity`] or its codec feature is disabled, the stream
+    /// is passed through unchanged.
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         #[cfg(feature = "compress-brotli")]
@@ -66,6 +75,7 @@ where
                          Please report it to the actix-web repository.",
                 ),
             ))),
+
             _ => None,
         };
 
@@ -77,7 +87,14 @@ where
         }
     }
 
-    /// Construct decoder based on headers.
+    /// Constructs a decoder using the `Content-Encoding` header.
+    ///
+    /// If the header is missing, invalid, or unrecognized, the stream is passed through unchanged.
+    /// A recognized encoding whose codec feature is disabled also passes through unchanged.
+    ///
+    /// Only a single encoding is supported. Comma-separated encoding lists are treated as
+    /// unrecognized values. If there are multiple `Content-Encoding` header values, only the first
+    /// is used.
     #[inline]
     pub fn from_headers(stream: S, headers: &HeaderMap) -> Decoder<S> {
         // check content-encoding

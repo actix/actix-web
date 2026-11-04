@@ -400,5 +400,9 @@ async fn test_query() {
 
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        response.headers().get(http::header::ALLOW).unwrap(),
+        "QUERY"
+    );
 }

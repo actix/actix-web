@@ -29,6 +29,14 @@ use crate::{
 const MAX_CHUNK_SIZE_ENCODE_IN_PLACE: usize = 1024;
 
 pin_project! {
+    /// Response body that compresses chunks using a content encoding.
+    ///
+    /// Implements [`MessageBody`] and reports [`BodySize::Stream`] when compression is enabled.
+    /// Buffered output is flushed when the underlying body returns [`Poll::Pending`], and the
+    /// compressed stream is finalized when the body ends.
+    ///
+    /// See [`Encoder::response`] for conditions that skip compression and the
+    /// [module-level docs](crate::encoding) for supported encodings and runtime requirements.
     pub struct Encoder<B> {
         #[pin]
         body: EncoderBody<B>,
@@ -62,6 +70,19 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
+    /// Constructs a response body encoder and updates the response head if compression is enabled.
+    ///
+    /// Compression is skipped when:
+    ///
+    /// - The body size is [`BodySize::None`] or [`BodySize::Sized(0)`](BodySize::Sized).
+    /// - The response already has a `Content-Encoding` header.
+    /// - The response status is 101 Switching Protocols, 204 No Content, or 206 Partial Content.
+    /// - `encoding` is [`ContentEncoding::Identity`] or its codec feature is disabled.
+    ///
+    /// Otherwise, sets `Content-Encoding`, appends `accept-encoding` to `Vary`, and enables chunked
+    /// transfer encoding in the response head. Existing `Content-Length` headers are not removed.
+    ///
+    /// The caller must select `encoding`; this method does not negotiate `Accept-Encoding`.
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         // no need to compress empty bodies
         match body.size() {
@@ -454,6 +475,7 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
     ))
 }
 
+/// Error returned while reading or compressing a response body.
 #[derive(Debug, Display)]
 #[non_exhaustive]
 pub enum EncoderError {

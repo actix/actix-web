@@ -71,9 +71,10 @@ mod tests {
     use std::{
         ffi::OsString,
         fmt::Write as _,
-        fs::{self},
+        fs,
         ops::Add,
         path::PathBuf,
+        str,
         time::{Duration, SystemTime},
     };
 
@@ -1484,7 +1485,7 @@ mod tests {
                 write!(&mut buf, "%{:02X}", c).unwrap();
                 buf
             });
-        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
+        fs::File::create(temp_dir.path().join(filename)).unwrap();
 
         let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
 
@@ -1607,6 +1608,80 @@ mod tests {
         );
         let bytes = test::read_body(resp).await;
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    #[actix_rt::test]
+    async fn test_directory_listing_href_escaping() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            ("safe.txt", "/safe.txt"),
+            #[cfg(unix)]
+            (
+                "x\"><img src=x onerror=alert(1)>.txt",
+                "/x%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E.txt",
+            ),
+            #[cfg(unix)]
+            ("query?.txt", "/query%3F.txt"),
+            ("`&# %+ .txt", "/%60%26%23%20%25%2B%20.txt"),
+            ("AZaz09-._~.txt", "/AZaz09-._~.txt"),
+        ];
+
+        for (name, _) in cases {
+            fs::write(dir.path().join(name), "file contents").unwrap();
+        }
+
+        let service = Files::new("/", dir.path())
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body = str::from_utf8(&body).unwrap();
+        assert_eq!(body.matches("<a ").count(), cases.len());
+        assert_eq!(body.matches("</a>").count(), cases.len());
+
+        for anchor in body.split("<a href=\"").skip(1) {
+            let href = anchor.split('"').next().unwrap();
+            assert!(!href.contains('<'));
+            assert!(
+                href.ends_with(".txt"),
+                "href does not contain the whole file name: {href}"
+            );
+        }
+
+        for (name, href) in cases {
+            let text = v_htmlescape::escape_fmt(name);
+            assert!(body.contains(&format!("<a href=\"{href}\">{text}</a>")));
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_directory_listing_nested_href() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("file #1.txt"), "file contents").unwrap();
+        fs::create_dir(nested.join("folder & more")).unwrap();
+
+        let service = Files::new("/", dir.path())
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/nested/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body = str::from_utf8(&body).unwrap();
+        assert!(body.contains("<a href=\"/nested/file%20%231.txt\">file #1.txt</a>"));
+        assert!(body.contains("<a href=\"/nested/folder%20%26%20more\">folder &amp; more/</a>"));
     }
 
     #[actix_rt::test]

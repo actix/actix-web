@@ -19,7 +19,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-slim
 
     steps:
       - uses: useblacksmith/checkout@v1.8.1
@@ -33,7 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - uses: zizmorcore/zizmor-action@v0.7.1
+      - uses: zizmorcore/zizmor-action@v0.8.0
         with:
           advanced-security: false
           annotations: true
@@ -52,7 +52,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2.1.1
 
   fmt:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-slim
     steps:
       - uses: useblacksmith/checkout@v1.8.1
         with:
@@ -124,7 +124,7 @@ jobs:
           toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.87.30
+        uses: taiki-e/install-action@v2.87.31
         with:
           tool: just
 
