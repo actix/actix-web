@@ -555,25 +555,47 @@ mod tests {
         );
         let bare_cr = memchr::memmem::find(&body, b"\r--abc two").unwrap();
 
-        // whole body in one chunk, and split so that a chunk starts with the bare CR
-        for chunks in [
-            vec![body.clone()],
-            vec![body.slice(..bare_cr), body.slice(bare_cr..)],
-        ] {
-            let stream = stream::iter(chunks.into_iter().map(Ok::<_, PayloadError>));
-            let mut multipart = Multipart::new(&headers, stream);
+        for split in [false, true] {
+            let (mut tx, rx) = h1::Payload::create(false);
+            tx.feed_data(if split {
+                body.slice(..bare_cr)
+            } else {
+                body.clone()
+            });
 
-            let field = multipart
+            let mut multipart = Multipart::new(&headers, rx);
+
+            let mut field = multipart
                 .next()
                 .await
                 .expect("multipart should have one field")
-                .expect("multipart body should be well formatted")
+                .expect("multipart body should be well formatted");
+
+            if split {
+                assert_eq!(field.next().await.unwrap().unwrap(), "one");
+                assert!(field.next().now_or_never().is_none());
+
+                // Consume the first chunk before the bare CR can enter the parser buffer.
+                tx.feed_data(body.slice(bare_cr..));
+            }
+
+            tx.feed_eof();
+
+            let bytes = field
                 .bytes(usize::MAX)
                 .await
                 .expect("field data should not be size limited")
                 .expect("reading field data should not error");
-            assert_eq!(field, "one\r--abc two");
+            assert_eq!(
+                bytes,
+                if split {
+                    "\r--abc two"
+                } else {
+                    "one\r--abc two"
+                }
+            );
 
+            drop(field);
             assert!(multipart.next().await.is_none());
         }
     }
