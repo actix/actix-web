@@ -1,5 +1,5 @@
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
+use std::future::{ready, Future};
+
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 
 use crate::multipart::Multipart;
@@ -29,13 +29,14 @@ use crate::multipart::Multipart;
 ///     Ok(HttpResponse::Ok().finish())
 /// }
 /// ```
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Multipart {
     type Error = Error;
-    type Future = Ready<Result<Multipart, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         ready(Ok(Multipart::from_req(req, payload)))
     }
 }
@@ -45,14 +46,22 @@ mod tests {
     use super::*;
 
     #[test]
-    #[expect(
-        deprecated,
-        reason = "check compatibility with the public ready future type"
-    )]
-    fn extractor_future_type() {
-        let req = actix_web::test::TestRequest::default().to_http_request();
+    fn extractor_is_ready_without_borrowing_request_parts() {
+        use std::{
+            pin::pin,
+            task::{Context, Waker},
+        };
 
-        let _: actix_utils::future::Ready<Result<Multipart, Error>> =
-            Multipart::from_request(&req, &mut Payload::None);
+        let req = actix_web::test::TestRequest::default().to_http_request();
+        let mut payload = Payload::None;
+        let future = Multipart::from_request(&req, &mut payload);
+
+        drop(req);
+        drop(payload);
+
+        let mut future = pin!(future);
+        let mut cx = Context::from_waker(Waker::noop());
+
+        assert!(future.as_mut().poll(&mut cx).is_ready());
     }
 }

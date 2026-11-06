@@ -1,9 +1,10 @@
 //! For header extractor helper documentation, see [`Header`](crate::types::Header).
 
-use std::{fmt, ops};
-
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
+use std::{
+    fmt,
+    future::{ready, Future},
+    ops,
+};
 
 use crate::{
     dev::Payload, error::ParseError, extract::FromRequest, http::header::Header as ParseHeader,
@@ -57,16 +58,17 @@ where
     }
 }
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T> FromRequest for Header<T>
 where
     T: ParseHeader,
 {
     type Error = ParseError;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         match ParseHeader::parse(req) {
             Ok(header) => ready(Ok(Header(header))),
             Err(err) => ready(Err(err)),

@@ -2,15 +2,14 @@
 
 use std::{
     borrow::Cow,
-    future::Future,
+    future::{ready, Future},
     pin::Pin,
     str,
     task::{Context, Poll},
 };
 
 use actix_http::error::PayloadError;
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Either, Ready};
+use actix_utils::future::Either;
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{ready, stream::Stream};
@@ -130,13 +129,14 @@ impl Stream for Payload {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Payload {
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    fn from_request(
+        _: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         ready(Ok(Payload(payload.take())))
     }
 }
@@ -157,13 +157,14 @@ impl FromRequest for Payload {
 ///     format!("Body {:?}!", body)
 /// }
 /// ```
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Bytes {
     type Error = Error;
-    type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         // allow both Config and Data<Config>
         let cfg = PayloadConfig::from_req(req);
 
@@ -205,13 +206,14 @@ impl Future for BytesExtractFut {
 /// async fn index(text: String) -> String {
 ///     format!("Body {}!", text)
 /// }
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for String {
     type Error = Error;
-    type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         let cfg = PayloadConfig::from_req(req);
 
         // check content-type

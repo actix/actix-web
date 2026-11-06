@@ -1,7 +1,7 @@
-use std::any::type_name;
-
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
+use std::{
+    any::type_name,
+    future::{ready, Future},
+};
 
 use crate::{dev::Payload, error, FromRequest, HttpRequest};
 
@@ -51,13 +51,14 @@ impl_more::impl_as_ref!(ThinData<T> => T);
 impl_more::impl_as_mut!(ThinData<T> => T);
 impl_more::impl_deref_and_mut!(<T> in ThinData<T> => T);
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: Clone + 'static> FromRequest for ThinData<T> {
     type Error = crate::Error;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         ready(req.app_data::<Self>().cloned().ok_or_else(|| {
             log::debug!(
                 "Failed to extract `ThinData<{}>` for `{}` handler. For the ThinData extractor to work \

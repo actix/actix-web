@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Replace `FromRequest::Future` with a return-position `impl Future`. Custom extractors must remove the associated type and return a future that does not borrow the request or payload. Tuple extractors still poll concurrently.
 - Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
 - Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
 

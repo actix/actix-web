@@ -2,6 +2,7 @@ use std::{
     cell::{Cell, Ref, RefCell, RefMut},
     collections::HashMap,
     fmt,
+    future::{ready, Future},
     hash::{BuildHasher, Hash},
     net,
     rc::Rc,
@@ -10,8 +11,6 @@ use std::{
 
 use actix_http::{Message, RequestHead};
 use actix_router::{Path, Url};
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
@@ -613,13 +612,14 @@ impl Drop for HttpRequest {
 ///         web::get().to(index))
 /// );
 /// ```
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for HttpRequest {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         ready(Ok(req.clone()))
     }
 }

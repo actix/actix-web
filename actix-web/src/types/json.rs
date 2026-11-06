@@ -138,10 +138,12 @@ impl<T: Serialize> Responder for Json<T> {
 /// See [here](#extractor) for example of usage as an extractor.
 impl<T: DeserializeOwned> FromRequest for Json<T> {
     type Error = Error;
-    type Future = JsonExtractFut<T>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;

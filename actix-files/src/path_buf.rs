@@ -1,11 +1,10 @@
 use std::{
     borrow::Cow,
+    future::{ready, Future},
     path::{Component, Path, PathBuf},
     str::FromStr,
 };
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
@@ -126,12 +125,13 @@ impl AsRef<Path> for PathBufWrap {
     }
 }
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         // Uses the unprocessed tail of the request path and disallows hidden files.
         ready(req.match_info().unprocessed().parse())
     }

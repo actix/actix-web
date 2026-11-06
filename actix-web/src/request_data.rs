@@ -1,7 +1,8 @@
-use std::{any::type_name, ops::Deref};
-
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
+use std::{
+    any::type_name,
+    future::{ready, Future},
+    ops::Deref,
+};
 
 use crate::{
     dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpMessage as _,
@@ -65,12 +66,13 @@ impl<T: Clone + 'static> Deref for ReqData<T> {
     }
 }
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: Clone + 'static> FromRequest for ReqData<T> {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         if let Some(st) = req.extensions().get::<T>() {
             ready(Ok(ReqData(st.clone())))
         } else {

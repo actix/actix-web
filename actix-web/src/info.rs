@@ -1,7 +1,9 @@
-use std::{convert::Infallible, net::SocketAddr};
+use std::{
+    convert::Infallible,
+    future::{ready, Future},
+    net::SocketAddr,
+};
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 use derive_more::{Display, Error};
 
 use crate::{
@@ -211,12 +213,13 @@ impl ConnectionInfo {
     }
 }
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for ConnectionInfo {
     type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         ready(Ok(req.connection_info().clone()))
     }
 }
@@ -254,12 +257,13 @@ pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PeerAddr {
     type Error = MissingPeerAddr;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
         match req.peer_addr() {
             Some(addr) => ready(Ok(PeerAddr(addr))),
             None => {

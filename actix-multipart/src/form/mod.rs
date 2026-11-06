@@ -452,21 +452,17 @@ where
     T: MultipartCollect + 'static,
 {
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         let mut multipart = Multipart::from_req(req, payload);
 
-        let content_type = match multipart.content_type_or_bail() {
-            Ok(content_type) => content_type,
-            Err(err) => return Box::pin(ready(Err(err.into()))),
-        };
-
-        if content_type.subtype() != mime::FORM_DATA {
-            // this extractor only supports multipart/form-data
-            return Box::pin(ready(Err(MultipartError::ContentTypeIncompatible.into())));
-        };
+        let content_type = multipart
+            .content_type_or_bail()
+            .map(|ct| ct.subtype() == mime::FORM_DATA);
 
         let config = MultipartFormConfig::from_req(req);
         let mut limits = Limits::new(config.total_limit, config.memory_limit);
@@ -475,7 +471,13 @@ where
         let req2 = req.clone();
         let err_handler = config.err_handler.clone();
 
-        Box::pin(
+        async move {
+            match content_type {
+                Err(err) => return Err(err.into()),
+                Ok(false) => return Err(MultipartError::ContentTypeIncompatible.into()),
+                Ok(true) => {}
+            }
+
             async move {
                 let mut state = State::default();
 
@@ -510,8 +512,9 @@ where
                 } else {
                     err.into()
                 }
-            }),
-        )
+            })
+            .await
+        }
     }
 }
 

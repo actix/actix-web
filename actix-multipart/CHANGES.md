@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `Multipart` and `MultipartForm` to the `FromRequest` trait that returns `impl Future`.
+
 ## 0.8.6
 
 - Accept transport padding (spaces and tabs) after boundary delimiters, as allowed by RFC 2046.

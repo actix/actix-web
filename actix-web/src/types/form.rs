@@ -126,10 +126,12 @@ where
     T: DeserializeOwned + 'static,
 {
     type Error = Error;
-    type Future = FormExtractFut<T>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         let FormConfig { limit, err_handler } = FormConfig::from_req(req).clone();
 
         FormExtractFut {
