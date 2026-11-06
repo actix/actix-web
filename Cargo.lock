@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.20.2"
+version = "3.20.3"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -63,6 +63,7 @@ dependencies = [
  "base64 0.23.1",
  "bitflags 2.13.2",
  "brotli",
+ "brotli-decompressor",
  "bytes",
  "bytestring",
  "criterion",

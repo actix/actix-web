@@ -57,9 +57,16 @@ where
 
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
-                brotli::DecompressorWriter::new(Writer::new(), DEFAULT_DECODER_CAPACITY),
-            ))),
+            ContentEncoding::Brotli => {
+                let mut br =
+                    brotli::DecompressorWriter::new(Writer::new(), DEFAULT_DECODER_CAPACITY);
+                br.set_parameter(
+                    brotli_decompressor::BrotliDecoderParameter::BROTLI_DECODER_PARAM_LARGE_WINDOW,
+                    0,
+                );
+
+                Some(ContentDecoder::Brotli(Box::new(br)))
+            }
 
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(ZlibDecoder::new(
@@ -399,6 +406,34 @@ mod tests {
         #[cfg(feature = "compress-zstd")]
         ContentEncoding::Zstd,
     ];
+
+    #[cfg(feature = "compress-brotli")]
+    #[actix_rt::test]
+    async fn brotli_large_window_is_rejected() {
+        let data = vec![b'a'; 4096];
+        let params = brotli::enc::BrotliEncoderParams {
+            large_window: true,
+            lgwin: 25,
+            ..Default::default()
+        };
+        let mut compressed = Vec::new();
+        brotli::BrotliCompress(&mut &data[..], &mut compressed, &params).unwrap();
+
+        assert_eq!(compressed[0], 0x11);
+
+        let mut decoded = Vec::new();
+        brotli::BrotliDecompress(&mut &compressed[..], &mut decoded).unwrap();
+        assert_eq!(decoded, data);
+
+        let stream = stream::iter([Ok(Bytes::from(compressed))]);
+        let mut decoder = Decoder::new(stream, ContentEncoding::Brotli);
+
+        assert!(matches!(
+            decoder.next().await,
+            Some(Err(PayloadError::Incomplete(Some(_))))
+        ));
+        assert!(decoder.next().await.is_none());
+    }
 
     fn encode(data: &[u8], encoding: ContentEncoding) -> Bytes {
         match encoding {
