@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.4
+
 - Fix hidden-file protection bypass through Windows short filename aliases. [GHSA-8hcm-m7r7-frwc](https://github.com/actix/actix-web/security/advisories/GHSA-8hcm-m7r7-frwc)
 
 ## 0.7.3
