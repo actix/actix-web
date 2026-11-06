@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit.
-- Reduce allocations when parsing `Charset` values.
+## 3.20.1
+
+- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
 
 ## 3.20.0
 

@@ -135,7 +135,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = "3.19"
+actix-http = "3.20.1"
 actix-router = { version = "0.5.4", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "=4.5.0", optional = true, default-features = false }
 
