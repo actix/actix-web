@@ -149,6 +149,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["allo
 memchr = "2.4"
 once_cell = "1.21"
 rcgen = "0.14"
+rand = "0.10"
 regex = "1.3"
 rustls-pki-types = "1.13.1"
 rustversion = "1"

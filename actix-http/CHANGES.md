@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit.
 - Reduce allocations when parsing `Charset` values.
 
 ## 3.20.0
