@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+- Add `ServiceConfigBuilder::h2_max_connection_age()` and `HttpServiceBuilder::h2_max_connection_age()` to send GOAWAY to HTTP/2 connections after a maximum age.
+
 ## 3.20.3
 
 - Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)

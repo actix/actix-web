@@ -28,6 +28,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
+    h2_max_connection_age: Option<Duration>,
     graceful_shutdown_signal: Option<GracefulShutdownSignal>,
     expect: X,
     upgrade: Option<U>,
@@ -55,6 +56,7 @@ where
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            h2_max_connection_age: None,
             graceful_shutdown_signal: None,
 
             // dispatcher parts
@@ -204,6 +206,14 @@ where
         self
     }
 
+    /// Sets the maximum age of HTTP/2 connections.
+    ///
+    /// See [`ServiceConfigBuilder::h2_max_connection_age`] for more details.
+    pub fn h2_max_connection_age(mut self, age: Duration) -> Self {
+        self.h2_max_connection_age = Some(age);
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT: 100-Continue` header.
@@ -227,6 +237,7 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            h2_max_connection_age: self.h2_max_connection_age,
             graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
@@ -257,6 +268,7 @@ where
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
+            h2_max_connection_age: self.h2_max_connection_age,
             graceful_shutdown_signal: self.graceful_shutdown_signal,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
@@ -298,6 +310,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_connection_age_opt(self.h2_max_connection_age)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
@@ -329,6 +342,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_connection_age_opt(self.h2_max_connection_age)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
@@ -357,6 +371,7 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
+            .h2_max_connection_age_opt(self.h2_max_connection_age)
             .graceful_shutdown_signal(self.graceful_shutdown_signal)
             .build();
 
