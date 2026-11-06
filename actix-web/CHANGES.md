@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Send GOAWAY to HTTP/2 connections during graceful shutdown so they close once their in-flight streams finish instead of being held until the shutdown timeout.
+- Add `HttpServer::h2_max_connection_age()` to send GOAWAY to HTTP/2 connections after a maximum age.
+
 ## 4.18.2
 
 - Increase the default form payload limit to 32 KiB.
