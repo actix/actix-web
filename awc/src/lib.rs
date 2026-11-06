@@ -48,7 +48,7 @@
 //! # }
 //! ```
 //!
-//! ## URL Encoded Form
+//! ## URL-encoded Form
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
