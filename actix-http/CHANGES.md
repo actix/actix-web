@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+- Add `ServiceConfigBuilder::h2_max_connection_age()` and `HttpServiceBuilder::h2_max_connection_age()` to send GOAWAY to HTTP/2 connections after a maximum age.
+
 ## 3.20.4
 
 - Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
