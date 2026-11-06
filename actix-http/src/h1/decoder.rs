@@ -636,7 +636,7 @@ mod tests {
         pub(crate) fn chunk(self) -> Bytes {
             match self {
                 PayloadItem::Chunk(chunk) => chunk,
-                _ => panic!("error"),
+                _ => panic!("Error"),
             }
         }
 

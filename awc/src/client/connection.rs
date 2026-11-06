@@ -427,7 +427,7 @@ mod test {
                 match futures_core::ready!(this.sender.poll_ready(cx)) {
                     Ok(()) => {
                         if this.start_from.elapsed() > Duration::from_secs(10) {
-                            panic!("connection should be gone and can not be ready");
+                            panic!("Connection should be gone and can not be ready");
                         } else {
                             match this.interval.poll_tick(cx) {
                                 Poll::Ready(_) => {

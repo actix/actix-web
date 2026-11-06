@@ -671,7 +671,7 @@ fn shadowed_scope_context(registrations: &[Registration]) -> BTreeMap<usize, Sha
         if let Some(shadowing) = shadowing_reg {
             for reg in regs.iter() {
                 if reg.order > shadowing.order {
-                    let scope_id = reg.scope_id.expect("scope_id must exist");
+                    let scope_id = reg.scope_id.expect("Missing scope_id");
                     shadowed.insert(
                         scope_id,
                         ShadowingContext {
@@ -1083,7 +1083,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/no-guards")
-            .expect("missing resource without guards");
+            .expect("Missing resource without guards");
 
         assert!(item.methods.is_empty());
         assert!(item.guards.is_empty());
@@ -1121,7 +1121,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/meta")
-            .expect("missing metadata route");
+            .expect("Missing metadata route");
 
         assert_eq!(item.resource_name.as_deref(), Some("meta-resource"));
         assert!(item.patterns.contains(&"/meta".to_string()));
@@ -1165,7 +1165,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/all-guard")
-            .expect("missing route");
+            .expect("Missing route");
 
         assert!(item.potentially_unreachable);
         assert!(item
@@ -1194,7 +1194,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/feasible")
-            .expect("missing route");
+            .expect("Missing route");
 
         assert!(!item.potentially_unreachable);
         assert!(!item
@@ -1220,7 +1220,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/impossible")
-            .expect("missing route");
+            .expect("Missing route");
 
         assert!(item.potentially_unreachable);
         assert!(item
@@ -1278,7 +1278,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/extra/ping")
-            .expect("missing route");
+            .expect("Missing route");
 
         assert!(item.potentially_unreachable);
         assert!(item
@@ -1321,7 +1321,7 @@ mod tests {
         let item = items
             .iter()
             .find(|item| item.full_path == "/shadow")
-            .expect("missing route");
+            .expect("Missing route");
 
         assert!(item.potentially_unreachable);
         assert!(item

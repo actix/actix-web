@@ -1107,7 +1107,7 @@ mod resolver {
                         TokioResolver::builder_with_config(cfg, TokioRuntimeProvider::default())
                             .with_options(opts)
                             .build()
-                            .expect("failed to build Hickory DNS resolver");
+                            .expect("Failed to build Hickory DNS resolver");
 
                     Resolver::custom(HickoryDnsResolver(resolver))
                 })

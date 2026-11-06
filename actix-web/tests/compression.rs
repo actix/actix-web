@@ -353,7 +353,7 @@ async fn gzip_stream_delivers_content_while_body_is_pending() {
     drop(res);
     srv.stop().await;
 
-    let content = content.expect("gzip retained content while the response body was pending");
+    let content = content.expect("Gzip retained content while the response body was pending");
     assert_eq!(content, INITIAL_CONTENT);
 }
 

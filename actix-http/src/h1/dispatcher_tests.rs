@@ -90,7 +90,7 @@ async fn late_request() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Ready(_) => panic!("first poll should not be ready"),
+            Poll::Ready(_) => panic!("First poll should not be ready"),
             Poll::Pending => {}
         }
 
@@ -100,7 +100,7 @@ async fn late_request() {
         buf.extend_read_buf("GET /abcd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("second poll should not be pending"),
+            Poll::Pending => panic!("Second poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -157,7 +157,7 @@ async fn oneshot_connection() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -506,7 +506,7 @@ async fn pipelining_ok_then_ok() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -578,7 +578,7 @@ async fn early_response_with_payload_lingers_before_closing() {
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => {}
-            Poll::Ready(res) => panic!("should still be lingering: {:?}", res),
+            Poll::Ready(res) => panic!("Should still be lingering: {:?}", res),
         }
 
         // polls: initial
@@ -651,7 +651,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => {}
-            Poll::Ready(res) => panic!("closed connection early: {:?}", res),
+            Poll::Ready(res) => panic!("Closed connection early: {:?}", res),
         }
 
         let mut res = BytesMut::from(buf.take_write_buf().as_ref());
@@ -779,7 +779,7 @@ async fn pipelining_ok_then_bad() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_err()),
         }
 

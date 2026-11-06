@@ -212,7 +212,7 @@ where
 
 #[get("/test/wrap", wrap = "ChangeStatusCode")]
 async fn get_wrap(_: web::Path<String>) -> impl Responder {
-    // panic!("actually never gets called because path failed to extract");
+    // panic!("Actually never gets called because path failed to extract");
     HttpResponse::Ok()
 }
 
