@@ -71,6 +71,10 @@ pub enum UrlencodedError {
     )]
     Overflow { size: usize, limit: usize },
 
+    /// Payload size is larger than allowed; full size is unknown. (default limit: 256kB).
+    #[display("URL encoded payload is larger than allowed (limit: {} bytes)", limit)]
+    OverflowUnknownLength { limit: usize },
+
     /// Payload size is now known.
     #[display("Payload size is now known.")]
     UnknownLength,
@@ -99,7 +103,9 @@ pub enum UrlencodedError {
 impl ResponseError for UrlencodedError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Overflow { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Overflow { .. } | Self::OverflowUnknownLength { .. } => {
+                StatusCode::PAYLOAD_TOO_LARGE
+            }
             Self::UnknownLength => StatusCode::LENGTH_REQUIRED,
             Self::ContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             Self::Payload(err) => err.status_code(),

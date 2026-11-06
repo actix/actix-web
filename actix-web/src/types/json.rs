@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::Payload;
+use actix_http::{error::PayloadError, Payload};
 use bytes::BytesMut;
 use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
@@ -357,6 +357,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -390,6 +391,9 @@ impl<T: DeserializeOwned> JsonBody<T> {
                     }
                 }
 
+                #[cfg(feature = "__compress")]
+                let payload = payload.limit(limit);
+
                 JsonBody::Body {
                     limit,
                     length,
@@ -419,7 +423,10 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                 let res = ready!(Pin::new(&mut *payload).poll_next(cx));
                 match res {
                     Some(chunk) => {
-                        let chunk = chunk?;
+                        let chunk = chunk.map_err(|err| match err {
+                            PayloadError::Overflow => JsonPayloadError::Overflow { limit: *limit },
+                            err => JsonPayloadError::Payload(err),
+                        })?;
                         let buf_len = buf.len() + chunk.len();
                         if buf_len > *limit {
                             return Poll::Ready(Err(JsonPayloadError::Overflow { limit: *limit }));

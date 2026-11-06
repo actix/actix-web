@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Increase the default form payload limit to 32 KiB.
+- Bound decompressed request payloads using the same configured size limits for form, JSON, bytes, and string extractors.
+- Add `UrlencodedError::OverflowUnknownLength` error enum variant for form payloads that exceed the limit while streaming.
 - Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
 - Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
 

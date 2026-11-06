@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::Payload;
+use actix_http::{error::PayloadError, Payload};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{future::LocalBoxFuture, ready};
@@ -227,7 +227,7 @@ pub struct FormConfig {
 }
 
 impl FormConfig {
-    /// Set maximum accepted payload size. By default this limit is 16kB.
+    /// Set maximum accepted payload size. By default this limit is 32 KiB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -252,9 +252,11 @@ impl FormConfig {
     }
 }
 
+const DEFAULT_LIMIT: usize = 32_768; // 32 KiB
+
 /// Allow shared refs used as default.
 const DEFAULT_CONFIG: FormConfig = FormConfig {
-    limit: 16_384, // 2^14 bytes (~16kB)
+    limit: DEFAULT_LIMIT,
     err_handler: None,
 };
 
@@ -314,6 +316,7 @@ impl<T> UrlEncoded<T> {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -323,7 +326,7 @@ impl<T> UrlEncoded<T> {
         UrlEncoded {
             encoding,
             stream: Some(payload),
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             length: len,
             fut: None,
             err: None,
@@ -333,7 +336,7 @@ impl<T> UrlEncoded<T> {
     fn err(err: UrlencodedError) -> Self {
         UrlEncoded {
             stream: None,
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             fut: None,
             err: Some(err),
             length: None,
@@ -341,9 +344,15 @@ impl<T> UrlEncoded<T> {
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size. The default limit is 32 KiB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
+
+        #[cfg(feature = "__compress")]
+        {
+            self.stream = self.stream.map(|stream| stream.limit(limit));
+        }
+
         self
     }
 }
@@ -371,7 +380,6 @@ where
             }
         }
 
-        // future
         let encoding = self.encoding;
         let mut stream = self.stream.take().unwrap();
 
@@ -380,13 +388,13 @@ where
                 let mut body = BytesMut::with_capacity(8192);
 
                 while let Some(item) = stream.next().await {
-                    let chunk = item?;
+                    let chunk = item.map_err(|err| match err {
+                        PayloadError::Overflow => UrlencodedError::OverflowUnknownLength { limit },
+                        err => UrlencodedError::Payload(err),
+                    })?;
 
                     if (body.len() + chunk.len()) > limit {
-                        return Err(UrlencodedError::Overflow {
-                            size: body.len() + chunk.len(),
-                            limit,
-                        });
+                        return Err(UrlencodedError::OverflowUnknownLength { limit });
                     } else {
                         body.extend_from_slice(&chunk);
                     }
