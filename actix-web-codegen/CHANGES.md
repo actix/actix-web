@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `guard_obj` parameter to route attribute macros. [#2229]
+
 ## 4.5.0
 
 - Add `#[query]` route handler macro.
