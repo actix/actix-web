@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.20.2
+
+- Reject bare LF as last chunk terminator in chunked encodings. [GHSA-2q7f-mf9f-5qhr](https://github.com/actix/actix-web/security/advisories/GHSA-2q7f-mf9f-5qhr)
+
 ## 3.20.1
 
 - Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
