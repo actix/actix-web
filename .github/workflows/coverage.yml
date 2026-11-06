@@ -21,7 +21,7 @@ jobs:
   coverage:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
 
@@ -32,7 +32,7 @@ jobs:
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@v2.87.31
+        uses: taiki-e/install-action@v2.89.0
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 

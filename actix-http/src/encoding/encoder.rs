@@ -480,11 +480,11 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
 #[non_exhaustive]
 pub enum EncoderError {
     /// Wrapped body stream error.
-    #[display("body")]
+    #[display("Body")]
     Body(Box<dyn StdError>),
 
     /// Generic I/O error.
-    #[display("io")]
+    #[display("Io")]
     Io(io::Error),
 }
 

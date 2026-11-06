@@ -156,7 +156,7 @@ fn accepts_valid_close_codes() {
         let mut frame = masked_close(&code.to_be_bytes());
 
         let Some(Frame::Close(Some(reason))) = codec.decode(&mut frame).unwrap() else {
-            panic!("expected close reason for status code {code}");
+            panic!("Expected close reason for status code {code}");
         };
         assert_eq!(u16::from(reason.code), code);
         assert_eq!(reason.description, None);
@@ -188,7 +188,7 @@ fn decodes_valid_close_reason() {
     let mut frame = masked_close(&[0x03, 0xe8, b'f', b'o', b'o']);
 
     let Some(Frame::Close(Some(reason))) = codec.decode(&mut frame).unwrap() else {
-        panic!("expected close reason");
+        panic!("Expected close reason");
     };
     assert_eq!(reason.code, CloseCode::Normal);
     assert_eq!(reason.description.as_deref(), Some("foo"));
@@ -199,7 +199,7 @@ fn decodes_valid_close_reason() {
 fn legacy_close_payload_parser_wrongly_allows_non_utf8() {
     assert!(ws::Parser::parse_close_payload(&[0]).is_none());
 
-    let reason = ws::Parser::parse_close_payload(&[0, 0, 0xff]).expect("expected close reason");
+    let reason = ws::Parser::parse_close_payload(&[0, 0, 0xff]).expect("Expected close reason");
     assert_eq!(u16::from(reason.code), 0);
     assert_eq!(reason.description.as_deref(), Some("\u{fffd}"));
 }

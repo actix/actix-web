@@ -386,6 +386,7 @@ impl HttpMessageBody {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     dev::Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_CONFIG_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -411,6 +412,12 @@ impl HttpMessageBody {
             };
         }
         self.limit = limit;
+
+        #[cfg(feature = "__compress")]
+        {
+            self.stream = self.stream.limit(limit);
+        }
+
         self
     }
 }

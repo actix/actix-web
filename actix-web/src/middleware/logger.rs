@@ -968,7 +968,7 @@ mod tests {
 
         let label = match &unit {
             FormatText::CustomRequest(label, _) => label,
-            ft => panic!("expected CustomRequest, found {:?}", ft),
+            ft => panic!("Expected CustomRequest, found {:?}", ft),
         };
 
         assert_eq!(label, "CUSTOM");
@@ -1000,7 +1000,7 @@ mod tests {
 
         let label = match &unit {
             FormatText::CustomResponse(label, _) => label,
-            ft => panic!("expected CustomResponse, found {:?}", ft),
+            ft => panic!("Expected CustomResponse, found {:?}", ft),
         };
 
         assert_eq!(label, "CUSTOM");

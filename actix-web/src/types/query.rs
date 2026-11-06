@@ -69,7 +69,7 @@ impl<T> Query<T> {
 }
 
 impl<T: DeserializeOwned> Query<T> {
-    /// Deserialize a `T` from the URL encoded query parameter string.
+    /// Deserialize a `T` from the URL-encoded query parameter string.
     ///
     /// ```
     /// # use std::collections::HashMap;

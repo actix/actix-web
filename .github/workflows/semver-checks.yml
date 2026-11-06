@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -23,7 +23,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@v2.87.31
+        uses: taiki-e/install-action@v2.89.0
         with:
           tool: cargo-semver-checks
 

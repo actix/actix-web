@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
 
@@ -57,7 +57,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.87.31
+        uses: taiki-e/install-action@v2.89.0
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -84,7 +84,7 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
 
@@ -97,7 +97,7 @@ jobs:
           cache-key: feature-powerset-${{ matrix.partition }}
 
       - name: Install just, cargo-hack
-        uses: taiki-e/install-action@v2.87.31
+        uses: taiki-e/install-action@v2.89.0
         with:
           tool: just,cargo-hack
 

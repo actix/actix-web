@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.18.1)](https://docs.rs/actix-web/4.18.1)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.18.2)](https://docs.rs/actix-web/4.18.2)
 ![MSRV](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.18.1/status.svg)](https://deps.rs/crate/actix-web/4.18.1)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.18.2/status.svg)](https://deps.rs/crate/actix-web/4.18.2)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![Coverage](https://github.com/actix/actix-web/actions/workflows/coverage.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/coverage.yml)

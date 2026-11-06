@@ -308,7 +308,7 @@ async fn h2_content_length() {
                 .send();
             actix_rt::time::timeout(Duration::from_secs(15), req)
                 .await
-                .expect("request future stalled on recv 1xx frame")
+                .expect("Request future stalled on recv 1xx frame")
                 .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
 
@@ -317,7 +317,7 @@ async fn h2_content_length() {
                 .send();
             actix_rt::time::timeout(Duration::from_secs(15), req)
                 .await
-                .expect("request future stalled on recv 1xx frame")
+                .expect("Request future stalled on recv 1xx frame")
                 .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
         }
@@ -578,7 +578,7 @@ async fn h2_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
     srv.stop().await;
 }

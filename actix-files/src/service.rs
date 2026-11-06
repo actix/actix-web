@@ -51,11 +51,58 @@ pub struct FilesServiceInner {
 
 impl fmt::Debug for FilesServiceInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("FilesServiceInner")
+        f.debug_struct("FilesServiceInner").finish_non_exhaustive()
     }
 }
 
 impl FilesService {
+    /// Opens a file after checking its resolved path on Windows.
+    ///
+    /// `directory` is the canonical path of the configured serving root. On Windows, returns
+    /// errors from [`Self::canonicalize_path`]. On all platforms, returns file-open errors.
+    fn open_named_file(&self, directory: &Path, path: &Path) -> io::Result<NamedFile> {
+        #[cfg(windows)]
+        self.canonicalize_path(directory, path)?;
+
+        #[cfg(not(windows))]
+        let _ = directory;
+
+        NamedFile::open(path)
+    }
+
+    /// Resolves a path and applies the hidden-file policy to the resolved names on Windows.
+    ///
+    /// `directory` must be the canonical path of the configured serving root. When hidden files
+    /// are disabled, checks components below that root for a leading dot. If the resolved path
+    /// is outside the root, checks all of its components instead.
+    ///
+    /// Returns [`io::ErrorKind::NotFound`] for a hidden path on Windows, or an error from
+    /// [`Path::canonicalize`] if the path cannot be resolved.
+    fn canonicalize_path(&self, directory: &Path, path: &Path) -> io::Result<PathBuf> {
+        let resolved = path.canonicalize()?;
+
+        #[cfg(windows)]
+        if !self.hidden_files {
+            // Windows short names can hide a leading dot. Check the resolved names, excluding
+            // the configured root. For symlinks outside the root, check the full target path.
+            let relative = resolved.strip_prefix(directory).unwrap_or(&resolved);
+
+            if relative.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::Normal(name) if name.as_encoded_bytes().starts_with(b".")
+                )
+            }) {
+                return Err(io::Error::new(io::ErrorKind::NotFound, "hidden file"));
+            }
+        }
+
+        #[cfg(not(windows))]
+        let _ = directory;
+
+        Ok(resolved)
+    }
+
     async fn handle_err(
         &self,
         err: io::Error,
@@ -182,12 +229,14 @@ impl Service<ServiceRequest> for FilesService {
                 // Try serving pre-compressed file even if the uncompressed file doesn't exist yet.
                 // Still handle directories (index/listing) through the normal branch below.
                 if this.try_compressed && !path.is_dir() {
-                    if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                    if let Some((named_file, encoding)) =
+                        find_compressed(&req, &path, &this, directory).await
+                    {
                         return Ok(this.serve_named_file_with_encoding(req, named_file, encoding));
                     }
                 }
 
-                if let Err(err) = path.canonicalize() {
+                if let Err(err) = this.canonicalize_path(directory, &path) {
                     if matches!(
                         err.kind(),
                         io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
@@ -222,7 +271,7 @@ impl Service<ServiceRequest> for FilesService {
                             let named_path = path.join(index);
                             if this.try_compressed {
                                 if let Some((named_file, encoding)) =
-                                    find_compressed(&req, &named_path).await
+                                    find_compressed(&req, &named_path, &this, directory).await
                                 {
                                     return Ok(this.serve_named_file_with_encoding(
                                         req, named_file, encoding,
@@ -230,7 +279,7 @@ impl Service<ServiceRequest> for FilesService {
                                 }
                             }
                             // fallback to the uncompressed version
-                            match NamedFile::open(named_path) {
+                            match this.open_named_file(directory, &named_path) {
                                 Ok(named_file) => return Ok(this.serve_named_file(req, named_file)),
                                 Err(err)
                                     if matches!(
@@ -307,6 +356,8 @@ const SUPPORTED_PRECOMPRESSION_ENCODINGS: &[header::ContentEncoding] = &[
 async fn find_compressed(
     req: &ServiceRequest,
     original_path: &Path,
+    service: &FilesService,
+    directory: &Path,
 ) -> Option<(NamedFile, header::ContentEncoding)> {
     use actix_web::HttpMessage;
     use header::{AcceptEncoding, ContentEncoding, Encoding};
@@ -360,7 +411,7 @@ async fn find_compressed(
         filename.push(extension);
         compressed_path.set_file_name(filename);
 
-        match NamedFile::open(&compressed_path) {
+        match service.open_named_file(directory, &compressed_path) {
             Ok(mut named_file) => {
                 named_file.content_type = content_type.take().unwrap();
                 named_file.content_disposition = content_disposition.take().unwrap();
@@ -369,6 +420,117 @@ async fn find_compressed(
             // Ignore errors while searching disk for a suitable encoding.
             Err(_) => {
                 supported.retain(|enc| enc != &chosen);
+            }
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use std::{fs, path::Path, process::Command};
+
+    use actix_web::{
+        http::{header, StatusCode},
+        test, App,
+    };
+
+    use crate::Files;
+
+    fn short_name(path: &Path) -> String {
+        let output = Command::new("cmd")
+            .args([
+                "/D",
+                "/C",
+                "for %I in (\"%ACTIX_ALIAS_TEST_PATH%\") do @echo %~snxI",
+            ])
+            .env("ACTIX_ALIAS_TEST_PATH", path)
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "Short-name lookup should succeed for {path:?}"
+        );
+
+        let name = String::from_utf8(output.stdout).unwrap().trim().to_owned();
+        assert!(
+            !name.is_empty() && !name.starts_with('.'),
+            "Path {path:?} should have a nonempty short name without a leading dot, got {name:?}"
+        );
+        assert_eq!(
+            path.canonicalize().unwrap(),
+            path.with_file_name(&name).canonicalize().unwrap(),
+            "Short name {name:?} should resolve to {path:?}"
+        );
+
+        name
+    }
+
+    #[actix_web::test]
+    #[ignore = "requires an NTFS temporary directory with 8.3 name creation enabled"]
+    async fn hidden_short_names() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join(".static");
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("public.txt"), "public").unwrap();
+        fs::write(root.join(".env"), "secret").unwrap();
+        fs::create_dir(root.join(".git")).unwrap();
+        fs::write(root.join(".git/config"), "secret").unwrap();
+        fs::write(root.join(".git/index.html"), "secret").unwrap();
+        fs::write(root.join(".git/only.gz"), "compressed secret").unwrap();
+        fs::create_dir(root.join(".git/empty")).unwrap();
+        fs::write(root.join(".config.gz"), "compressed secret").unwrap();
+
+        let env = short_name(&root.join(".env"));
+        let git = short_name(&root.join(".git"));
+        let compressed = short_name(&root.join(".config.gz"));
+        let compressed_stem = Path::new(&compressed)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        for allow_hidden in [false, true] {
+            let mut files = Files::new("/", &root)
+                .index_file("index.html")
+                .show_files_listing()
+                .try_compressed();
+
+            if allow_hidden {
+                files = files.use_hidden_files();
+            }
+
+            let app = test::init_service(App::new().service(files)).await;
+
+            let req = test::TestRequest::with_uri("/public.txt").to_request();
+            assert_eq!(
+                test::call_service(&app, req).await.status(),
+                StatusCode::OK,
+                "Public files should be served with allow_hidden={allow_hidden}"
+            );
+
+            for uri in [
+                format!("/{env}"),
+                format!("/{git}/config"),
+                format!("/{git}/"),
+                format!("/{git}/only"),
+                format!("/{git}/empty/"),
+                format!("/{compressed_stem}"),
+            ] {
+                let req = test::TestRequest::with_uri(&uri)
+                    .insert_header((header::ACCEPT_ENCODING, "gzip"))
+                    .to_request();
+                let res = test::call_service(&app, req).await;
+
+                assert_eq!(
+                    res.status(),
+                    if allow_hidden {
+                        StatusCode::OK
+                    } else {
+                        StatusCode::NOT_FOUND
+                    },
+                    "Request to {uri} should return the expected status for allow_hidden={allow_hidden}"
+                );
             }
         }
     }

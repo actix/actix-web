@@ -10,6 +10,7 @@ use actix_http::{header, Method, RequestHead, RequestHeadType, StatusCode, Uri};
 use actix_service::Service;
 use bytes::Bytes;
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use super::Transform;
 use crate::{
@@ -113,7 +114,7 @@ where
     }
 }
 
-pin_project_lite::pin_project! {
+pin_project! {
     #[project = RedirectServiceProj]
     pub enum RedirectServiceFuture<S>
     where

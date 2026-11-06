@@ -32,12 +32,12 @@ use super::{BodySize, MessageBody};
 pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
     to_bytes_limited(body, usize::MAX)
         .await
-        .expect("body should never yield more than usize::MAX bytes")
+        .expect("Body should never yield more than usize::MAX bytes")
 }
 
 /// Error type returned from [`to_bytes_limited`] when body produced exceeds limit.
 #[derive(Debug, Display, Error)]
-#[display("limit exceeded while collecting body bytes")]
+#[display("Limit exceeded while collecting body bytes")]
 #[non_exhaustive]
 pub struct BodyLimitExceeded;
 

@@ -106,7 +106,7 @@ async fn builder_with_frame_size_exceeded() {
     let frame = framed.next().await.unwrap().unwrap();
     let close_reason = match frame {
         ws::Frame::Close(Some(reason)) => reason,
-        _ => panic!("close frame expected"),
+        _ => panic!("Close frame expected"),
     };
     assert_eq!(close_reason.code, ws::CloseCode::Error);
 }

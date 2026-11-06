@@ -15,7 +15,7 @@ jobs:
   labeler:
     runs-on: ubuntu-slim
     steps:
-      - uses: useblacksmith/checkout@v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           persist-credentials: false
       - uses: actions/labeler@v7.0.0
