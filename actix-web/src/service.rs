@@ -1,6 +1,8 @@
 use std::{
     cell::{Ref, RefMut},
-    fmt, net,
+    fmt,
+    future::Future,
+    net,
     rc::Rc,
 };
 
@@ -125,7 +127,7 @@ impl ServiceRequest {
     /// #   todo!()
     /// }
     /// ```
-    pub fn extract<T>(&mut self) -> <T as FromRequest>::Future
+    pub fn extract<T>(&mut self) -> impl Future<Output = Result<T, T::Error>> + use<T>
     where
         T: FromRequest,
     {

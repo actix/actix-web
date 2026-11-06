@@ -1,8 +1,11 @@
-use std::{any::type_name, ops::Deref, sync::Arc};
+use std::{
+    any::type_name,
+    future::{ready, Future},
+    ops::Deref,
+    sync::Arc,
+};
 
 use actix_http::Extensions;
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::{de, Serialize};
 
@@ -158,13 +161,14 @@ where
     }
 }
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: ?Sized + 'static> FromRequest for Data<T> {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         if let Some(st) = req.app_data::<Data<T>>() {
             ready(Ok(st.clone()))
         } else {

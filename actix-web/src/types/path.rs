@@ -1,10 +1,11 @@
 //! For path segment extractor documentation, see [`Path`].
 
-use std::sync::Arc;
+use std::{
+    future::{ready, Future},
+    sync::Arc,
+};
 
 use actix_router::PathDeserializer;
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 use derive_more::{AsRef, Deref, DerefMut, Display, From};
 use serde::de;
 
@@ -85,16 +86,17 @@ impl<T> Path<T> {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         let error_handler = req
             .app_data::<PathConfig>()
             .or_else(|| req.app_data::<Data<PathConfig>>().map(Data::get_ref))

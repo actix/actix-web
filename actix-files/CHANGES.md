@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `PathBufWrap` to the `FromRequest` trait that returns `impl Future`.
+
 ## 0.7.3
 
 - Fix stored XSS vulnerability when `Files::show_files_listing()` is explicitly enabled. [GHSA-5rrw-whjq-pmhh](https://github.com/actix/actix-web/security/advisories/GHSA-5rrw-whjq-pmhh)

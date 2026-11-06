@@ -1,9 +1,12 @@
 //! For query parameter extractor documentation, see [`Query`].
 
-use std::{fmt, ops, sync::Arc};
+use std::{
+    fmt,
+    future::{ready, Future},
+    ops,
+    sync::Arc,
+};
 
-#[expect(deprecated, reason = "preserve the public ready future type")]
-use actix_utils::future::{ready, Ready};
 use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
@@ -107,13 +110,14 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
-#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(
+        req: &HttpRequest,
+        _: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<T> {
         let error_handler = req
             .app_data::<QueryConfig>()
             .and_then(|c| c.err_handler.clone());
