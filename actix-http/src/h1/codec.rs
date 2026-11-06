@@ -1,7 +1,7 @@
 use std::{fmt, io};
 
 use bitflags::bitflags;
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use http::{Method, Version};
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -31,6 +31,13 @@ pub struct Codec {
     // encoder part
     flags: Flags,
     encoder: encoder::MessageEncoder<Response<()>>,
+}
+
+impl Codec {
+    /// Accounts a body chunk that the dispatcher writes without copying it into the write buffer.
+    pub(crate) fn encode_chunk_unbuffered(&mut self, bytes: &Bytes) -> Option<Bytes> {
+        self.encoder.take_unbuffered(bytes)
+    }
 }
 
 impl Default for Codec {
