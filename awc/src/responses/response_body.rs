@@ -51,7 +51,11 @@ where
         };
 
         ResponseBody {
-            body: Some(ReadBody::new(res.take_payload(), DEFAULT_BODY_LIMIT)),
+            body: Some(ReadBody::new(
+                res.take_payload(),
+                DEFAULT_BODY_LIMIT,
+                res.decode_limit,
+            )),
             length,
             timeout: mem::take(&mut res.timeout),
             err: None,
@@ -63,7 +67,7 @@ where
     /// The default limit is 2 MiB.
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(ref mut body) = self.body {
-            body.limit = limit;
+            body.set_limit(limit);
         }
 
         self
@@ -140,5 +144,27 @@ mod tests {
             PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    #[actix_rt::test]
+    async fn decode_limit() {
+        use futures_util::StreamExt as _;
+
+        use crate::responses::gzip_response;
+
+        let data = vec![0; DEFAULT_BODY_LIMIT * 2];
+
+        // decoding stops at the limit instead of yielding the whole decompressed chunk
+        let mut body = gzip_response(&data).body();
+        let chunk = body.body.as_mut().unwrap().stream.next().await;
+        assert!(matches!(chunk, Some(Err(PayloadError::Overflow))));
+
+        let mut body = gzip_response(&data).body().limit(1024);
+        let chunk = body.body.as_mut().unwrap().stream.next().await;
+        assert!(matches!(chunk, Some(Err(PayloadError::Overflow))));
+
+        let body = gzip_response(&data).body().limit(data.len()).await;
+        assert_eq!(body.unwrap(), data);
     }
 }

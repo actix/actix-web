@@ -601,6 +601,65 @@ async fn client_brotli_encoding_large_random() {
     assert_eq!(bytes, data);
 }
 
+#[cfg(all(
+    feature = "compress-brotli",
+    feature = "compress-gzip",
+    feature = "compress-zstd"
+))]
+#[actix_rt::test]
+async fn client_decoded_body_limit() {
+    // 4 MiB of zeros compresses to a few KiB, well under the 2 MiB default limit
+    let data = vec![0; 4 * 1024 * 1024];
+    let encoded = [
+        ("br", Bytes::from(utils::brotli::encode(&data))),
+        ("gzip", Bytes::from(utils::gzip::encode(&data))),
+        ("zstd", Bytes::from(utils::zstd::encode(&data))),
+    ];
+
+    for (encoding, body) in encoded {
+        let srv = actix_test::start(move || {
+            let body = body.clone();
+            App::new().default_service(web::to(move || {
+                let body = body.clone();
+                async move {
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .insert_header((header::CONTENT_ENCODING, encoding))
+                        .body(body)
+                }
+            }))
+        });
+
+        let mut res = srv.get("/").send().await.unwrap();
+        assert!(
+            matches!(res.body().await, Err(PayloadError::Overflow)),
+            "{encoding}: default limit should apply to decoded size"
+        );
+
+        let mut res = srv.get("/").send().await.unwrap();
+        assert!(
+            matches!(res.body().limit(1024).await, Err(PayloadError::Overflow)),
+            "{encoding}: custom limit should apply to decoded size"
+        );
+
+        let mut res = srv.get("/").send().await.unwrap();
+        assert!(
+            matches!(
+                res.json::<HashMap<String, String>>().await,
+                Err(JsonPayloadError::Payload(PayloadError::Overflow))
+            ),
+            "{encoding}: default JSON limit should apply to decoded size"
+        );
+
+        let mut res = srv.get("/").send().await.unwrap();
+        let bytes = res.body().limit(data.len()).await.unwrap();
+        assert_eq!(
+            bytes, data,
+            "{encoding}: body at the limit should decode fully"
+        );
+    }
+}
+
 #[actix_rt::test]
 async fn client_deflate_encoding() {
     let srv = actix_test::start(|| {
