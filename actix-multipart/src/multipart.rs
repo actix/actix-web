@@ -186,7 +186,7 @@ impl Multipart {
             Flow::InFlight(ref inner) => Ok(inner.content_type.clone()),
             Flow::Error(ref mut err) => Err(err
                 .take()
-                .expect("error should not be taken after it was returned")),
+                .expect("Error should not be taken after it was returned")),
         }
     }
 }

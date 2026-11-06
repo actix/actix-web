@@ -69,7 +69,7 @@ impl<'t> FieldReader<'t> for TempFile {
                 content_type: field.content_type().map(ToOwned::to_owned),
                 file_name: field
                     .content_disposition()
-                    .expect("multipart form fields should have a content-disposition header")
+                    .expect("Multipart form fields should have a content-disposition header")
                     .get_filename()
                     .map(ToOwned::to_owned),
                 size,

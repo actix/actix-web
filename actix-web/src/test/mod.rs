@@ -62,7 +62,7 @@ macro_rules! assert_body_eq {
         assert_eq!(
             ::actix_http::body::to_bytes($res.into_body())
                 .await
-                .expect("error reading test response body"),
+                .expect("Error reading test response body"),
             ::bytes::Bytes::from_static($expected),
         )
     };

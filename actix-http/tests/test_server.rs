@@ -335,9 +335,9 @@ async fn slow_request_408() {
     if diff < Duration::from_secs(1) {
         // test success
     } else if diff < Duration::from_secs(3) {
-        panic!("request seems to have wrongly timed-out according to keep-alive");
+        panic!("Request seems to have wrongly timed-out according to keep-alive");
     } else {
-        panic!("request took way too long to time out");
+        panic!("Request took way too long to time out");
     }
 
     srv.stop().await;
@@ -891,7 +891,7 @@ async fn h1_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
 
     srv.stop().await;
@@ -987,7 +987,7 @@ async fn not_modified_spec_h1() {
                         res.map_into_boxed_body()
                     }
 
-                    _ => panic!("unknown route"),
+                    _ => panic!("Unknown route"),
                 };
 
                 ready(Ok::<_, Infallible>(res))
@@ -1112,8 +1112,8 @@ async fn h2_flow_control_window_sizes() {
         loop {
             let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
                 .await
-                .expect("request stream closed before flow control capacity became available")
-                .expect("failed polling flow control capacity");
+                .expect("Request stream closed before flow control capacity became available")
+                .expect("Failed polling flow control capacity");
 
             if cap >= 1024 * 1024 {
                 break cap;
@@ -1121,7 +1121,7 @@ async fn h2_flow_control_window_sizes() {
         }
     })
     .await
-    .expect("timed out waiting for flow control capacity");
+    .expect("Timed out waiting for flow control capacity");
 
     assert!(
         cap >= 1024 * 1024,

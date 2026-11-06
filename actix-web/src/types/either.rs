@@ -106,7 +106,7 @@ impl<L, R> Either<L, R> {
         match self {
             Either::Left(data) => data,
             Either::Right(_) => {
-                panic!("Cannot unwrap Left branch. Either contains an `R` type.")
+                panic!("Cannot unwrap Left branch; Either contains an R type")
             }
         }
     }
@@ -114,7 +114,7 @@ impl<L, R> Either<L, R> {
     pub(self) fn unwrap_right(self) -> R {
         match self {
             Either::Left(_) => {
-                panic!("Cannot unwrap Right branch. Either contains an `L` type.")
+                panic!("Cannot unwrap Right branch; Either contains an L type")
             }
             Either::Right(data) => data,
         }

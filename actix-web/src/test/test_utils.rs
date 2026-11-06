@@ -48,7 +48,7 @@ where
 {
     try_init_service(app)
         .await
-        .expect("service initialization failed")
+        .expect("Service initialization failed")
 }
 
 /// Fallible version of [`init_service`] that allows testing initialization errors.
@@ -97,7 +97,7 @@ where
 {
     app.call(req)
         .await
-        .expect("test service call returned error")
+        .expect("Test service call returned error")
 }
 
 /// Fallible version of [`call_service`] that allows testing response completion errors.
@@ -197,7 +197,7 @@ where
     try_read_body(res)
         .await
         .map_err(Into::<Box<dyn StdError>>::into)
-        .expect("error reading test response body")
+        .expect("Error reading test response body")
 }
 
 /// Fallible version of [`read_body`] that allows testing MessageBody reading errors.
@@ -259,7 +259,7 @@ where
 {
     try_read_body_json(res).await.unwrap_or_else(|err| {
         panic!(
-            "could not deserialize body into a {}\nerr: {}",
+            "Could not deserialize body into a {}\nerr: {}",
             std::any::type_name::<T>(),
             err,
         )

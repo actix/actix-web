@@ -564,7 +564,7 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(format!("{}", s.err().unwrap())
-            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)"));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -771,7 +771,7 @@ mod tests {
 
         let err_str = s.err().unwrap().to_string();
         assert!(
-            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes).")
+            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)")
         );
     }
 }

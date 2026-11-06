@@ -77,7 +77,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
                 .disable_signals()
                 .system_exit()
                 .listen("test", tcp, factory)
-                .expect("test server could not be created");
+                .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx

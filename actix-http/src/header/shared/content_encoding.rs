@@ -11,7 +11,7 @@ use crate::{
 
 /// Error returned when a content encoding is unknown.
 #[derive(Debug, Display, Error)]
-#[display("unsupported content encoding")]
+#[display("Unsupported content encoding")]
 pub struct ContentEncodingParseError;
 
 /// Represents a supported content encoding.

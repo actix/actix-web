@@ -25,7 +25,7 @@ use crate::{
 
 /// Error type returned from [`Field::bytes()`] when field data is larger than limit.
 #[derive(Debug, Display, Error)]
-#[display("size limit exceeded while collecting field data")]
+#[display("Size limit exceeded while collecting field data")]
 #[non_exhaustive]
 pub struct LimitExceeded;
 
@@ -451,23 +451,23 @@ mod tests {
         let field = multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted")
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted")
             .bytes(usize::MAX)
             .await
-            .expect("field data should not be size limited")
-            .expect("reading field data should not error");
+            .expect("Field data should not be size limited")
+            .expect("Reading field data should not error");
         assert_eq!(field, "one+one+one");
 
         let field = multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted")
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted")
             .bytes(usize::MAX)
             .await
-            .expect("field data should not be size limited")
-            .expect("reading field data should not error");
+            .expect("Field data should not be size limited")
+            .expect("Reading field data should not error");
         assert_eq!(field, "two+two+two");
     }
 
@@ -480,8 +480,8 @@ mod tests {
         multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted")
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted")
             .bytes(8) // smaller than data size
             .await
             .expect_err("field data should be size limited");
@@ -490,12 +490,12 @@ mod tests {
         let field = multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted")
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted")
             .bytes(usize::MAX)
             .await
-            .expect("field data should not be size limited")
-            .expect("reading field data should not error");
+            .expect("Field data should not be size limited")
+            .expect("Reading field data should not error");
         assert_eq!(field, "two+two+two");
     }
 
@@ -504,7 +504,7 @@ mod tests {
         let (body, headers) = create_double_request_with_header();
         let boundary_start = memchr::memmem::find_iter(&body, b"\r\n--")
             .nth(1)
-            .expect("body should contain a boundary between its fields");
+            .expect("Body should contain a boundary between its fields");
         let boundary_marker_end = boundary_start + 4;
 
         let (mut tx, rx) = h1::Payload::create(false);
@@ -516,8 +516,8 @@ mod tests {
         let mut field = multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted");
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted");
         assert_eq!(field.next().await.unwrap().unwrap(), "one+one+one");
         let next = field.next().now_or_never();
         assert!(
@@ -532,12 +532,12 @@ mod tests {
         let field = multipart
             .next()
             .await
-            .expect("multipart should have two fields")
-            .expect("multipart body should be well formatted")
+            .expect("Multipart should have two fields")
+            .expect("Multipart body should be well formatted")
             .bytes(usize::MAX)
             .await
-            .expect("field data should not be size limited")
-            .expect("reading field data should not error");
+            .expect("Field data should not be size limited")
+            .expect("Reading field data should not error");
         assert_eq!(field, "two+two+two");
     }
 
@@ -568,8 +568,8 @@ mod tests {
             let mut field = multipart
                 .next()
                 .await
-                .expect("multipart should have one field")
-                .expect("multipart body should be well formatted");
+                .expect("Multipart should have one field")
+                .expect("Multipart body should be well formatted");
 
             if split {
                 assert_eq!(field.next().await.unwrap().unwrap(), "one");
@@ -584,8 +584,8 @@ mod tests {
             let bytes = field
                 .bytes(usize::MAX)
                 .await
-                .expect("field data should not be size limited")
-                .expect("reading field data should not error");
+                .expect("Field data should not be size limited")
+                .expect("Reading field data should not error");
             assert_eq!(
                 bytes,
                 if split {
@@ -617,9 +617,9 @@ mod tests {
         let mut field = multipart
             .next()
             .now_or_never()
-            .expect("field headers should be ready")
-            .expect("multipart should contain a field")
-            .expect("field headers should be valid");
+            .expect("Field headers should be ready")
+            .expect("Multipart should contain a field")
+            .expect("Field headers should be valid");
 
         let next = field.next().now_or_never();
         assert!(
@@ -654,9 +654,9 @@ mod tests {
         let mut field = multipart
             .next()
             .now_or_never()
-            .expect("field headers should be ready")
-            .expect("multipart should contain a field")
-            .expect("field headers should be valid");
+            .expect("Field headers should be ready")
+            .expect("Multipart should contain a field")
+            .expect("Field headers should be valid");
 
         let next = field.next().now_or_never();
         assert!(
