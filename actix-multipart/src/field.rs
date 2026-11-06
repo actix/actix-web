@@ -323,10 +323,51 @@ impl InnerField {
             }
         }
 
-        loop {
-            return if let Some(idx) = memchr::memmem::find(&payload.buf[pos..], b"\r") {
-                let cur = pos + idx;
+        // Include the first non-dash boundary byte in the search. This also
+        // handles boundaries with a run of leading dashes.
+        let prefix_end = boundary.as_bytes().iter().position(|&byte| byte != b'-');
+        let marker_offset = prefix_end.map_or(0, |idx| idx + 1);
+        let needle = [
+            b'-',
+            prefix_end.map_or(b'-', |idx| boundary.as_bytes()[idx]),
+        ];
 
+        loop {
+            // Check the preceding dashes and newline after a suffix match.
+            let marker = memchr::memmem::find(&payload.buf[pos..], &needle);
+            let candidate = marker.and_then(|idx| {
+                let hyphen = (pos + idx).checked_sub(marker_offset)?;
+                if !payload.buf[hyphen..=pos + idx]
+                    .iter()
+                    .all(|&byte| byte == b'-')
+                {
+                    return None;
+                }
+                if hyphen >= 2 && &payload.buf[hyphen - 2..hyphen] == b"\r\n" {
+                    Some(hyphen - 2)
+                } else if hyphen >= 1 && payload.buf[hyphen - 1] == b'\r' {
+                    Some(hyphen - 1)
+                } else {
+                    None
+                }
+            });
+
+            let candidate = candidate.filter(|&idx| idx >= pos);
+
+            if let Some(idx) = marker {
+                if candidate.is_none() {
+                    pos += idx + 1;
+                    continue;
+                }
+            }
+
+            // Keep the old scanner for a marker split across input chunks.
+            let tail_start = len.saturating_sub(3 + marker_offset).max(pos);
+            let candidate = candidate.or_else(|| {
+                memchr::memchr(b'\r', &payload.buf[tail_start..]).map(|idx| tail_start + idx)
+            });
+
+            return if let Some(cur) = candidate {
                 // check if we have enough data for boundary detection
                 if cur + 4 > len {
                     if cur > 0 {
@@ -440,6 +481,43 @@ mod tests {
             ),
         );
         (bytes, headers)
+    }
+
+    #[actix_rt::test]
+    async fn marker_candidates_and_all_chunk_splits_preserve_field_data() {
+        for boundary in ["boundary", "-boundary", "----WebKitBoundary", "---", "b"] {
+            let data = "--leading\r\n--wrong\r--wrong\r\n---overlap\r\nplain\rtext--trailing";
+            let body = Bytes::from(format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"\r\n\r\n{data}\r\n--{boundary}--\r\n"
+            ));
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_str(&format!("multipart/form-data; boundary={boundary}"))
+                    .unwrap(),
+            );
+
+            for split in 1..body.len() {
+                let mut chunks = [body.slice(..split), body.slice(split..)].into_iter();
+                let mut pending = false;
+                let input = stream::poll_fn(move |cx| {
+                    pending = !pending;
+                    if pending {
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    } else {
+                        Poll::Ready(chunks.next().map(Ok))
+                    }
+                });
+                let mut multipart = Multipart::new(&headers, input);
+                let mut field = multipart.next().await.unwrap().unwrap();
+                let actual = field.bytes(usize::MAX).await.unwrap().unwrap();
+
+                assert_eq!(actual, data, "split at {split}");
+                drop(field);
+                assert!(multipart.next().await.is_none());
+            }
+        }
     }
 
     #[actix_rt::test]
