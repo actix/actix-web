@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+## 4.18.2
+
 - Increase the default form payload limit to 32 KiB.
-- Bound decompressed request payloads using the same configured size limits for form, JSON, bytes, and string extractors.
+- Bound decompressed request payloads using the same configured size limits for form, JSON, bytes, and string extractors. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
 - Add `UrlencodedError::OverflowUnknownLength` error enum variant for form payloads that exceed the limit while streaming.
 - Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
 - Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
