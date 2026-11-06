@@ -55,7 +55,7 @@ pub enum UrlGenerationError {
 
 impl ResponseError for UrlGenerationError {}
 
-/// A set of errors that can occur during parsing urlencoded payloads
+/// A set of errors that can occur during parsing URL-encoded payloads
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlencodedError {
@@ -65,7 +65,7 @@ pub enum UrlencodedError {
 
     /// Payload size is larger than allowed. (default limit: 256kB).
     #[display(
-        "URL encoded payload is larger ({} bytes) than allowed (limit: {} bytes).",
+        "URL-encoded payload is larger ({} bytes) than allowed (limit: {} bytes).",
         size,
         limit
     )]

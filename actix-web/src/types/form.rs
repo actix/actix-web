@@ -1,4 +1,4 @@
-//! For URL encoded form helper documentation, see [`Form`].
+//! For URL-encoded form helper documentation, see [`Form`].
 
 use std::{
     borrow::Cow,
@@ -24,9 +24,9 @@ use crate::{
     web, Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
-/// URL encoded payload extractor and responder.
+/// URL-encoded payload extractor and responder.
 ///
-/// `Form` has two uses: URL encoded responses, and extracting typed data from URL request payloads.
+/// `Form` has two uses: URL-encoded responses, and extracting typed data from URL request payloads.
 ///
 /// # Extractor
 /// To extract typed data from a request body, the inner type `T` must implement the
@@ -46,7 +46,7 @@ use crate::{
 ///
 /// // This handler is only called if:
 /// // - request headers declare the content type as `application/x-www-form-urlencoded`
-/// // - request payload deserializes into an `Info` struct from the URL encoded format
+/// // - request payload deserializes into an `Info` struct from the URL-encoded format
 /// #[post("/")]
 /// async fn index(web::Form(form): web::Form<Info>) -> String {
 ///     format!("Welcome {}!", form.name)
@@ -54,8 +54,8 @@ use crate::{
 /// ```
 ///
 /// # Responder
-/// The `Form` type also allows you to create URL encoded responses by returning a value of type
-/// `Form<T>` where `T` is the type to be URL encoded, as long as `T` implements [`Serialize`].
+/// The `Form` type also allows you to create URL-encoded responses by returning a value of type
+/// `Form<T>` where `T` is the type to be URL-encoded, as long as `T` implements [`Serialize`].
 ///
 /// ## Examples
 /// ```
@@ -82,7 +82,7 @@ use crate::{
 /// ```
 ///
 /// # Panics
-/// URL encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
+/// URL-encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
 /// any type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
@@ -210,7 +210,7 @@ impl<T: Serialize> Responder for Form<T> {
 /// }
 ///
 /// // Custom `FormConfig` is applied to App.
-/// // Max payload size for URL encoded forms is set to 4kB.
+/// // Max payload size for URL-encoded forms is set to 4kB.
 /// #[post("/")]
 /// async fn index(form: web::Form<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
@@ -266,7 +266,7 @@ impl Default for FormConfig {
     }
 }
 
-/// Future that resolves to some `T` when parsed from a URL encoded payload.
+/// Future that resolves to some `T` when parsed from a URL-encoded payload.
 ///
 /// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
 ///
@@ -288,7 +288,7 @@ pub struct UrlEncoded<T> {
 
 #[allow(clippy::borrow_interior_mutable_const)]
 impl<T> UrlEncoded<T> {
-    /// Create a new future to decode a URL encoded request payload.
+    /// Create a new future to decode a URL-encoded request payload.
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
@@ -562,6 +562,6 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.starts_with("URL encoded payload is larger"));
+        assert!(err_str.starts_with("URL-encoded payload is larger"));
     }
 }

@@ -2,7 +2,9 @@ use std::{
     convert::Infallible,
     future::ready,
     io::{Read, Write},
-    net, thread,
+    net,
+    sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -221,6 +223,88 @@ async fn chunked_payload() {
     assert_eq!(returned_size, total_size);
 
     srv.stop().await;
+}
+
+async fn send_pipelined_chunked_requests(last_chunk: &[u8]) -> (Vec<String>, Vec<u8>) {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+
+    // Test server which does not read payloads but does store all obvserved request paths.
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(fn_service(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                }))
+                .tcp()
+        }
+    })
+    .await;
+
+    let mut input = b"POST /test HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\r\n\
+          5\r\nhello\r\n0\r\n"
+        .to_vec();
+    input.extend_from_slice(last_chunk);
+
+    let smuggle_attempt = b"GET /smuggled-1 HTTP/1.1\r\nHost: localhost\r\n\r\n\
+                            GET /smuggled-2 HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+    input.extend_from_slice(
+        format!(
+            "POST /front HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Content-Length: {}\r\n\r\n",
+            smuggle_attempt.len()
+        )
+        .as_bytes(),
+    );
+    input.extend_from_slice(smuggle_attempt);
+    input.extend_from_slice(b"GET /third HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+    conn.write_all(&input).await.unwrap();
+
+    // Responses must arrive while the client keeps the connection open.
+    let mut raw = Vec::new();
+    let _ = timeout(Duration::from_secs(5), conn.read_to_end(&mut raw)).await;
+
+    srv.stop().await;
+
+    let seen = seen.lock().unwrap().clone();
+    (seen, raw)
+}
+
+#[actix_rt::test]
+async fn chunked_well_formed_last_chunk_keeps_pipelined_requests_aligned() {
+    let (seen, _) = send_pipelined_chunked_requests(b"\r\n").await;
+
+    assert_eq!(seen, ["/test", "/front", "/third"]);
+}
+
+#[actix_rt::test]
+async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
+    let (seen, raw) = send_pipelined_chunked_requests(b"\n").await;
+
+    let raw = String::from_utf8_lossy(&raw);
+
+    // Whatever the parser decides about the bare LF, the pipelined request must
+    // not be split so that its body is dispatched as separate requests.
+    assert!(
+        !seen.iter().any(|path| path.starts_with("/smuggled")),
+        "smuggled request was dispatched as a separate request; dispatched: {seen:?}, raw response: {raw}"
+    );
+
+    assert_eq!(seen.first().map(String::as_str), Some("/test"));
 }
 
 #[actix_rt::test]
