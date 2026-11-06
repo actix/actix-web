@@ -11,6 +11,7 @@ use bytes::Bytes;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures_core::{ready, Stream};
+use pin_project_lite::pin_project;
 use tokio::task::{spawn_blocking, JoinHandle};
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Decoder as ZstdDecoder;
@@ -23,7 +24,7 @@ use crate::{
 
 const MAX_CHUNK_SIZE_DECODE_IN_PLACE: usize = 2049;
 
-pin_project_lite::pin_project! {
+pin_project! {
     /// Payload stream that decompresses chunks using a content encoding.
     ///
     /// Yields decoded [`Bytes`] as they become available. Errors from the underlying stream are
