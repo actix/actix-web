@@ -46,6 +46,9 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// To reduce duplicate code in handlers where extracting certain parts of a request has a common
 /// structure, you can implement `FromRequest` for your own types.
 ///
+/// To return an async block without defining an associated future type, implement
+/// [`FromRequestBridge`] instead. Its compatibility implementation supplies `FromRequest`.
+///
 /// Note that the request payload can only be consumed by one extractor.
 ///
 /// [`Header`]: crate::web::Header
@@ -94,6 +97,70 @@ pub trait FromRequest: Sized {
     /// This method is short for `T::from_request(req, &mut Payload::None)`.
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
+    }
+}
+
+/// An opt-in extractor interface that returns an unnamed future.
+///
+/// Implement this trait to prepare an extractor for the next major version of Actix Web without
+/// defining [`FromRequest::Future`]. Types that implement this trait and are `'static` automatically
+/// implement [`FromRequest`], so they work directly in handlers and with existing extractor adapters.
+/// The compatibility implementation boxes the future without requiring it to be [`Send`].
+///
+/// Implement either this trait or [`FromRequest`] for a type, not both. The blanket implementation
+/// supplies [`FromRequest`] for types that implement this trait.
+///
+/// # Examples
+///
+/// ```
+/// use std::future::Future;
+/// use actix_web::{dev::Payload, web::Bytes, Error, FromRequest, FromRequestBridge, HttpRequest};
+///
+/// struct BodyLength(usize);
+///
+/// impl FromRequestBridge for BodyLength {
+///     type Error = Error;
+///
+///     fn from_request(
+///         req: &HttpRequest,
+///         payload: &mut Payload,
+///     ) -> impl Future<Output = Result<Self, Self::Error>> + use<> {
+///         let body = Bytes::from_request(req, payload);
+///
+///         async { Ok(BodyLength(body.await?.len())) }
+///     }
+/// }
+///
+/// async fn handler(length: BodyLength) -> String {
+///     length.0.to_string()
+/// }
+///
+/// let app = actix_web::App::new().route("/", actix_web::web::post().to(handler));
+/// ```
+pub trait FromRequestBridge: Sized {
+    /// The error returned when extraction fails.
+    type Error: Into<Error>;
+
+    /// Extract a value without retaining the input borrows.
+    ///
+    /// Clone request data or take the payload before constructing the returned future. This lets
+    /// tuple extractors construct all their futures before polling them concurrently.
+    ///
+    /// The `use<Self>` bound excludes the input lifetimes. Return an async block from a regular
+    /// function; an `async fn` implementation would capture those lifetimes.
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>> + use<Self>;
+}
+
+impl<T: FromRequestBridge + 'static> FromRequest for T {
+    type Error = <T as FromRequestBridge>::Error;
+    type Future = futures_core::future::LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        Box::pin(<T as FromRequestBridge>::from_request(req, payload))
     }
 }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `FromRequestBridge` for implementing extractors with `impl Future` while retaining compatibility with `FromRequest` and existing handlers.
+
 ## 4.18.2
 
 - Increase the default form payload limit to 32 KiB.
