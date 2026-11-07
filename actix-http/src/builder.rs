@@ -48,7 +48,7 @@ where
             keep_alive: KeepAlive::default(),
             client_request_timeout: Duration::from_secs(5),
             client_disconnect_timeout: Duration::ZERO,
-            tcp_nodelay: None,
+            tcp_nodelay: Some(true),
             secure: false,
             local_addr: None,
             h1_allow_half_closed: true,
@@ -135,6 +135,8 @@ where
     }
 
     /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    ///
+    /// Enabled by default.
     pub fn tcp_nodelay(mut self, nodelay: bool) -> Self {
         self.tcp_nodelay = Some(nodelay);
         self

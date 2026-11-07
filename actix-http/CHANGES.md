@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Enable `TCP_NODELAY` by default on accepted TCP connections.
+
 ## 3.20.3
 
 - Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)
