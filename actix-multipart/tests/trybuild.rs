@@ -13,4 +13,7 @@ fn compile_macros() {
 
     t.pass("tests/trybuild/size-limits.rs");
     t.compile_fail("tests/trybuild/size-limit-parse-fail.rs");
+
+    t.pass("tests/trybuild/max-parts.rs");
+    t.compile_fail("tests/trybuild/max-parts-parse-fail.rs");
 }
