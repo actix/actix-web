@@ -230,14 +230,16 @@ async fn buffer_above_configured_write_watermark_released() {
 async fn blocked_sized_body_retains_write_buffer() {
     const BODY_LEN: usize = 64 * 1024;
 
-    for spare in [false, true] {
+    for spare in [0, 1, BODY_LEN / 4 - 1, BODY_LEN / 4, BODY_LEN] {
+        let should_buffer = spare >= BODY_LEN / 4;
+
         let io = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
         // Accept the head and part of the body, then block.
         let allowance = Rc::new(Cell::new(1024));
         let services = HttpFlow::new(
             fn_service(move |_: Request| {
-                // With `spare`, the body has room to spare, as the `String` behind `.json()` does.
-                let mut body = Vec::with_capacity(if spare { 2 * BODY_LEN } else { BODY_LEN });
+                // Keep the spare capacity exact to cover both sides of the threshold.
+                let mut body = Vec::with_capacity(BODY_LEN + spare);
                 body.resize(BODY_LEN, b'x');
                 let res = Response::ok().set_body(bytes::Bytes::from(body));
                 async move { Ok::<_, Error>(res) }
@@ -263,9 +265,12 @@ async fn blocked_sized_body_retains_write_buffer() {
         let DispatcherState::Normal { inner } = &dispatcher.inner else {
             panic!()
         };
-        if spare {
-            // holding it would keep the spare room, so it was copied into the buffer instead
-            assert!(inner.write_body.is_none(), "body with spare capacity held");
+        if should_buffer {
+            // Copying this chunk releases enough spare capacity to meet the threshold.
+            assert!(
+                inner.write_body.is_none(),
+                "body with sufficient spare capacity should be buffered"
+            );
         } else {
             // The head is out, but the normal write buffer remains available for reuse.
             assert!(inner.write_body.is_some());
@@ -299,7 +304,7 @@ async fn blocked_sized_body_retains_write_buffer() {
             panic!()
         };
 
-        if spare {
+        if should_buffer {
             assert!(inner.write_buf.capacity() >= HW_BUFFER_SIZE);
         } else {
             assert_eq!(inner.write_buf.capacity(), retained_capacity);

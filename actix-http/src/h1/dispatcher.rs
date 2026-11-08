@@ -197,7 +197,7 @@ pin_project! {
         //
         // Chunks at least `h1_write_buffer_size` bytes long can be stored here without copying them
         // into `write_buf` if the connection supports vectored writes. Uniquely owned chunks with
-        // spare capacity are copied into `write_buf` instead (see `prepare_chunk`).
+        // enough spare capacity are copied into `write_buf` instead (see `prepare_chunk`).
         //
         // This can be the entire body or one chunk from a stream with a known total length. The
         // slice is limited to the remaining declared body length.
@@ -1643,10 +1643,10 @@ enum ChunkDisposition {
 /// Chunks smaller than `min_len` are always buffered. Connections without vectored writes also use
 /// the buffer, so the head and body can be passed to the I/O in one write.
 ///
-/// Uniquely owned chunks with spare capacity are also buffered. For example, the `String` produced
-/// by JSON serialization can have more capacity than the body needs. Copying its contents into
-/// `write_buf` lets the original allocation be freed instead of retaining that spare capacity while
-/// the body is pending.
+/// Uniquely owned chunks are buffered if their spare capacity is at least 8 KiB and a quarter of the
+/// chunk length. For example, the `String` produced by JSON serialization can have more capacity than
+/// the body needs. Copying it into `write_buf` lets the original allocation be freed. Below this
+/// threshold, keep the spare capacity to avoid copying the whole chunk for a small memory saving.
 fn prepare_chunk(
     codec: &mut Codec,
     write_body: &mut Option<Bytes>,
@@ -1658,8 +1658,12 @@ fn prepare_chunk(
         return ChunkDisposition::NeedsBuffering(chunk);
     }
 
+    // Prefer buffering when copying the chunk releases at least 8 KiB and 25% of its length in
+    // unused capacity; otherwise, keep the allocation to avoid the copy.
+    let min_savings = HW_BUFFER_SIZE.max(chunk.len() / 4);
+
     let chunk = match chunk.try_into_mut() {
-        Ok(buf) if buf.capacity() > buf.len() => {
+        Ok(buf) if buf.capacity() - buf.len() >= min_savings => {
             return ChunkDisposition::NeedsBuffering(buf.freeze());
         }
         Ok(buf) => buf.freeze(),
