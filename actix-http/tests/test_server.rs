@@ -1132,43 +1132,37 @@ async fn h2_flow_control_window_sizes() {
 
 #[cfg(feature = "http2")]
 #[tokio::test]
-async fn h2_graceful_shutdown_sends_goaway() -> std::io::Result<()> {
+async fn h2_graceful_shutdown_sends_goaway() {
     use actix_web::{web, App, HttpResponse, HttpServer};
     use tokio::sync::Notify;
 
     let started = Arc::new(Notify::new());
     let handler_started = started.clone();
-    let listener = net::TcpListener::bind("127.0.0.1:0")?;
-    let addr = listener.local_addr()?;
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
 
-    let join = thread::spawn(move || {
-        actix_rt::System::new().block_on(async move {
-            let server = HttpServer::new(move || {
-                App::new()
-                    .app_data(web::Data::from(handler_started.clone()))
-                    .route(
-                        "/slow",
-                        web::get().to(|started: web::Data<Notify>| async move {
-                            started.notify_one();
-                            sleep(Duration::from_millis(500)).await;
-                            HttpResponse::Ok().finish()
-                        }),
-                    )
-            })
-            .workers(1)
-            .disable_signals()
-            .shutdown_timeout(30)
-            .listen_auto_h2c(listener)?
-            .run();
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::from(handler_started.clone()))
+            .route(
+                "/slow",
+                web::get().to(|started: web::Data<Notify>| async move {
+                    started.notify_one();
+                    sleep(Duration::from_millis(500)).await;
+                    HttpResponse::Ok().finish()
+                }),
+            )
+    })
+    .workers(1)
+    .disable_signals()
+    .shutdown_timeout(30)
+    .listen_auto_h2c(listener)
+    .unwrap()
+    .run();
 
-            tx.send(server.handle()).unwrap();
-            server.await
-        })
-    });
-
-    let handle = rx.await.unwrap();
-    let stream = tokio::net::TcpStream::connect(addr).await?;
+    let handle = server.handle();
+    let server = tokio::spawn(server);
+    let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
     let (client, conn) = h2::client::handshake(stream).await.unwrap();
     let conn = tokio::spawn(conn);
 
@@ -1197,13 +1191,11 @@ async fn h2_graceful_shutdown_sends_goaway() -> std::io::Result<()> {
         "closed connection accepted a new stream"
     );
 
-    join.join().unwrap()?;
+    server.await.unwrap().unwrap();
 
     // Without GOAWAY the client keeps the connection open and actix waits the full 30s.
     assert!(
         stopped_after < Duration::from_secs(5),
         "shutdown waited for the timeout: {stopped_after:?}"
     );
-
-    Ok(())
 }
