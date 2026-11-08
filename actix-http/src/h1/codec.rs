@@ -1,7 +1,7 @@
 use std::{fmt, io};
 
 use bitflags::bitflags;
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use http::{Method, Version};
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -31,6 +31,18 @@ pub struct Codec {
     // encoder part
     flags: Flags,
     encoder: encoder::MessageEncoder<Response<()>>,
+}
+
+impl Codec {
+    /// Returns a shared slice of `chunk` for the dispatcher to write directly.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that length by the number of
+    /// bytes returned.
+    ///
+    /// Returns `None` if the encoder is not using a fixed length or no bytes remain.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        self.encoder.try_take_chunk(chunk)
+    }
 }
 
 impl Default for Codec {
