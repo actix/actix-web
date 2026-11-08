@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
 - Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, to lower peak memory while they are written.
 
 ## 3.20.5
