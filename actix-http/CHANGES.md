@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
+
 ## 3.20.5
 
 - Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
