@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- Enable `TCP_NODELAY` by default on accepted TCP connections.
+## 3.21.0
+
+- Enable `TCP_NODELAY` by default.
 - Add `BodyStream::from_infallible()` constructor.
 - Add `SizedStream::from_infallible()` constructor.
-- Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, when the connection supports vectored writes and the body's buffer has no room to spare.
+- Significant improvements to HTTP/1.x memory use.
 
 ## 3.20.5
 
