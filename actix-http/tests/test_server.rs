@@ -1129,3 +1129,81 @@ async fn h2_flow_control_window_sizes() {
 
     srv.stop().await;
 }
+
+#[cfg(feature = "http2")]
+#[tokio::test]
+async fn h2_graceful_shutdown_sends_goaway() -> std::io::Result<()> {
+    use actix_web::{web, App, HttpResponse, HttpServer};
+    use tokio::sync::Notify;
+
+    let started = Arc::new(Notify::new());
+    let handler_started = started.clone();
+    let listener = net::TcpListener::bind("127.0.0.1:0")?;
+    let addr = listener.local_addr()?;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    let join = thread::spawn(move || {
+        actix_rt::System::new().block_on(async move {
+            let server = HttpServer::new(move || {
+                App::new()
+                    .app_data(web::Data::from(handler_started.clone()))
+                    .route(
+                        "/slow",
+                        web::get().to(|started: web::Data<Notify>| async move {
+                            started.notify_one();
+                            sleep(Duration::from_millis(500)).await;
+                            HttpResponse::Ok().finish()
+                        }),
+                    )
+            })
+            .workers(1)
+            .disable_signals()
+            .shutdown_timeout(30)
+            .listen_auto_h2c(listener)?
+            .run();
+
+            tx.send(server.handle()).unwrap();
+            server.await
+        })
+    });
+
+    let handle = rx.await.unwrap();
+    let stream = tokio::net::TcpStream::connect(addr).await?;
+    let (client, conn) = h2::client::handshake(stream).await.unwrap();
+    let conn = tokio::spawn(conn);
+
+    let mut client = client.ready().await.unwrap();
+    let request = http::Request::get("http://localhost/slow")
+        .body(())
+        .unwrap();
+    let (slow, _) = client.send_request(request, true).unwrap();
+    started.notified().await;
+
+    let stopping = Instant::now();
+    let stop = tokio::spawn(async move { handle.stop(true).await });
+
+    assert_eq!(
+        slow.await.unwrap().status(),
+        200,
+        "in-flight stream failed on shutdown"
+    );
+
+    conn.await.unwrap().unwrap();
+    stop.await.unwrap();
+    let stopped_after = stopping.elapsed();
+
+    assert!(
+        client.ready().await.is_err(),
+        "closed connection accepted a new stream"
+    );
+
+    join.join().unwrap()?;
+
+    // Without GOAWAY the client keeps the connection open and actix waits the full 30s.
+    assert!(
+        stopped_after < Duration::from_secs(5),
+        "shutdown waited for the timeout: {stopped_after:?}"
+    );
+
+    Ok(())
+}
