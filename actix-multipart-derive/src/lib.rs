@@ -31,6 +31,7 @@ enum DuplicateField {
 struct MultipartFormAttrs {
     deny_unknown_fields: bool,
     duplicate_field: DuplicateField,
+    max_parts: Option<usize>,
 }
 
 #[allow(clippy::disallowed_names)] // false positive in macro expansion
@@ -145,6 +146,14 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         DuplicateField::Replace => quote!(::actix_multipart::form::DuplicateField::Replace),
     };
 
+    let max_parts_impl = attrs.max_parts.map(|limit| {
+        quote! {
+            fn max_parts() -> ::std::option::Option<usize> {
+                ::std::option::Option::Some(#limit)
+            }
+        }
+    });
+
     // limit() implementation
     let mut limit_impl = quote!();
     for field in &parsed {
@@ -182,6 +191,8 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
 
     let gen = quote! {
         impl ::actix_multipart::form::MultipartCollect for #name {
+            #max_parts_impl
+
             fn limit(field_name: &str) -> ::std::option::Option<usize> {
                 match field_name {
                     #limit_impl

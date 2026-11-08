@@ -4,6 +4,14 @@
 
 - Enable `TCP_NODELAY` by default on accepted TCP connections.
 
+## 3.20.5
+
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+
+## 3.20.4
+
+- Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
+
 ## 3.20.3
 
 - Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)

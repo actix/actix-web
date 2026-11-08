@@ -234,6 +234,13 @@ where
 ///
 /// You should use the [`macro@MultipartForm`] macro to derive this for your struct.
 pub trait MultipartCollect: Sized {
+    /// An optional maximum number of parts for this form.
+    ///
+    /// The extractor also applies the limit from [`MultipartFormConfig`]. The lower limit wins.
+    fn max_parts() -> Option<usize> {
+        None
+    }
+
     /// An optional limit in bytes to be applied a given field name. Note this limit will be shared
     /// across all fields sharing the same name.
     fn limit(field_name: &str) -> Option<usize>;
@@ -389,6 +396,9 @@ pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), 
 /// string is parsed using [`bytesize`].
 ///
 /// Note: the form is also subject to the global limits configured using [`MultipartFormConfig`].
+/// Use `#[multipart(max_parts = 10)]` on the struct to limit the number of parts for that form.
+/// The lower of this limit and [`MultipartFormConfig::max_parts()`] applies. Empty, unknown,
+/// and duplicate parts all count. A limit of zero rejects all parts.
 ///
 /// ```rust
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
@@ -470,6 +480,8 @@ where
 
         let config = MultipartFormConfig::from_req(req);
         let mut limits = Limits::new(config.total_limit, config.memory_limit);
+        let mut parts_remaining =
+            T::max_parts().map_or(config.max_parts, |limit| limit.min(config.max_parts));
 
         let req = req.clone();
         let req2 = req.clone();
@@ -483,6 +495,10 @@ where
                 let mut field_limits = HashMap::<String, Option<usize>>::new();
 
                 while let Some(field) = multipart.try_next().await? {
+                    parts_remaining = parts_remaining
+                        .checked_sub(1)
+                        .ok_or(MultipartError::TooManyParts)?;
+
                     debug_assert!(
                         !field.form_field_name.is_empty(),
                         "multipart form fields should have names",
@@ -525,10 +541,26 @@ type MultipartFormErrorHandler =
 pub struct MultipartFormConfig {
     total_limit: usize,
     memory_limit: usize,
+    max_parts: usize,
     err_handler: MultipartFormErrorHandler,
 }
 
 impl MultipartFormConfig {
+    /// Sets the global maximum number of parts accepted for every form.
+    ///
+    /// Specific forms can override to a lower limit, but **not a higher one**.
+    ///
+    /// Every part counts toward this maximum, including empty parts, unknown fields, and duplicate
+    /// fields. A limit of zero rejects all parts.
+    ///
+    /// Exceeding the limit returns [`MultipartError::TooManyParts`].
+    ///
+    /// Default is 100.
+    pub fn max_parts(mut self, max_parts: usize) -> Self {
+        self.max_parts = max_parts;
+        self
+    }
+
     /// Sets maximum accepted payload size for the entire form. By default this limit is 50MiB.
     pub fn total_limit(mut self, total_limit: usize) -> Self {
         self.total_limit = total_limit;
@@ -562,6 +594,7 @@ impl MultipartFormConfig {
 const DEFAULT_CONFIG: MultipartFormConfig = MultipartFormConfig {
     total_limit: 52_428_800, // 50 MiB
     memory_limit: 2_097_152, // 2 MiB
+    max_parts: 100,
     err_handler: None,
 };
 
@@ -856,7 +889,162 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
-    /// Test the Limits.
+    #[actix_rt::test]
+    async fn test_default_max_parts() {
+        #[derive(MultipartForm)]
+        struct Upload {
+            files: Vec<Bytes>,
+        }
+
+        let app = init_service(App::new().route(
+            "/",
+            web::post().to(|form: MultipartForm<Upload>| async move {
+                HttpResponse::Ok().body(form.files.len().to_string())
+            }),
+        ))
+        .await;
+
+        for (count, status) in [(100, StatusCode::OK), (101, StatusCode::BAD_REQUEST)] {
+            let body = format!(
+                "{}--test-boundary--\r\n",
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                    .repeat(count)
+            );
+            let req = TestRequest::post()
+                .uri("/")
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(call_service(&app, req).await.status(), status);
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_derived_max_parts() {
+        #[derive(MultipartForm)]
+        #[multipart(max_parts = 2)]
+        struct Upload {
+            files: Vec<Bytes>,
+        }
+
+        for (config_limit, count, status) in [
+            (100, 2, StatusCode::OK),
+            (100, 3, StatusCode::BAD_REQUEST),
+            (1, 1, StatusCode::OK),
+            (1, 2, StatusCode::BAD_REQUEST),
+        ] {
+            let app = init_service(
+                App::new()
+                    .app_data(MultipartFormConfig::default().max_parts(config_limit))
+                    .route(
+                        "/",
+                        web::post().to(|form: MultipartForm<Upload>| async move {
+                            HttpResponse::Ok().body(form.files.len().to_string())
+                        }),
+                    ),
+            )
+            .await;
+
+            let body = format!(
+                "{}--test-boundary--\r\n",
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                    .repeat(count)
+            );
+            let req = TestRequest::post()
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(call_service(&app, req).await.status(), status);
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_configured_max_parts() {
+        #[derive(MultipartForm)]
+        struct Upload {
+            files: Vec<TempFile>,
+        }
+
+        for limit in [0, 2, 101] {
+            let app = init_service(
+                App::new()
+                    .app_data(web::Data::new(
+                        MultipartFormConfig::default()
+                            .max_parts(limit)
+                            .error_handler(|err, _| {
+                                assert!(matches!(err, MultipartError::TooManyParts));
+                                actix_web::error::ErrorPayloadTooLarge(err)
+                            }),
+                    ))
+                    .route(
+                        "/",
+                        web::post().to(|form: MultipartForm<Upload>| async move {
+                            HttpResponse::Ok().body(form.files.len().to_string())
+                        }),
+                    ),
+            )
+            .await;
+
+            for (count, status) in [
+                (limit, StatusCode::OK),
+                (limit + 1, StatusCode::PAYLOAD_TOO_LARGE),
+            ] {
+                let body = format!(
+                    "{}--test-boundary--\r\n",
+                    "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                        .repeat(count)
+                );
+                let req = TestRequest::post()
+                    .insert_header((
+                        "content-type",
+                        "multipart/form-data; boundary=test-boundary",
+                    ))
+                    .set_payload(body)
+                    .to_request();
+
+                assert_eq!(call_service(&app, req).await.status(), status);
+            }
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_discarded_fields_count_towards_max_parts() {
+        let app = init_service(
+            App::new()
+                .app_data(MultipartFormConfig::default().max_parts(1))
+                .route("/", web::post().to(test_duplicate_ignore_route)),
+        )
+        .await;
+
+        for name in ["field", "unknown"] {
+            let body = format!(
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\nfirst_value\r\n\
+                 --test-boundary\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n\r\n\
+                 --test-boundary--\r\n"
+            );
+            let req = TestRequest::post()
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(
+                call_service(&app, req).await.status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+    }
+
     #[derive(MultipartForm)]
     struct TestMemoryUploadLimits {
         field: Bytes,
