@@ -349,10 +349,24 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
-    /// Accounts `msg` as part of a fixed-length body and returns the bytes to write as they are,
-    /// or `None` when the body is framed and has to go through [`Self::encode_chunk`].
-    pub fn take_unbuffered(&mut self, msg: &Bytes) -> Option<Bytes> {
-        self.te.take_unbuffered(msg)
+    /// Returns a shared slice of `chunk` for direct writes.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that stored length by the number
+    /// of bytes returned.
+    ///
+    /// Returns `None` unless fixed-length encoding is active and bytes remain. Use
+    /// [`Self::encode_chunk`] when it returns `None`.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        match self.te.kind {
+            TransferEncodingKind::Length(ref mut remaining) if *remaining > 0 => {
+                let capped_bytes_yielded = cmp::min(chunk.len() as u64, *remaining);
+                *remaining -= capped_bytes_yielded;
+                Some(chunk.slice(..capped_bytes_yielded as usize))
+            }
+
+            // Transfer is empty or unknown length.
+            _ => None,
+        }
     }
 
     /// Encode chunk.
@@ -448,18 +462,6 @@ impl TransferEncoding {
     pub fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Length(len),
-        }
-    }
-
-    /// Accounts `msg` as part of a fixed-length body and returns the bytes to write as they are.
-    pub fn take_unbuffered(&mut self, msg: &Bytes) -> Option<Bytes> {
-        match self.kind {
-            TransferEncodingKind::Length(ref mut remaining) if *remaining > 0 => {
-                let len = cmp::min(*remaining, msg.len() as u64);
-                *remaining -= len;
-                Some(msg.slice(..len as usize))
-            }
-            _ => None,
         }
     }
 

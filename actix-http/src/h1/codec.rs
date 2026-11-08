@@ -34,9 +34,14 @@ pub struct Codec {
 }
 
 impl Codec {
-    /// Accounts a body chunk that the dispatcher writes without copying it into the write buffer.
-    pub(crate) fn encode_chunk_unbuffered(&mut self, bytes: &Bytes) -> Option<Bytes> {
-        self.encoder.take_unbuffered(bytes)
+    /// Returns a shared slice of `chunk` for the dispatcher to write directly.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that length by the number of
+    /// bytes returned.
+    ///
+    /// Returns `None` if the encoder is not using a fixed length or no bytes remain.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        self.encoder.try_take_chunk(chunk)
     }
 }
 
