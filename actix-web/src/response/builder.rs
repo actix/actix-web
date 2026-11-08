@@ -269,7 +269,7 @@ impl HttpResponseBuilder {
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.res
             .as_ref()
-            .expect("cannot reuse response builder")
+            .expect("Cannot reuse response builder")
             .extensions()
     }
 
@@ -278,7 +278,7 @@ impl HttpResponseBuilder {
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.res
             .as_mut()
-            .expect("cannot reuse response builder")
+            .expect("Cannot reuse response builder")
             .extensions_mut()
     }
 
@@ -309,7 +309,7 @@ impl HttpResponseBuilder {
         let res = self
             .res
             .take()
-            .expect("cannot reuse response builder")
+            .expect("Cannot reuse response builder")
             .set_body(body);
 
         Ok(HttpResponse::from(res))

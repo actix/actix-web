@@ -39,8 +39,28 @@ const MAX_CONTROL_FRAME_PAYLOAD: usize = 125;
 /// Maximum payload length representable by a 16-bit extended length (RFC 6455 §5.2).
 const U16_PAYLOAD_MAX: usize = u16::MAX as usize;
 
+/// Maximum legal payload length for a 64-bit extended length (RFC 6455 §5.2).
+const U64_PAYLOAD_MAX: u64 = i64::MAX as u64;
+
 /// Client masking key length in bytes (RFC 6455 §5.3).
 const MASK_LEN: usize = 4;
+
+/// Convert a payload length to `usize`, failing if it does not fit.
+///
+/// A `usize` cannot represent every 63-bit length on 32-bit targets, where the conversion must
+/// fail rather than truncate. Truncating would make the parser report a shorter frame and treat
+/// the remaining bytes as the start of the next one.
+fn payload_len_to_usize(len: u64) -> Result<usize, ProtocolError> {
+    usize::try_from(len).map_err(|_| ProtocolError::Overflow)
+}
+
+/// Whether the most significant bit of a 64-bit payload length is set.
+///
+/// RFC 6455 §5.2 defines the payload length as an unsigned 63-bit integer, so the most
+/// significant bit must be zero.
+fn payload_len_msb_set(len: u64) -> bool {
+    len > U64_PAYLOAD_MAX
+}
 
 impl Parser {
     fn parse_metadata(
@@ -98,7 +118,14 @@ impl Parser {
             }
             let len = u64::from_be_bytes(TryFrom::try_from(&src[idx..idx + 8]).unwrap());
             idx += 8;
-            len as usize
+
+            if payload_len_msb_set(len) {
+                // TODO(semver-major): use a variant that describes an invalid length, rather than
+                //  the payload size limit that `Overflow` also documents.
+                return Err(ProtocolError::Overflow);
+            }
+
+            payload_len_to_usize(len)?
         } else {
             len as usize
         };
@@ -132,6 +159,9 @@ impl Parser {
             Some(res) => res,
         };
 
+        // Live on 32-bit targets, where `u32::MAX` fits a `usize` and overflows this. On 64-bit
+        // it cannot fire: overflowing needs a length above `u64::MAX - idx`, which has the most
+        // significant bit set and is rejected earlier.
         let frame_len = match idx.checked_add(length) {
             Some(len) => len,
             None => return Err(ProtocolError::Overflow),
@@ -348,6 +378,86 @@ mod tests {
         }
     }
 
+    // RFC 6455 §5.2: the most significant bit of a 64-bit payload length MUST be 0.
+    #[test]
+    fn test_parse_rejects_64_bit_length_with_msb_set() {
+        let mut buf = BytesMut::from(&[0x81u8, 127][..]);
+        buf.extend_from_slice(&(U64_PAYLOAD_MAX + 1).to_be_bytes());
+
+        assert!(
+            matches!(
+                Parser::parse(&mut buf, false, 1024),
+                Err(ProtocolError::Overflow)
+            ),
+            "a 64-bit payload length with the MSB set must be rejected, not treated as incomplete"
+        );
+        // The rejection must not consume the header, or the next parse would start mid-frame.
+        assert_eq!(buf.len(), 10);
+    }
+
+    // Pins the accept side of the boundary through `parse`: the largest legal length must be
+    // treated as incomplete, not rejected. Only a 64-bit `usize` can represent it.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn test_parse_accepts_largest_legal_64_bit_length() {
+        let mut buf = BytesMut::from(&[0x81u8, 127][..]);
+        buf.extend_from_slice(&U64_PAYLOAD_MAX.to_be_bytes());
+
+        // `max_size` is deliberately far below the declared length: an incomplete frame returns
+        // before the size check, so the header is accepted as incomplete. It also keeps the
+        // parser from reserving the declared length, which a large `max_size` would attempt.
+        assert!(
+            is_none(&Parser::parse(&mut buf, false, 1024)),
+            "the largest legal 64-bit length must be incomplete, not rejected"
+        );
+        // The header must stay buffered while the payload is awaited.
+        assert_eq!(buf.len(), 10);
+    }
+
+    // The most-significant-bit rule itself, on every target. On 32-bit the conversion rejects every
+    // such length anyway, so the call site is not observable through `parse`; pin the predicate.
+    #[test]
+    fn test_payload_len_msb_set() {
+        assert!(!payload_len_msb_set(0));
+        assert!(!payload_len_msb_set(U64_PAYLOAD_MAX));
+        assert!(payload_len_msb_set(1 << 63));
+        assert!(payload_len_msb_set(u64::MAX));
+    }
+
+    // A declared 2^32 does not fit a 32-bit `usize`, and truncating it would accept an empty frame
+    // and leave the trailing bytes to be read as the next frame.
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn test_parse_rejects_64_bit_length_beyond_addressable_range() {
+        let mut buf = BytesMut::from(&[0x81u8, 127][..]);
+        buf.extend_from_slice(&0x0000_0001_0000_0000u64.to_be_bytes());
+        buf.extend_from_slice(b"ABCD");
+
+        assert!(
+            matches!(
+                Parser::parse(&mut buf, false, 1024),
+                Err(ProtocolError::Overflow)
+            ),
+            "a length that does not fit in usize must be rejected, not truncated to 0"
+        );
+        assert_eq!(buf.len(), 14);
+    }
+
+    // `u32::MAX` fits a 32-bit `usize` and its most significant bit is clear, so neither the
+    // most-significant-bit check nor the conversion rejects it and only the `checked_add` guard in
+    // `parse` can.
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn test_parse_rejects_length_that_overflows_frame_len() {
+        let mut buf = BytesMut::from(&[0x81u8, 127][..]);
+        buf.extend_from_slice(&(u32::MAX as u64).to_be_bytes());
+
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 1024),
+            Err(ProtocolError::Overflow)
+        ));
+    }
+
     #[test]
     fn test_parse() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
@@ -555,13 +665,22 @@ mod tests {
         ));
     }
 
+    // The payload length of the #3723 repro, whose MSB is set. That report was an unchecked
+    // addition that overflowed; `checked_add` was added to fix it, and the most-significant-bit
+    // check now rejects this input before either runs, so this pins the regression only.
+    // The `checked_add` guard is covered separately by a 32-bit-only test.
     #[test]
-    fn test_parse_length_overflow() {
+    fn test_parse_rejects_msb_length_from_3723() {
         let buf: [u8; 14] = [
             0x0a, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xeb, 0x0e, 0x8f,
         ];
         let mut buf = BytesMut::from(&buf[..]);
         let result = Parser::parse(&mut buf, true, 65536);
-        assert!(matches!(result, Err(ProtocolError::Overflow)));
+        // Opcode 0x0a is Pong. The length is rejected in `parse_metadata` before the frame can be
+        // buffered, so the header is reported as malformed rather than awaited.
+        assert!(
+            matches!(result, Err(ProtocolError::Overflow)),
+            "a declared length above i64::MAX must be rejected outright"
+        );
     }
 }

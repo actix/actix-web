@@ -66,7 +66,7 @@ impl TestRequest {
                 parts(&mut self.0).headers.insert(key, value);
             }
             Err(err) => {
-                panic!("Error inserting test header: {}.", err.into());
+                panic!("Error inserting test header: {}", err.into());
             }
         }
 
@@ -80,7 +80,7 @@ impl TestRequest {
                 parts(&mut self.0).headers.append(key, value);
             }
             Err(err) => {
-                panic!("Error inserting test header: {}.", err.into());
+                panic!("Error inserting test header: {}", err.into());
             }
         }
 
@@ -105,7 +105,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `Request` instance.
     pub fn finish(&mut self) -> Request {
-        let inner = self.0.take().expect("cannot reuse test request builder");
+        let inner = self.0.take().expect("Cannot reuse test request builder");
 
         let mut req = if let Some(pl) = inner.payload {
             Request::with_payload(pl)
@@ -125,7 +125,7 @@ impl TestRequest {
 
 #[inline]
 fn parts(parts: &mut Option<Inner>) -> &mut Inner {
-    parts.as_mut().expect("cannot reuse test request builder")
+    parts.as_mut().expect("Cannot reuse test request builder")
 }
 
 #[cfg(test)]

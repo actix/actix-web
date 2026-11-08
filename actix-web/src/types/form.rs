@@ -1,4 +1,4 @@
-//! For URL encoded form helper documentation, see [`Form`].
+//! For URL-encoded form helper documentation, see [`Form`].
 
 use std::{
     borrow::Cow,
@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::Payload;
+use actix_http::{error::PayloadError, Payload};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{future::LocalBoxFuture, ready};
@@ -24,9 +24,9 @@ use crate::{
     web, Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
-/// URL encoded payload extractor and responder.
+/// URL-encoded payload extractor and responder.
 ///
-/// `Form` has two uses: URL encoded responses, and extracting typed data from URL request payloads.
+/// `Form` has two uses: URL-encoded responses, and extracting typed data from URL request payloads.
 ///
 /// # Extractor
 /// To extract typed data from a request body, the inner type `T` must implement the
@@ -46,7 +46,7 @@ use crate::{
 ///
 /// // This handler is only called if:
 /// // - request headers declare the content type as `application/x-www-form-urlencoded`
-/// // - request payload deserializes into an `Info` struct from the URL encoded format
+/// // - request payload deserializes into an `Info` struct from the URL-encoded format
 /// #[post("/")]
 /// async fn index(web::Form(form): web::Form<Info>) -> String {
 ///     format!("Welcome {}!", form.name)
@@ -54,8 +54,8 @@ use crate::{
 /// ```
 ///
 /// # Responder
-/// The `Form` type also allows you to create URL encoded responses by returning a value of type
-/// `Form<T>` where `T` is the type to be URL encoded, as long as `T` implements [`Serialize`].
+/// The `Form` type also allows you to create URL-encoded responses by returning a value of type
+/// `Form<T>` where `T` is the type to be URL-encoded, as long as `T` implements [`Serialize`].
 ///
 /// ## Examples
 /// ```
@@ -82,7 +82,7 @@ use crate::{
 /// ```
 ///
 /// # Panics
-/// URL encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
+/// URL-encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
 /// any type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
@@ -210,7 +210,7 @@ impl<T: Serialize> Responder for Form<T> {
 /// }
 ///
 /// // Custom `FormConfig` is applied to App.
-/// // Max payload size for URL encoded forms is set to 4kB.
+/// // Max payload size for URL-encoded forms is set to 4kB.
 /// #[post("/")]
 /// async fn index(form: web::Form<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
@@ -227,7 +227,7 @@ pub struct FormConfig {
 }
 
 impl FormConfig {
-    /// Set maximum accepted payload size. By default this limit is 16kB.
+    /// Set maximum accepted payload size. By default this limit is 32 KiB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -252,9 +252,11 @@ impl FormConfig {
     }
 }
 
+const DEFAULT_LIMIT: usize = 32_768; // 32 KiB
+
 /// Allow shared refs used as default.
 const DEFAULT_CONFIG: FormConfig = FormConfig {
-    limit: 16_384, // 2^14 bytes (~16kB)
+    limit: DEFAULT_LIMIT,
     err_handler: None,
 };
 
@@ -264,7 +266,7 @@ impl Default for FormConfig {
     }
 }
 
-/// Future that resolves to some `T` when parsed from a URL encoded payload.
+/// Future that resolves to some `T` when parsed from a URL-encoded payload.
 ///
 /// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
 ///
@@ -286,7 +288,7 @@ pub struct UrlEncoded<T> {
 
 #[allow(clippy::borrow_interior_mutable_const)]
 impl<T> UrlEncoded<T> {
-    /// Create a new future to decode a URL encoded request payload.
+    /// Create a new future to decode a URL-encoded request payload.
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
@@ -314,6 +316,7 @@ impl<T> UrlEncoded<T> {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -323,7 +326,7 @@ impl<T> UrlEncoded<T> {
         UrlEncoded {
             encoding,
             stream: Some(payload),
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             length: len,
             fut: None,
             err: None,
@@ -333,7 +336,7 @@ impl<T> UrlEncoded<T> {
     fn err(err: UrlencodedError) -> Self {
         UrlEncoded {
             stream: None,
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             fut: None,
             err: Some(err),
             length: None,
@@ -341,9 +344,15 @@ impl<T> UrlEncoded<T> {
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size. The default limit is 32 KiB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
+
+        #[cfg(feature = "__compress")]
+        {
+            self.stream = self.stream.map(|stream| stream.limit(limit));
+        }
+
         self
     }
 }
@@ -371,7 +380,6 @@ where
             }
         }
 
-        // future
         let encoding = self.encoding;
         let mut stream = self.stream.take().unwrap();
 
@@ -380,13 +388,13 @@ where
                 let mut body = BytesMut::with_capacity(8192);
 
                 while let Some(item) = stream.next().await {
-                    let chunk = item?;
+                    let chunk = item.map_err(|err| match err {
+                        PayloadError::Overflow => UrlencodedError::OverflowUnknownLength { limit },
+                        err => UrlencodedError::Payload(err),
+                    })?;
 
                     if (body.len() + chunk.len()) > limit {
-                        return Err(UrlencodedError::Overflow {
-                            size: body.len() + chunk.len(),
-                            limit,
-                        });
+                        return Err(UrlencodedError::OverflowUnknownLength { limit });
                     } else {
                         body.extend_from_slice(&chunk);
                     }
@@ -554,6 +562,6 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.starts_with("URL encoded payload is larger"));
+        assert!(err_str.starts_with("URL-encoded payload is larger"));
     }
 }

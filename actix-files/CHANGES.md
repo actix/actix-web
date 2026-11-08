@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.7.4
+
+- Fix hidden-file protection bypass through Windows short filename aliases. [GHSA-8hcm-m7r7-frwc](https://github.com/actix/actix-web/security/advisories/GHSA-8hcm-m7r7-frwc)
+
+## 0.7.3
+
+- Fix stored XSS vulnerability when `Files::show_files_listing()` is explicitly enabled. [GHSA-5rrw-whjq-pmhh](https://github.com/actix/actix-web/security/advisories/GHSA-5rrw-whjq-pmhh)
+
+## 0.7.2
+
+- Evaluate request preconditions before processing `Range` headers when serving a `NamedFile`.
+- Ignore `Range` headers for methods other than GET when serving a `NamedFile`.
+- Ignore `If-Unmodified-Since` when `If-Match` is present when serving a `NamedFile`.
+- Respond with 412 Precondition Failed for matching `If-None-Match` on methods other than GET and HEAD when serving a `NamedFile`.
+- Ignore `If-Modified-Since` on methods other than GET and HEAD when serving a `NamedFile`.
+- Accept case-insensitive byte range units and ignore unknown range units when serving a `NamedFile`.
+
+## 0.7.1
+
+- Honor `If-Range` headers when serving a `NamedFile`.
+- Use the Windows file index in `NamedFile` ETags to distinguish different files with the same size and modification time.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
 ## 0.7.0
 
 - Remove the experimental `experimental-io-uring` crate feature and its implementation, including the `NamedFile::open_async()` method.

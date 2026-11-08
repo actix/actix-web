@@ -123,13 +123,17 @@ if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
 
     for f in $(fd Cargo.toml); do
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(${PACKAGE_NAME} ?= ?\")=[^\"]+(\")$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(${PACKAGE_NAME} ?= ?\")[^=\"][^\"]*(\")$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")=[^\"]+(\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^=\"][^\"]*(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")=[^\"]+(\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^=\"][^\"]*(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(.*version ?= ?\")=[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(.*version ?= ?\")[^=\"][^\"]*(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
 
         # remove backup file
         rm -f $f.bak

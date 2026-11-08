@@ -6,7 +6,7 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::{
     body::BodySize,
@@ -349,6 +349,26 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
+    /// Returns a shared slice of `chunk` for direct writes.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that stored length by the number
+    /// of bytes returned.
+    ///
+    /// Returns `None` unless fixed-length encoding is active and bytes remain. Use
+    /// [`Self::encode_chunk`] when it returns `None`.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        match self.te.kind {
+            TransferEncodingKind::Length(ref mut remaining) if *remaining > 0 => {
+                let capped_bytes_yielded = cmp::min(chunk.len() as u64, *remaining);
+                *remaining -= capped_bytes_yielded;
+                Some(chunk.slice(..capped_bytes_yielded as usize))
+            }
+
+            // Transfer is empty or unknown length.
+            _ => None,
+        }
+    }
+
     /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)

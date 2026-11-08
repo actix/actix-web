@@ -2,9 +2,42 @@
 
 ## Unreleased
 
+- Enable `TCP_NODELAY` by default on accepted TCP connections.
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
+- Write large fixed-length response bodies from their own buffer instead of copying them into the connection's write buffer, to lower peak memory while they are written.
+
+## 3.20.5
+
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+
+## 3.20.4
+
+- Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
+
+## 3.20.3
+
+- Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)
+
+## 3.20.2
+
+- Reject bare LF as last chunk terminator in chunked encodings. [GHSA-2q7f-mf9f-5qhr](https://github.com/actix/actix-web/security/advisories/GHSA-2q7f-mf9f-5qhr)
+
+## 3.20.1
+
+- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
+
+## 3.20.0
+
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 3.19.0
+
 - Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
 - Parse header quality values as exact decimals and reject invalid numeric syntax.
 - Round float quality conversions to the nearest thousandth to preserve all three decimal places.
+- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets, using `ws::ProtocolError::Overflow`.
 - Update `zstd` dependency to `0.14`.
 - Update `brotli` dependency to `9`.
 

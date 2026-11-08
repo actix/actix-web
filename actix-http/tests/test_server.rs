@@ -2,7 +2,9 @@ use std::{
     convert::Infallible,
     future::ready,
     io::{Read, Write},
-    net, thread,
+    net,
+    sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -60,6 +62,24 @@ async fn h1_2() {
     .await;
 
     let response = srv.get("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn h1_query() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                ready(Ok::<_, Infallible>(Response::ok()))
+            })
+            .tcp()
+    })
+    .await;
+
+    let response = srv.query("/").send().await.unwrap();
     assert!(response.status().is_success());
 
     srv.stop().await;
@@ -205,6 +225,88 @@ async fn chunked_payload() {
     srv.stop().await;
 }
 
+async fn send_pipelined_chunked_requests(last_chunk: &[u8]) -> (Vec<String>, Vec<u8>) {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+
+    // Test server which does not read payloads but does store all obvserved request paths.
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(fn_service(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                }))
+                .tcp()
+        }
+    })
+    .await;
+
+    let mut input = b"POST /test HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\r\n\
+          5\r\nhello\r\n0\r\n"
+        .to_vec();
+    input.extend_from_slice(last_chunk);
+
+    let smuggle_attempt = b"GET /smuggled-1 HTTP/1.1\r\nHost: localhost\r\n\r\n\
+                            GET /smuggled-2 HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+    input.extend_from_slice(
+        format!(
+            "POST /front HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Content-Length: {}\r\n\r\n",
+            smuggle_attempt.len()
+        )
+        .as_bytes(),
+    );
+    input.extend_from_slice(smuggle_attempt);
+    input.extend_from_slice(b"GET /third HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+    conn.write_all(&input).await.unwrap();
+
+    // Responses must arrive while the client keeps the connection open.
+    let mut raw = Vec::new();
+    let _ = timeout(Duration::from_secs(5), conn.read_to_end(&mut raw)).await;
+
+    srv.stop().await;
+
+    let seen = seen.lock().unwrap().clone();
+    (seen, raw)
+}
+
+#[actix_rt::test]
+async fn chunked_well_formed_last_chunk_keeps_pipelined_requests_aligned() {
+    let (seen, _) = send_pipelined_chunked_requests(b"\r\n").await;
+
+    assert_eq!(seen, ["/test", "/front", "/third"]);
+}
+
+#[actix_rt::test]
+async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
+    let (seen, raw) = send_pipelined_chunked_requests(b"\n").await;
+
+    let raw = String::from_utf8_lossy(&raw);
+
+    // Whatever the parser decides about the bare LF, the pipelined request must
+    // not be split so that its body is dispatched as separate requests.
+    assert!(
+        !seen.iter().any(|path| path.starts_with("/smuggled")),
+        "smuggled request was dispatched as a separate request; dispatched: {seen:?}, raw response: {raw}"
+    );
+
+    assert_eq!(seen.first().map(String::as_str), Some("/test"));
+}
+
 #[actix_rt::test]
 async fn slow_request_408() {
     let mut srv = test_server(|| {
@@ -233,9 +335,9 @@ async fn slow_request_408() {
     if diff < Duration::from_secs(1) {
         // test success
     } else if diff < Duration::from_secs(3) {
-        panic!("request seems to have wrongly timed-out according to keep-alive");
+        panic!("Request seems to have wrongly timed-out according to keep-alive");
     } else {
-        panic!("request took way too long to time out");
+        panic!("Request took way too long to time out");
     }
 
     srv.stop().await;
@@ -789,7 +891,7 @@ async fn h1_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
 
     srv.stop().await;
@@ -849,10 +951,6 @@ async fn h1_on_connect() {
 /// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
 #[actix_rt::test]
 async fn not_modified_spec_h1() {
-    // TODO: this test needing a few seconds to complete reveals some weirdness with either the
-    // dispatcher or the client, though similar hangs occur on other tests in this file, only
-    // succeeding, it seems, because of the keepalive timer
-
     static CL: header::HeaderName = header::CONTENT_LENGTH;
 
     let mut srv = test_server(|| {
@@ -885,7 +983,7 @@ async fn not_modified_spec_h1() {
                         res.map_into_boxed_body()
                     }
 
-                    _ => panic!("unknown route"),
+                    _ => panic!("Unknown route"),
                 };
 
                 ready(Ok::<_, Infallible>(res))
@@ -918,10 +1016,8 @@ async fn not_modified_spec_h1() {
         res.headers().get(&CL),
         Some(&header::HeaderValue::from_static("4")),
     );
-    // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug in the client, especially since CL header can differ in length
-    // from the body
-    assert!(!srv.load_body(res).await.unwrap().is_empty());
+    // RFC 9112 §6.3: the client must not read a body for a 304 response.
+    assert!(srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
 
@@ -1010,8 +1106,8 @@ async fn h2_flow_control_window_sizes() {
         loop {
             let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
                 .await
-                .expect("request stream closed before flow control capacity became available")
-                .expect("failed polling flow control capacity");
+                .expect("Request stream closed before flow control capacity became available")
+                .expect("Failed polling flow control capacity");
 
             if cap >= 1024 * 1024 {
                 break cap;
@@ -1019,7 +1115,7 @@ async fn h2_flow_control_window_sizes() {
         }
     })
     .await
-    .expect("timed out waiting for flow control capacity");
+    .expect("Timed out waiting for flow control capacity");
 
     assert!(
         cap >= 1024 * 1024,
@@ -1032,4 +1128,74 @@ async fn h2_flow_control_window_sizes() {
     assert!(res.status().is_success());
 
     srv.stop().await;
+}
+
+#[cfg(feature = "http2")]
+#[tokio::test]
+async fn h2_graceful_shutdown_sends_goaway() {
+    use actix_web::{web, App, HttpResponse, HttpServer};
+    use tokio::sync::Notify;
+
+    let started = Arc::new(Notify::new());
+    let handler_started = started.clone();
+    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::from(handler_started.clone()))
+            .route(
+                "/slow",
+                web::get().to(|started: web::Data<Notify>| async move {
+                    started.notify_one();
+                    sleep(Duration::from_millis(500)).await;
+                    HttpResponse::Ok().finish()
+                }),
+            )
+    })
+    .workers(1)
+    .disable_signals()
+    .shutdown_timeout(30)
+    .listen_auto_h2c(listener)
+    .unwrap()
+    .run();
+
+    let handle = server.handle();
+    let server = tokio::spawn(server);
+    let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let (client, conn) = h2::client::handshake(stream).await.unwrap();
+    let conn = tokio::spawn(conn);
+
+    let mut client = client.ready().await.unwrap();
+    let request = http::Request::get("http://localhost/slow")
+        .body(())
+        .unwrap();
+    let (slow, _) = client.send_request(request, true).unwrap();
+    started.notified().await;
+
+    let stopping = Instant::now();
+    let stop = tokio::spawn(async move { handle.stop(true).await });
+
+    assert_eq!(
+        slow.await.unwrap().status(),
+        200,
+        "in-flight stream failed on shutdown"
+    );
+
+    conn.await.unwrap().unwrap();
+    stop.await.unwrap();
+    let stopped_after = stopping.elapsed();
+
+    assert!(
+        client.ready().await.is_err(),
+        "closed connection accepted a new stream"
+    );
+
+    server.await.unwrap().unwrap();
+
+    // Without GOAWAY the client keeps the connection open and actix waits the full 30s.
+    assert!(
+        stopped_after < Duration::from_secs(5),
+        "shutdown waited for the timeout: {stopped_after:?}"
+    );
 }

@@ -18,7 +18,7 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.89"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.

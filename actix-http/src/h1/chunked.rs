@@ -217,6 +217,10 @@ impl ChunkedState {
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid chunk end CR",
+            ))),
             _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
@@ -234,6 +238,8 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use actix_codec::Decoder as _;
     use bytes::{Bytes, BytesMut};
     use http::Method;
@@ -540,5 +546,43 @@ mod tests {
 
         assert_decode_chunk_eq!(pl, buf, b"data");
         assert_decode_chunked_eof!(pl, buf);
+    }
+
+    #[test]
+    fn test_chunked_bare_lf_after_last_chunk_keeps_next_request_intact() {
+        let mut buf = BytesMut::from(
+            "POST /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+        assert!(req.chunked().unwrap());
+
+        // The last chunk is terminated by a bare LF instead of CRLF and a second
+        // request is pipelined onto the same connection.
+        buf.extend(
+            b"5\r\nhello\r\n0\r\n\n\
+              POST /front HTTP/1.1\r\n\
+              Host: localhost\r\n\
+              Content-Length: 2\r\n\r\n\
+              ab"
+            .iter(),
+        );
+
+        let msg = pl.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"hello");
+
+        // Reject the bare LF without consuming the pipelined request.
+        let err = pl.decode(&mut buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+
+        assert!(
+            buf.as_ref().starts_with(b"POST /front"),
+            "Pipelined request head was consumed: {:?}",
+            String::from_utf8_lossy(&buf)
+        );
     }
 }

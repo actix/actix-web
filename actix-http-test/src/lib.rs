@@ -77,7 +77,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
                 .disable_signals()
                 .system_exit()
                 .listen("test", tcp, factory)
-                .expect("test server could not be created");
+                .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx
@@ -214,6 +214,16 @@ impl TestServer {
     /// Create HTTPS `PATCH` request
     pub fn spatch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.patch(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `QUERY` request
+    pub fn query<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create HTTPS `QUERY` request
+    pub fn squery<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.surl(path.as_ref()).as_str())
     }
 
     /// Create `DELETE` request

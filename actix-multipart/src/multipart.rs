@@ -186,7 +186,7 @@ impl Multipart {
             Flow::InFlight(ref inner) => Ok(inner.content_type.clone()),
             Flow::Error(ref mut err) => Err(err
                 .take()
-                .expect("error should not be taken after it was returned")),
+                .expect("Error should not be taken after it was returned")),
         }
     }
 }
@@ -297,12 +297,12 @@ impl Inner {
     ///
     /// ```plain
     /// --foo    <-- in-between fields
-    /// --foo--  <-- end of request body, should be followed by EOF
+    /// --foo--  <-- final boundary; an epilogue may follow its CRLF
     /// ```
     ///
     /// Returns:
     ///
-    /// - `Ok(Some(true))` - final field boundary read (EOF)
+    /// - `Ok(Some(true))` - final field boundary read
     /// - `Ok(Some(false))` - field boundary read
     /// - `Ok(None)` - boundary not found, more data needs reading
     /// - `Err(BoundaryMissing)` - multipart boundary is missing
@@ -312,6 +312,8 @@ impl Inner {
         }
 
         // TODO: need to read epilogue
+        // Read a complete line, or the remaining bytes at EOF. A partial line must wait
+        // for more input while the stream is open. Examples: b"--foo \t\r\n", b"--foo-- \t".
         let chunk = match payload.readline_or_eof()? {
             // TODO: this might be okay as a let Some() else return Ok(None)
             None => return Ok(payload.eof.then_some(true)),
@@ -321,21 +323,32 @@ impl Inner {
         const BOUNDARY_MARKER: &[u8] = b"--";
         const LINE_BREAK: &[u8] = b"\r\n";
 
+        // Remove the leading "--", shared by intermediate and closing delimiters.
+        // For example, b"--foo-- \t\r\n" becomes b"foo-- \t\r\n".
         let Some(chunk) = chunk.as_ref().strip_prefix(BOUNDARY_MARKER) else {
             return Err(Error::BoundaryMissing);
         };
 
+        // Remove the boundary value. For "foo", the remaining suffix is now
+        // b" \t\r\n" (intermediate) or b"-- \t\r\n" (closing), for example.
         let Some(chunk) = chunk.strip_prefix(boundary.as_bytes()) else {
             return Err(Error::BoundaryMissing);
         };
 
-        if chunk == LINE_BREAK {
-            // boundary is followed by line-break, indicating more fields to come
-            return Ok(Some(false));
+        // An intermediate delimiter requires CRLF, preceded only by optional spaces/tabs.
+        // For b" \t\r\n", removing CRLF and padding leaves an empty slice.
+        if let Some(padding) = chunk.strip_suffix(LINE_BREAK) {
+            if trim_transport_padding(padding).is_empty() {
+                return Ok(Some(false));
+            }
         }
 
-        // boundary is followed by marker
-        if chunk == BOUNDARY_MARKER || chunk == b"--\r\n" {
+        // The original suffix is unchanged by the intermediate-delimiter check above.
+        // A closing delimiter may omit CRLF at EOF: b"-- \t\r\n" or b"-- \t".
+        let chunk = chunk.strip_suffix(LINE_BREAK).unwrap_or(chunk);
+
+        // After removing padding, only the closing "--" may remain.
+        if trim_transport_padding(chunk) == BOUNDARY_MARKER {
             return Ok(Some(true));
         }
 
@@ -363,6 +376,7 @@ impl Inner {
                     let Some(line) = chunk.as_ref().strip_suffix(b"\r\n") else {
                         continue;
                     };
+                    let line = trim_transport_padding(line);
 
                     if let Some(line) = line.strip_prefix(b"--") {
                         if line == boundary {
@@ -529,6 +543,16 @@ impl Drop for Inner {
         // InnerMultipartItem::Field has to be dropped first because of Safety.
         self.item = Item::None;
     }
+}
+
+/// Strips the transport padding (spaces and tabs) that RFC 2046 §5.1.1 allows between a boundary
+/// delimiter and the line-break that ends it.
+fn trim_transport_padding(line: &[u8]) -> &[u8] {
+    let end = line
+        .iter()
+        .rposition(|&b| b != b' ' && b != b'\t')
+        .map_or(0, |i| i + 1);
+    &line[..end]
 }
 
 #[cfg(test)]
@@ -943,6 +967,37 @@ mod tests {
             None => {}
             _ => unreachable!(),
         }
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_transport_padding() {
+        let (sender, payload) = create_stream();
+        let bytes = Bytes::from(
+            "--abbc761f78ff4d7cb7573b5a23f96ef0  \r\n\
+             Content-Disposition: form-data; name=\"first\"\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\t\r\n\
+             Content-Disposition: form-data; name=\"second\"\r\n\r\n\
+             data\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0-- \t\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        sender.send(Ok(bytes)).unwrap();
+        drop(sender); // eof
+
+        let mut multipart = Multipart::new(&headers, payload);
+        for (name, data) in [("first", "test"), ("second", "data")] {
+            let mut field = multipart.next().await.unwrap().unwrap();
+            assert_eq!(field.name(), Some(name));
+            assert_eq!(get_whole_field(&mut field).await, data);
+        }
+        assert!(multipart.next().await.is_none());
     }
 
     // Loops, collecting all bytes until end-of-field

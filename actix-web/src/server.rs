@@ -123,7 +123,7 @@ where
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
-                tcp_nodelay: None,
+                tcp_nodelay: Some(true),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
@@ -170,8 +170,7 @@ where
 
     /// Sets `TCP_NODELAY` value on accepted TCP connections.
     ///
-    /// By default, accepted TCP connections keep the OS default.
-    /// This method overrides that behavior for all accepted TCP connections.
+    /// Enabled by default to send small writes without waiting for an acknowledgement.
     pub fn tcp_nodelay(self, enabled: bool) -> Self {
         self.config.lock().unwrap().tcp_nodelay = Some(enabled);
         self
@@ -343,6 +342,11 @@ where
     ///
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
     /// [Extensions] container so that connection data can be accessed in middleware and handlers.
+    ///
+    /// # Call Order
+    /// The callback is captured when a listener is bound, so this must be called **before**
+    /// [`bind()`](Self::bind()) (or any other `bind_*`/`listen_*` method). Calling it afterwards
+    /// has no effect on the already-bound listeners.
     ///
     /// # Connection Types
     /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using OpenSSL.
@@ -1344,6 +1348,8 @@ where
     B: MessageBody,
 {
     /// Start listening for incoming connections.
+    ///
+    /// The server does not accept connections until the returned [`Server`] future is first polled.
     ///
     /// # Workers
     /// This method starts a number of HTTP workers in separate threads. The number of workers in a

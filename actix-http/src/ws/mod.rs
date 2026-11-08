@@ -62,8 +62,11 @@ pub enum ProtocolError {
     #[display("Bad opcode")]
     BadOpCode,
 
-    /// A payload reached size limit.
-    #[display("Payload reached size limit")]
+    /// A payload length is invalid, or exceeds the configured size limit.
+    ///
+    /// A 64-bit length with its most significant bit set is invalid (RFC 6455 §5.2), as is one that
+    /// does not fit in `usize`, or one whose addition to the frame offset overflows.
+    #[display("Payload length is invalid or exceeds the size limit")]
     Overflow,
 
     /// Continuation has not started.
@@ -87,7 +90,7 @@ pub enum ProtocolError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
-    #[display("method not allowed")]
+    #[display("Method not allowed")]
     GetMethodRequired,
 
     /// Upgrade header if not set to WebSocket.
@@ -95,7 +98,7 @@ pub enum HandshakeError {
     NoWebsocketUpgrade,
 
     /// Connection header is not set to upgrade.
-    #[display("connection upgrade is expected")]
+    #[display("Connection upgrade is expected")]
     NoConnectionUpgrade,
 
     /// WebSocket version header is not set.
@@ -103,11 +106,11 @@ pub enum HandshakeError {
     NoVersionHeader,
 
     /// Unsupported WebSocket version.
-    #[display("unsupported WebSocket version")]
+    #[display("Unsupported WebSocket version")]
     UnsupportedVersion,
 
     /// WebSocket key is not set or wrong.
-    #[display("unknown WebSocket key")]
+    #[display("Unknown WebSocket key")]
     BadWebsocketKey,
 }
 

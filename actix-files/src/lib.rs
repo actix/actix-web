@@ -71,13 +71,16 @@ mod tests {
     use std::{
         ffi::OsString,
         fmt::Write as _,
-        fs::{self},
+        fs,
         ops::Add,
         path::PathBuf,
+        str,
         time::{Duration, SystemTime},
     };
 
+    use actix_http::header::HttpDate;
     use actix_web::{
+        body,
         dev::ServiceFactory,
         guard,
         http::{
@@ -106,6 +109,104 @@ mod tests {
 
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_none_match_get_and_head() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap().to_string();
+
+        for method in [Method::GET, Method::HEAD] {
+            for value in [etag.as_str(), "*"] {
+                let req = TestRequest::default()
+                    .method(method.clone())
+                    .insert_header((header::IF_NONE_MATCH, value))
+                    .to_http_request();
+                let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+                assert_eq!(
+                    resp.status(),
+                    StatusCode::NOT_MODIFIED,
+                    "{method} with matching If-None-Match {value} should return 304"
+                );
+                assert!(
+                    body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                    "{method} with matching If-None-Match {value} should have an empty body"
+                );
+            }
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_if_none_match_post() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap().to_string();
+
+        for value in [etag.as_str(), "*"] {
+            let req = TestRequest::post()
+                .insert_header((header::IF_NONE_MATCH, value))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::PRECONDITION_FAILED,
+                "POST with matching If-None-Match {value} should return 412"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "POST with matching If-None-Match {value} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_if_modified_since_get_and_head() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        for method in [Method::GET, Method::HEAD] {
+            let req = TestRequest::default()
+                .method(method.clone())
+                .insert_header((header::IF_MODIFIED_SINCE, since))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_MODIFIED,
+                "{method} with matching If-Modified-Since should return 304"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "{method} with matching If-Modified-Since should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_if_modified_since_post() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::post()
+            .insert_header((header::IF_MODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.into_response(&req);
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "POST should ignore If-Modified-Since and return 200"
+        );
+
+        let bytes = body::to_bytes(resp.into_body()).await.unwrap();
+
+        assert_eq!(
+            bytes.as_ref(),
+            fs::read("Cargo.toml").unwrap(),
+            "POST should return the full file despite If-Modified-Since"
+        );
     }
 
     #[actix_rt::test]
@@ -143,6 +244,33 @@ mod tests {
             .to_http_request();
         let resp = file.respond_to(&req);
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_match_overrides_if_unmodified_since() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap();
+        let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_MATCH, etag))
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_match_failure_with_if_unmodified_since() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_MATCH, "\"nonmatching-etag\""))
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
+            .to_http_request();
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
     #[actix_rt::test]
@@ -461,6 +589,180 @@ mod tests {
         let response = test::call_service(&srv, request).await;
 
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_if_none_match_before_range() {
+        let req = TestRequest::get().to_http_request();
+        let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+        let etag = resp.headers().get(header::ETAG).unwrap().clone();
+
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_NONE_MATCH, etag.clone()))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_MODIFIED,
+                "matching If-None-Match with {range} should return 304"
+            );
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "conditional response with {range} should omit Content-Range"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_if_match_before_range() {
+        for range in ["bytes=999999999-", "bytes=0-9"] {
+            let req = TestRequest::get()
+                .insert_header((header::IF_MATCH, "\"stale\""))
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
+
+            assert_eq!(
+                resp.status(),
+                StatusCode::PRECONDITION_FAILED,
+                "nonmatching If-Match with {range} should return 412"
+            );
+            assert!(
+                !resp.headers().contains_key(header::CONTENT_RANGE),
+                "conditional response with {range} should omit Content-Range"
+            );
+            assert!(
+                body::to_bytes(resp.into_body()).await.unwrap().is_empty(),
+                "conditional response with {range} should have an empty body"
+            );
+        }
+    }
+
+    #[actix_web::test]
+    async fn byte_range_units_are_case_insensitive() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in ["Bytes=2-4", "BYTES=2-4", "bYtEs=2-4", "bytes=2-4"] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::PARTIAL_CONTENT,
+                "range {range} should produce the expected status"
+            );
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                "bytes 2-4/10"
+            );
+            assert_eq!(
+                body::to_bytes(response.into_body()).await.unwrap(),
+                b"234"[..]
+            );
+        }
+    }
+
+    #[actix_web::test]
+    async fn unknown_range_units_are_ignored() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in ["items=2-4", "BYTESX=2-4", "items=first", "items=100-200"] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "range {range} should produce the expected status"
+            );
+            assert!(!response.headers().contains_key(header::CONTENT_RANGE));
+            assert_eq!(
+                body::to_bytes(response.into_body()).await.unwrap(),
+                b"0123456789"[..]
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_if_range_etag() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let etag = file.etag().unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((header::RANGE, "bytes=0-9"))
+            .insert_header((header::IF_RANGE, etag.to_string()))
+            .to_http_request();
+
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+
+        // a validator that no longer matches must yield the whole current representation
+        for stale in ["\"stale\"", "W/\"stale\"", "not a validator"] {
+            let file = NamedFile::open("Cargo.toml").unwrap();
+            let content = fs::read("Cargo.toml").unwrap();
+
+            let req = TestRequest::default()
+                .insert_header((header::RANGE, "bytes=0-9"))
+                .insert_header((header::IF_RANGE, stale))
+                .to_http_request();
+
+            let resp = file.respond_to(&req);
+            assert_eq!(resp.status(), StatusCode::OK, "If-Range: {stale}");
+            assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
+
+            let body = body::to_bytes(resp.into_body()).await.unwrap();
+
+            assert_eq!(
+                body, content,
+                "Response body and full file content should match",
+            );
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_if_range_date() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let content = fs::read("Cargo.toml").unwrap();
+        let modified = file.last_modified().unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((header::RANGE, "bytes=0-9"))
+            .insert_header((header::IF_RANGE, modified))
+            .to_http_request();
+
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let later = HttpDate::from(SystemTime::from(modified).add(Duration::from_secs(60)));
+        let req = TestRequest::default()
+            .insert_header((header::RANGE, "bytes=0-9"))
+            .insert_header((header::IF_RANGE, later))
+            .to_http_request();
+
+        let resp = file.respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(!resp.headers().contains_key(header::CONTENT_RANGE));
+
+        let body = body::to_bytes(resp.into_body()).await.unwrap();
+
+        assert_eq!(
+            body, content,
+            "Response body and full file content should match",
+        );
     }
 
     #[actix_rt::test]
@@ -1183,7 +1485,7 @@ mod tests {
                 write!(&mut buf, "%{:02X}", c).unwrap();
                 buf
             });
-        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
+        fs::File::create(temp_dir.path().join(filename)).unwrap();
 
         let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
 
@@ -1306,6 +1608,80 @@ mod tests {
         );
         let bytes = test::read_body(resp).await;
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    #[actix_rt::test]
+    async fn test_directory_listing_href_escaping() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            ("safe.txt", "/safe.txt"),
+            #[cfg(unix)]
+            (
+                "x\"><img src=x onerror=alert(1)>.txt",
+                "/x%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E.txt",
+            ),
+            #[cfg(unix)]
+            ("query?.txt", "/query%3F.txt"),
+            ("`&# %+ .txt", "/%60%26%23%20%25%2B%20.txt"),
+            ("AZaz09-._~.txt", "/AZaz09-._~.txt"),
+        ];
+
+        for (name, _) in cases {
+            fs::write(dir.path().join(name), "file contents").unwrap();
+        }
+
+        let service = Files::new("/", dir.path())
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body = str::from_utf8(&body).unwrap();
+        assert_eq!(body.matches("<a ").count(), cases.len());
+        assert_eq!(body.matches("</a>").count(), cases.len());
+
+        for anchor in body.split("<a href=\"").skip(1) {
+            let href = anchor.split('"').next().unwrap();
+            assert!(!href.contains('<'));
+            assert!(
+                href.ends_with(".txt"),
+                "href does not contain the whole file name: {href}"
+            );
+        }
+
+        for (name, href) in cases {
+            let text = v_htmlescape::escape_fmt(name);
+            assert!(body.contains(&format!("<a href=\"{href}\">{text}</a>")));
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_directory_listing_nested_href() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("file #1.txt"), "file contents").unwrap();
+        fs::create_dir(nested.join("folder & more")).unwrap();
+
+        let service = Files::new("/", dir.path())
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/nested/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body = str::from_utf8(&body).unwrap();
+        assert!(body.contains("<a href=\"/nested/file%20%231.txt\">file #1.txt</a>"));
+        assert!(body.contains("<a href=\"/nested/folder%20%26%20more\">folder &amp; more/</a>"));
     }
 
     #[actix_rt::test]

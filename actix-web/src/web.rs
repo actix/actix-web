@@ -129,6 +129,48 @@ method_route!(delete, DELETE);
 method_route!(head, HEAD);
 method_route!(trace, TRACE);
 
+/// Creates a new route with `QUERY` method guard.
+///
+/// # Examples
+///
+/// In this example, one `QUERY /{project_id}` route is set up:
+///
+///  ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::query().to(|| HttpResponse::Ok()))
+/// );
+/// ```
+///
+/// If you have registered an equivalent `GET` route using query parameters, it is recommended to
+/// add an `Accept-Query` header to its response.
+///
+/// ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// # type T = String;
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .get(|query: web::Query<T>| async move {
+///             // ... use query ...
+///
+///             HttpResponse::Ok()
+///                 .insert_header(("Accept-Query", "application/json"))
+///                 .finish()
+///         })
+///         .query(|query: web::Json<T>| async move {
+///             // ... use query ...
+///
+///             HttpResponse::Ok().finish()
+///         })
+/// );
+/// ```
+pub fn query() -> Route {
+    method(Method::from_bytes(b"QUERY").unwrap())
+}
+
 /// Creates a new route with specified method guard.
 ///
 /// # Examples

@@ -65,7 +65,7 @@ impl DefaultHeaders {
 
         match header.try_into_pair() {
             Ok((key, value)) => Rc::get_mut(&mut self.inner)
-                .expect("All default headers must be added before cloning.")
+                .expect("All default headers must be added before cloning")
                 .headers
                 .append(key, value),
             Err(err) => panic!("Invalid header: {}", err.into()),
