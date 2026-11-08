@@ -36,6 +36,7 @@ struct Config {
     h1_write_buffer_size: Option<usize>,
     h2_initial_window_size: Option<u32>,
     h2_initial_connection_window_size: Option<u32>,
+    h2_max_connection_age: Option<Duration>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -130,6 +131,7 @@ where
                 h1_write_buffer_size: None,
                 h2_initial_window_size: None,
                 h2_initial_connection_window_size: None,
+                h2_max_connection_age: None,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -336,6 +338,20 @@ where
             .lock()
             .unwrap()
             .h2_initial_connection_window_size = Some(size);
+        self
+    }
+
+    /// Sets the maximum age of HTTP/2 connections.
+    ///
+    /// Once a connection reaches this age (with +/-10% jitter), the server sends GOAWAY and stops
+    /// accepting new streams on it. In-flight streams finish before the connection closes and the
+    /// client opens a new connection for further requests. This lets layer 4 load balancers, such
+    /// as Kubernetes `ClusterIP` Services, spread long-lived HTTP/2 clients across new instances.
+    ///
+    /// HTTP/1 connections are not affected. Disabled by default.
+    #[cfg(feature = "http2")]
+    pub fn h2_max_connection_age(self, age: Duration) -> Self {
+        self.config.lock().unwrap().h2_max_connection_age = Some(age);
         self
     }
 
@@ -683,6 +699,10 @@ where
                         svc = svc.h2_initial_connection_window_size(val);
                     }
 
+                    if let Some(age) = cfg.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
                             svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
@@ -748,6 +768,10 @@ where
 
                     if let Some(val) = cfg.h2_initial_connection_window_size {
                         svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(age) = cfg.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -850,6 +874,10 @@ where
                         svc = svc.h2_initial_connection_window_size(val);
                     }
 
+                    if let Some(age) = c.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc = svc
                             .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
@@ -921,6 +949,10 @@ where
 
                     if let Some(val) = c.h2_initial_connection_window_size {
                         svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(age) = c.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -1012,6 +1044,10 @@ where
                         svc = svc.h2_initial_connection_window_size(val);
                     }
 
+                    if let Some(age) = c.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
+                    }
+
                     if let Some(handler) = on_connect_fn.clone() {
                         svc = svc
                             .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
@@ -1099,6 +1135,10 @@ where
 
                     if let Some(val) = c.h2_initial_connection_window_size {
                         svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(age) = c.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -1189,6 +1229,10 @@ where
 
                     if let Some(val) = c.h2_initial_connection_window_size {
                         svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(age) = c.h2_max_connection_age {
+                        svc = svc.h2_max_connection_age(age);
                     }
 
                     if let Some(handler) = on_connect_fn.clone() {
