@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.20.4
+
 - Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
 
 ## 3.20.3
