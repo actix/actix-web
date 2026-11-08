@@ -50,7 +50,6 @@ To enable faster release iterations, we mark some features as experimental. Thes
 - [Website & User Guide](https://actix.rs)
 - [Examples Repository](https://github.com/actix/examples)
 - [API Documentation](https://docs.rs/actix-web)
-- [API Documentation (main branch)](https://actix.rs/actix-web/actix_web)
 
 ## Example
 
