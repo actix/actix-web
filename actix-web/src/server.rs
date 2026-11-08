@@ -541,11 +541,15 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     #[cfg(feature = "http2")]
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `bind()` instead."
+    )]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
         for lst in sockets {
-            self = self.listen_auto_h2c(lst)?;
+            self = self.listen_auto_h2c_inner(lst)?;
         }
 
         Ok(self)
@@ -663,7 +667,7 @@ where
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
         #[cfg(feature = "http2")]
         if self.auto_h2c {
-            return self.listen_auto_h2c(lst);
+            return self.listen_auto_h2c_inner(lst);
         }
 
         let cfg = Arc::clone(&self.config);
@@ -732,7 +736,16 @@ where
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
-    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `listen()` instead."
+    )]
+    pub fn listen_auto_h2c(self, lst: net::TcpListener) -> io::Result<Self> {
+        self.listen_auto_h2c_inner(lst)
+    }
+
+    #[cfg(feature = "http2")]
+    fn listen_auto_h2c_inner(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();

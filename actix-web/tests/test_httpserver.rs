@@ -584,6 +584,8 @@ async fn test_plaintext_protocol_selection() {
         }
 
         let server = if explicit {
+            // Check that the deprecated method still overrides the opt-out.
+            #[allow(deprecated)]
             server.listen_auto_h2c(listener).unwrap()
         } else {
             server.listen(listener).unwrap()
