@@ -47,6 +47,12 @@ impl AsyncWrite for LimitedWriter {
         Poll::Ready(Ok(written))
     }
 
+    // as a TCP stream does, so large sized bodies are written without the copy; the default
+    // `poll_write_vectored` writes one buffer per call
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_flush(cx)
     }
@@ -218,4 +224,77 @@ async fn small_write_watermark_preserves_normal_buffer() {
 async fn buffer_above_configured_write_watermark_released() {
     // A larger watermark sets the limit directly; it is not multiplied by four.
     check_buffer_retention(512 * 1024, 256 * 1024, false, true).await;
+}
+
+#[actix_rt::test]
+async fn blocked_sized_body_keeps_no_extra_memory() {
+    const BODY_LEN: usize = 64 * 1024;
+
+    for spare in [false, true] {
+        let io = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        // Accept the head and part of the body, then block.
+        let allowance = Rc::new(Cell::new(1024));
+        let services = HttpFlow::new(
+            fn_service(move |_: Request| {
+                // With `spare`, the body has room to spare, as the `String` behind `.json()` does.
+                let mut body = Vec::with_capacity(if spare { 2 * BODY_LEN } else { BODY_LEN });
+                body.resize(BODY_LEN, b'x');
+                let res = Response::ok().set_body(bytes::Bytes::from(body));
+                async move { Ok::<_, Error>(res) }
+            }),
+            ExpectHandler,
+            None::<UpgradeHandler>,
+        );
+        let dispatcher = Dispatcher::new(
+            LimitedWriter {
+                io: io.clone(),
+                allowance: allowance.clone(),
+            },
+            services,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+        );
+        let mut dispatcher = pin!(dispatcher);
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+
+        assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
+
+        let DispatcherState::Normal { inner } = &dispatcher.inner else {
+            panic!()
+        };
+        if spare {
+            // holding it would keep the spare room, so it was copied into the buffer instead
+            assert!(inner.write_body.is_none(), "body with spare capacity held");
+        } else {
+            // the head is out, so the connection holds the body and nothing else
+            assert!(inner.write_body.is_some());
+            assert_eq!(
+                inner.write_buf.capacity(),
+                0,
+                "write buffer kept while the body waits"
+            );
+        }
+
+        allowance.set(usize::MAX);
+        assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
+
+        let response = io.take_write_buf();
+        let body_start = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap()
+            + 4;
+        assert_eq!(
+            &response[body_start..],
+            vec![b'x'; BODY_LEN],
+            "spare: {spare}"
+        );
+
+        // The write buffer is back for the next response.
+        let DispatcherState::Normal { inner } = &dispatcher.inner else {
+            panic!()
+        };
+        assert!(inner.write_buf.capacity() >= HW_BUFFER_SIZE);
+    }
 }
