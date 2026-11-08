@@ -47,8 +47,8 @@ const WRITE_BUFFER_RETENTION_LIMIT: usize = 1024 * 128;
 /// Holds a large chunk of a fixed-length body as `write_body`, to go out after `write_buf` without
 /// a copy, or gives it back to be copied into `write_buf` when holding it would cost more. A stream
 /// without vectored writes would take the head and the chunk in two writes, so there the chunk is
-/// copied, as hyper does on such streams. A chunk that is the only reference to an allocation with
-/// room to spare, like the `String` behind `.json()`, would keep that room allocated until written.
+/// copied. A chunk that is the only reference to an allocation with room to spare, like the
+/// `String` behind `.json()`, would keep that room allocated until it is written.
 fn hold_chunk(
     codec: &mut Codec,
     write_body: &mut Option<Bytes>,
