@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.8.7
+
+- Add `MultipartFormConfig::max_parts()` with a default global limit of 100 parts per form.
+- Add `MultipartCollect::max_parts()` and support the derive attribute `#[multipart(max_parts = 10)]`. The lower of the form limit and the global limit applies.
+
 ## 0.8.6
 
 - Accept transport padding (spaces and tabs) after boundary delimiters, as allowed by RFC 2046.

@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.20.3"
+version = "3.20.5"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "actix-multipart"
-version = "0.8.6"
+version = "0.8.7"
 dependencies = [
  "actix-http",
  "actix-multipart-derive",
@@ -179,7 +179,7 @@ dependencies = [
 
 [[package]]
 name = "actix-multipart-derive"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "bytesize",
  "darling",

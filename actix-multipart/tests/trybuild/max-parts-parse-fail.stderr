@@ -1,0 +1,29 @@
+error: invalid digit found in string
+ --> tests/trybuild/max-parts-parse-fail.rs:4:25
+  |
+4 | #[multipart(max_parts = -1)]
+  |                         ^
+
+error: Unknown value: `many`
+ --> tests/trybuild/max-parts-parse-fail.rs:8:25
+  |
+8 | #[multipart(max_parts = "many")]
+  |                         ^^^^^^
+
+error: Unexpected type `float`
+  --> tests/trybuild/max-parts-parse-fail.rs:12:25
+   |
+12 | #[multipart(max_parts = 1.5)]
+   |                         ^^^
+
+error: Duplicate field `max_parts`
+  --> tests/trybuild/max-parts-parse-fail.rs:16:28
+   |
+16 | #[multipart(max_parts = 1, max_parts = 2)]
+   |                            ^^^^^^^^^
+
+error: Unknown field: `max_parts`. Available values: `limit`, `rename`
+  --> tests/trybuild/max-parts-parse-fail.rs:21:17
+   |
+21 |     #[multipart(max_parts = 2)]
+   |                 ^^^^^^^^^

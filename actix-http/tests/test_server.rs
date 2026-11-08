@@ -951,10 +951,6 @@ async fn h1_on_connect() {
 /// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
 #[actix_rt::test]
 async fn not_modified_spec_h1() {
-    // TODO: this test needing a few seconds to complete reveals some weirdness with either the
-    // dispatcher or the client, though similar hangs occur on other tests in this file, only
-    // succeeding, it seems, because of the keepalive timer
-
     static CL: header::HeaderName = header::CONTENT_LENGTH;
 
     let mut srv = test_server(|| {
@@ -1020,10 +1016,8 @@ async fn not_modified_spec_h1() {
         res.headers().get(&CL),
         Some(&header::HeaderValue::from_static("4")),
     );
-    // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug in the client, especially since CL header can differ in length
-    // from the body
-    assert!(!srv.load_body(res).await.unwrap().is_empty());
+    // RFC 9112 §6.3: the client must not read a body for a 304 response.
+    assert!(srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
 
@@ -1134,4 +1128,74 @@ async fn h2_flow_control_window_sizes() {
     assert!(res.status().is_success());
 
     srv.stop().await;
+}
+
+#[cfg(feature = "http2")]
+#[tokio::test]
+async fn h2_graceful_shutdown_sends_goaway() {
+    use actix_web::{web, App, HttpResponse, HttpServer};
+    use tokio::sync::Notify;
+
+    let started = Arc::new(Notify::new());
+    let handler_started = started.clone();
+    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::from(handler_started.clone()))
+            .route(
+                "/slow",
+                web::get().to(|started: web::Data<Notify>| async move {
+                    started.notify_one();
+                    sleep(Duration::from_millis(500)).await;
+                    HttpResponse::Ok().finish()
+                }),
+            )
+    })
+    .workers(1)
+    .disable_signals()
+    .shutdown_timeout(30)
+    .listen_auto_h2c(listener)
+    .unwrap()
+    .run();
+
+    let handle = server.handle();
+    let server = tokio::spawn(server);
+    let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let (client, conn) = h2::client::handshake(stream).await.unwrap();
+    let conn = tokio::spawn(conn);
+
+    let mut client = client.ready().await.unwrap();
+    let request = http::Request::get("http://localhost/slow")
+        .body(())
+        .unwrap();
+    let (slow, _) = client.send_request(request, true).unwrap();
+    started.notified().await;
+
+    let stopping = Instant::now();
+    let stop = tokio::spawn(async move { handle.stop(true).await });
+
+    assert_eq!(
+        slow.await.unwrap().status(),
+        200,
+        "in-flight stream failed on shutdown"
+    );
+
+    conn.await.unwrap().unwrap();
+    stop.await.unwrap();
+    let stopped_after = stopping.elapsed();
+
+    assert!(
+        client.ready().await.is_err(),
+        "closed connection accepted a new stream"
+    );
+
+    server.await.unwrap().unwrap();
+
+    // Without GOAWAY the client keeps the connection open and actix waits the full 30s.
+    assert!(
+        stopped_after < Duration::from_secs(5),
+        "shutdown waited for the timeout: {stopped_after:?}"
+    );
 }
