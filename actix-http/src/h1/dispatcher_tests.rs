@@ -1630,9 +1630,16 @@ impl AsyncWrite for TrickleIo {
 #[actix_rt::test]
 async fn sized_body_does_not_grow_write_buf() {
     let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: Rc::default(),
+    };
     let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
     let h1 = Dispatcher::new(
-        buf.clone(),
+        io,
         services,
         ServiceConfig::default(),
         None,
@@ -1677,6 +1684,14 @@ async fn sized_body_survives_partial_writes() {
 
         lazy(|cx| {
             assert!(h1.as_mut().poll(cx).is_pending());
+
+            // without vectored writes the chunk is copied into the write buffer, as before
+            let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project()
+            else {
+                panic!("dispatcher state should be Normal");
+            };
+            assert_eq!(inner.write_body.is_some(), vectored);
+
             assert!(h1.as_mut().poll(cx).is_pending());
 
             let res = buf.take_write_buf();
