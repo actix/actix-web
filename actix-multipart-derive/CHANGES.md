@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Add the struct attribute `#[multipart(max_parts = 10)]` to limit the number of parts in a form.
+## 0.8.2
 
+- Add the struct attribute `#[multipart(max_parts = 10)]` to limit the number of parts in a form.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 0.8.1
