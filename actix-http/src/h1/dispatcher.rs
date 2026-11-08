@@ -1,4 +1,5 @@
 use std::{
+    cmp,
     collections::VecDeque,
     fmt,
     future::Future,
@@ -184,8 +185,21 @@ pin_project! {
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
+
+        // Encoded response heads and buffered body chunks, in wire order.
+        //
+        // Includes small fixed-length chunks and chunks from chunked or close-delimited bodies.
+        // Encoding a chunk can grow this buffer beyond `h1_write_buffer_size`.
+        // These bytes are written before any pending bytes in `write_body`.
         write_buf: BytesMut,
-        // a large body chunk written after `write_buf` without being copied into it
+
+        // Unwritten bytes of one large fixed-length body chunk, sent after `write_buf`.
+        //
+        // Chunks at least `h1_write_buffer_size` bytes long are retained here without copying
+        // them into `write_buf`, limited to the remaining declared body length. This can be
+        // the entire body or one chunk from a stream with a known total length.
+        // Partial writes advance this slice; body polling pauses while this field is `Some`.
+        // Continue responses and upgrades move any remaining bytes back into `write_buf`.
         write_body: Option<Bytes>,
 
         // Number of bytes to busy-buffer before flushing.
@@ -195,6 +209,27 @@ pin_project! {
         write_buf_needs_reset: bool,
 
         codec: Codec,
+    }
+}
+
+impl<T, S, B, X, U> InnerDispatcherProj<'_, T, S, B, X, U>
+where
+    S: Service<Request>,
+    S::Error: Into<Response<BoxBody>>,
+
+    B: MessageBody,
+
+    X: Service<Request, Response = Request>,
+    X::Error: Into<Response<BoxBody>>,
+
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+{
+    /// Copies any pending body bytes into `write_buf` and clears `write_body`.
+    fn ensure_body_buffered(&mut self) {
+        if let Some(body) = self.write_body.take() {
+            self.write_buf.extend_from_slice(&body);
+        }
     }
 }
 
@@ -370,6 +405,7 @@ where
             write_buf_needs_reset,
             ..
         } = self.project();
+
         let mut io = Pin::new(io.as_mut().unwrap());
 
         // Allow normal buffer growth, but do not retain allocations caused by large response
@@ -382,23 +418,29 @@ where
             *write_buf_needs_reset = true;
         }
 
-        let len = write_buf.len();
-        let mut written = 0;
+        let write_buf_len = write_buf.len();
+        let mut write_buf_written = 0;
 
         loop {
-            let head = &write_buf[written..];
-            let body: &[u8] = write_body.as_deref().unwrap_or_default();
+            let head = &write_buf[write_buf_written..];
             let head_len = head.len();
-            let polled = if head.is_empty() && body.is_empty() {
-                break;
-            } else if !head.is_empty() && !body.is_empty() && io.is_write_vectored() {
-                io.as_mut()
-                    .poll_write_vectored(cx, &[io::IoSlice::new(head), io::IoSlice::new(body)])?
-            } else if !head.is_empty() {
-                io.as_mut().poll_write(cx, head)?
-            } else {
-                io.as_mut().poll_write(cx, body)?
+
+            let polled = match (head, write_body.as_deref()) {
+                // Both segments are drained. Avoid an empty write that could return zero.
+                ([], None | Some([])) => break,
+
+                // The buffered prefix is drained, so write the remaining body bytes.
+                ([], Some(body)) => io.as_mut().poll_write(cx, body)?,
+
+                // Write the buffered prefix and body in order with one vectored write.
+                (head, Some(body @ [_, ..])) if io.is_write_vectored() => io
+                    .as_mut()
+                    .poll_write_vectored(cx, &[io::IoSlice::new(head), io::IoSlice::new(body)])?,
+
+                // Keep buffered bytes ahead of the body when writing one slice at a time.
+                (head, _) => io.as_mut().poll_write(cx, head)?,
             };
+
             match polled {
                 Poll::Ready(0) => {
                     error!("write zero; closing");
@@ -406,20 +448,31 @@ where
                 }
 
                 Poll::Ready(n) => {
-                    let from_head = n.min(head_len);
-                    written += from_head;
+                    // Advance cursors of write_buf and write_body buffers according to how much was
+                    // written to the socket for each ready for next loop iteration.
+
+                    let from_head = cmp::min(n, head_len);
+                    write_buf_written += from_head;
+
                     if let Some(body) = write_body.as_mut() {
-                        body.advance(n - from_head);
+                        let from_body = n - from_head;
+                        body.advance(from_body);
                     }
                 }
 
                 Poll::Pending => {
-                    write_buf.advance(written);
+                    // `write_buf_written` counts only buffered bytes and cannot exceed
+                    // `write_buf.len()`
+                    write_buf.advance(write_buf_written);
                     return Poll::Pending;
                 }
             }
         }
-        debug_assert_eq!(written, len);
+
+        debug_assert_eq!(
+            write_buf_written, write_buf_len,
+            "All buffered bytes should be written before leaving the write loop"
+        );
 
         // All bytes have been accepted by the I/O stream, so the buffer can be reused or released.
         if *write_buf_needs_reset {
@@ -428,6 +481,8 @@ where
         } else {
             write_buf.clear();
         }
+
+        // `write_body` is either absent or fully consumed, so clear it.
         *write_body = None;
 
         // flush the I/O and check if get blocked
@@ -615,10 +670,10 @@ where
     }
 
     fn send_continue(self: Pin<&mut Self>) {
-        let this = self.project();
-        if let Some(body) = this.write_body.take() {
-            this.write_buf.extend_from_slice(&body);
-        }
+        let mut this = self.project();
+
+        this.ensure_body_buffered();
+
         this.write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
@@ -846,11 +901,11 @@ where
                         // expect resolved. write continue to buffer and set InnerDispatcher state
                         // to service call.
                         Poll::Ready(Ok(req)) => {
-                            if let Some(body) = this.write_body.take() {
-                                this.write_buf.extend_from_slice(&body);
-                            }
+                            this.ensure_body_buffered();
+
                             this.write_buf
                                 .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
+
                             let fut = this.flow.service.call(req);
                             this.state.set(State::ServiceCall { fut });
                         }
@@ -1323,15 +1378,15 @@ where
 
     /// call upgrade service with request.
     fn upgrade(self: Pin<&mut Self>, req: Request) -> U::Future {
-        let this = self.project();
+        let mut this = self.project();
         let mut parts = FramedParts::with_read_buf(
             this.io.take().unwrap(),
             mem::take(this.codec),
             mem::take(this.read_buf),
         );
-        if let Some(body) = this.write_body.take() {
-            this.write_buf.extend_from_slice(&body);
-        }
+
+        this.ensure_body_buffered();
+
         parts.write_buf = mem::take(this.write_buf);
         let framed = Framed::from_parts(parts);
         this.flow.upgrade.as_ref().unwrap().call((req, framed))
