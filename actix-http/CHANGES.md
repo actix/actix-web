@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Enable `TCP_NODELAY` by default on accepted TCP connections.
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
 
 ## 3.20.5
 
