@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+
 ## 3.20.4
 
 - Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
