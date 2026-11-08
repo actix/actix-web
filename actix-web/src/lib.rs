@@ -128,7 +128,7 @@ pub use crate::error::Result;
 pub use crate::{
     app::App,
     error::{Error, ResponseError},
-    extract::FromRequest,
+    extract::{FromRequest, FromRequestBridge},
     handler::Handler,
     request::HttpRequest,
     resource::Resource,
