@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.20.5
+
 - Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
 
 ## 3.20.4
