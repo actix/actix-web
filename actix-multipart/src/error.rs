@@ -57,6 +57,10 @@ pub enum Error {
     #[display("Nested multipart is not supported")]
     Nested,
 
+    /// The form contains more parts than the configured limit.
+    #[display("Multipart form has too many parts")]
+    TooManyParts,
+
     /// Multipart stream is incomplete.
     #[display("Multipart stream is incomplete")]
     Incomplete,

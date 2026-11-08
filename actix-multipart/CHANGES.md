@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `MultipartCollect::max_parts()` and support the derive attribute `#[multipart(max_parts = 10)]`. The lower of the form limit and the configured limit applies.
+
+- Add `MultipartFormConfig::max_parts()` with a default limit of 100 parts per form. Excess parts return `MultipartError::TooManyParts` before their field reader runs.
+
 ## 0.8.6
 
 - Accept transport padding (spaces and tabs) after boundary delimiters, as allowed by RFC 2046.
