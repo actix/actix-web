@@ -2,13 +2,11 @@ use std::{
     cmp,
     error::Error as StdError,
     future::Future,
-    hash::{BuildHasher, RandomState},
     marker::PhantomData,
     net,
     pin::{pin, Pin},
     rc::Rc,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
@@ -45,7 +43,6 @@ pin_project! {
         peer_addr: Option<net::SocketAddr>,
         ping_pong: Option<H2PingPong>,
         graceful_shutdown: Option<GracefulShutdownFuture>,
-        max_age_timer: Option<Pin<Box<Sleep>>>,
         _phantom: PhantomData<B>
     }
 }
@@ -75,9 +72,6 @@ where
         });
 
         let graceful_shutdown = config.graceful_shutdown();
-        let max_age_timer = config
-            .h2_max_connection_age()
-            .map(|age| Box::pin(sleep(jittered(age))));
 
         Self {
             flow,
@@ -87,27 +81,19 @@ where
             conn_data: conn_data.0.map(Rc::new),
             ping_pong,
             graceful_shutdown,
-            max_age_timer,
             _phantom: PhantomData,
         }
     }
 
-    /// Starts a graceful shutdown of the connection once the server begins shutting down or the
-    /// connection reaches its maximum age.
-    fn poll_retire(&mut self, cx: &mut Context<'_>) {
-        // poll both so each registers its waker
+    /// Starts a graceful shutdown when the server shutdown signal is ready.
+    fn poll_shutdown(&mut self, cx: &mut Context<'_>) {
         let shutdown = self
             .graceful_shutdown
             .as_mut()
             .is_some_and(|signal| signal.as_mut().poll(cx).is_ready());
-        let expired = self
-            .max_age_timer
-            .as_mut()
-            .is_some_and(|timer| timer.as_mut().poll(cx).is_ready());
 
-        if shutdown || expired {
+        if shutdown {
             self.graceful_shutdown = None;
-            self.max_age_timer = None;
 
             // Sends GOAWAY, then a second GOAWAY with the last processed stream ID after a PING
             // round trip. `poll_accept` keeps driving in-flight streams and returns `None` once
@@ -115,13 +101,6 @@ where
             self.connection.graceful_shutdown();
         }
     }
-}
-
-/// Spreads `age` by +/-10% so connections opened together do not all reconnect at once.
-fn jittered(age: Duration) -> Duration {
-    // `RandomState` is randomly keyed per instance, which makes this a std-only random draw.
-    let unit = RandomState::new().hash_one(()) as f64 / u64::MAX as f64;
-    age.mul_f64(0.9 + 0.2 * unit)
 }
 
 struct H2PingPong {
@@ -152,7 +131,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        this.poll_retire(cx);
+        this.poll_shutdown(cx);
 
         loop {
             match Pin::new(&mut this.connection).poll_accept(cx)? {

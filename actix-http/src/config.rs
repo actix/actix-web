@@ -170,24 +170,6 @@ impl ServiceConfigBuilder {
         self
     }
 
-    /// Sets the maximum age of HTTP/2 connections.
-    ///
-    /// Once a connection reaches this age (with +/-10% jitter), the server sends GOAWAY and stops
-    /// accepting new streams on it. In-flight streams finish before the connection closes and the
-    /// client opens a new connection for further requests. This lets layer 4 load balancers, such
-    /// as Kubernetes `ClusterIP` Services, spread long-lived HTTP/2 clients across new instances.
-    ///
-    /// HTTP/1 connections are not affected. Disabled by default.
-    pub fn h2_max_connection_age(mut self, age: Duration) -> Self {
-        self.inner.h2_max_connection_age = Some(age);
-        self
-    }
-
-    pub(crate) fn h2_max_connection_age_opt(mut self, age: Option<Duration>) -> Self {
-        self.inner.h2_max_connection_age = age;
-        self
-    }
-
     /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
     pub fn build(self) -> ServiceConfig {
         ServiceConfig(Rc::new(self.inner))
@@ -211,7 +193,6 @@ struct Inner {
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
-    h2_max_connection_age: Option<Duration>,
     graceful_shutdown_signal: Option<GracefulShutdownSignal>,
 }
 
@@ -229,7 +210,6 @@ impl Default for Inner {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
-            h2_max_connection_age: None,
             graceful_shutdown_signal: None,
         }
     }
@@ -256,7 +236,6 @@ impl ServiceConfig {
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
-            h2_max_connection_age: None,
             graceful_shutdown_signal: None,
         }))
     }
@@ -342,11 +321,6 @@ impl ServiceConfig {
     /// HTTP/2 initial connection-level flow control window size (in bytes).
     pub fn h2_initial_connection_window_size(&self) -> u32 {
         self.0.h2_conn_window_size
-    }
-
-    /// Maximum age of HTTP/2 connections, if set.
-    pub fn h2_max_connection_age(&self) -> Option<Duration> {
-        self.0.h2_max_connection_age
     }
 
     pub(crate) fn now(&self) -> Instant {
