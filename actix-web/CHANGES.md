@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Enable `TCP_NODELAY` by default on accepted TCP connections.
+
 ## 4.18.2
 
 - Increase the default form payload limit to 32 KiB.

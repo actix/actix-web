@@ -106,6 +106,8 @@ impl ServiceConfigBuilder {
     }
 
     /// Sets `TCP_NODELAY` preference for accepted TCP connections.
+    ///
+    /// Defaults to `Some(true)`. Use `None` to keep the socket setting unchanged.
     pub fn tcp_nodelay(mut self, nodelay: Option<bool>) -> Self {
         self.inner.tcp_nodelay = nodelay;
         self
@@ -204,7 +206,7 @@ impl Default for Inner {
             client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
-            tcp_nodelay: None,
+            tcp_nodelay: Some(true),
             date_service: DateService::new(),
             h1_allow_half_closed: true,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
@@ -230,7 +232,7 @@ impl ServiceConfig {
             client_disconnect_timeout,
             secure,
             local_addr,
-            tcp_nodelay: None,
+            tcp_nodelay: Some(true),
             date_service: DateService::new(),
             h1_allow_half_closed: true,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,

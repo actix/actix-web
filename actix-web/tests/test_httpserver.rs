@@ -444,7 +444,7 @@ async fn test_start_ssl() {
     srv.stop(false).await;
 }
 
-async fn assert_tcp_nodelay_config(nodelay: bool) {
+async fn assert_tcp_nodelay_config(nodelay: Option<bool>) {
     let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
@@ -452,7 +452,7 @@ async fn assert_tcp_nodelay_config(nodelay: bool) {
         actix_rt::System::new()
             .block_on(async move {
                 let srv = HttpServer::new(move || {
-                    let expected = nodelay;
+                    let expected = nodelay.unwrap_or(true);
 
                     App::new().service(web::resource("/").route(web::to(
                         move |req: HttpRequest| {
@@ -469,16 +469,22 @@ async fn assert_tcp_nodelay_config(nodelay: bool) {
                         },
                     )))
                 })
-                .workers(1)
-                .tcp_nodelay(nodelay)
-                .on_connect(move |io, ext| {
-                    if let Some(io) = io.downcast_ref::<actix_web::rt::net::TcpStream>() {
-                        ext.insert(io.nodelay().unwrap());
-                    }
-                })
-                .bind(format!("{}", addr))
-                .unwrap()
-                .run();
+                .workers(1);
+
+                let srv = match nodelay {
+                    Some(enabled) => srv.tcp_nodelay(enabled),
+                    None => srv,
+                };
+
+                let srv = srv
+                    .on_connect(move |io, ext| {
+                        if let Some(io) = io.downcast_ref::<actix_web::rt::net::TcpStream>() {
+                            ext.insert(io.nodelay().unwrap());
+                        }
+                    })
+                    .bind(format!("{}", addr))
+                    .unwrap()
+                    .run();
 
                 tx.send(srv.handle()).unwrap();
                 srv.await
@@ -500,12 +506,12 @@ async fn assert_tcp_nodelay_config(nodelay: bool) {
 
 #[actix_rt::test]
 async fn test_tcp_nodelay_enabled() {
-    assert_tcp_nodelay_config(true).await;
+    assert_tcp_nodelay_config(Some(true)).await;
 }
 
 #[actix_rt::test]
 async fn test_tcp_nodelay_disabled() {
-    assert_tcp_nodelay_config(false).await;
+    assert_tcp_nodelay_config(Some(false)).await;
 }
 
 #[actix_rt::test]
@@ -551,4 +557,9 @@ async fn test_dual_stack_ipv6_on_windows() {
     assert!(response.status().is_success());
 
     srv.stop(false).await;
+}
+
+#[actix_rt::test]
+async fn test_tcp_nodelay_default() {
+    assert_tcp_nodelay_config(None).await;
 }

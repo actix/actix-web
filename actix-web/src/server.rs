@@ -123,7 +123,7 @@ where
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
-                tcp_nodelay: None,
+                tcp_nodelay: Some(true),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
@@ -170,8 +170,7 @@ where
 
     /// Sets `TCP_NODELAY` value on accepted TCP connections.
     ///
-    /// By default, accepted TCP connections keep the OS default.
-    /// This method overrides that behavior for all accepted TCP connections.
+    /// Enabled by default to send small writes without waiting for an acknowledgement.
     pub fn tcp_nodelay(self, enabled: bool) -> Self {
         self.config.lock().unwrap().tcp_nodelay = Some(enabled);
         self
