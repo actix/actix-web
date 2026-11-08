@@ -227,7 +227,7 @@ async fn buffer_above_configured_write_watermark_released() {
 }
 
 #[actix_rt::test]
-async fn blocked_sized_body_keeps_no_extra_memory() {
+async fn blocked_sized_body_retains_write_buffer() {
     const BODY_LEN: usize = 64 * 1024;
 
     for spare in [false, true] {
@@ -267,14 +267,17 @@ async fn blocked_sized_body_keeps_no_extra_memory() {
             // holding it would keep the spare room, so it was copied into the buffer instead
             assert!(inner.write_body.is_none(), "body with spare capacity held");
         } else {
-            // the head is out, so the connection holds the body and nothing else
+            // The head is out, but the normal write buffer remains available for reuse.
             assert!(inner.write_body.is_some());
-            assert_eq!(
-                inner.write_buf.capacity(),
-                0,
-                "write buffer kept while the body waits"
+            assert!(
+                inner.write_buf.capacity() > LW_BUFFER_SIZE
+                    && inner.write_buf.capacity() <= HW_BUFFER_SIZE,
+                "write buffer should retain its allocation while the body waits"
             );
+            assert!(!inner.write_buf_needs_reset);
         }
+
+        let retained_capacity = inner.write_buf.capacity();
 
         allowance.set(usize::MAX);
         assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
@@ -291,10 +294,15 @@ async fn blocked_sized_body_keeps_no_extra_memory() {
             "spare: {spare}"
         );
 
-        // The write buffer is back for the next response.
+        // The write buffer remains available for the next response.
         let DispatcherState::Normal { inner } = &dispatcher.inner else {
             panic!()
         };
-        assert!(inner.write_buf.capacity() >= HW_BUFFER_SIZE);
+
+        if spare {
+            assert!(inner.write_buf.capacity() >= HW_BUFFER_SIZE);
+        } else {
+            assert_eq!(inner.write_buf.capacity(), retained_capacity);
+        }
     }
 }

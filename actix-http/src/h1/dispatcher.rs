@@ -44,37 +44,6 @@ const MAX_PIPELINED_MESSAGES: usize = 16;
 /// Write buffer capacity at which we reallocate it after flushing.
 const WRITE_BUFFER_RETENTION_LIMIT: usize = 1024 * 128;
 
-/// Holds a large chunk of a fixed-length body as `write_body`, to go out after `write_buf` without
-/// a copy, or gives it back to be copied into `write_buf` when holding it would cost more. A stream
-/// without vectored writes would take the head and the chunk in two writes, so there the chunk is
-/// copied. A chunk that is the only reference to an allocation with room to spare, like the
-/// `String` behind `.json()`, would keep that room allocated until it is written.
-fn hold_chunk(
-    codec: &mut Codec,
-    write_body: &mut Option<Bytes>,
-    write_vectored: bool,
-    min_len: usize,
-    chunk: Bytes,
-) -> Option<Bytes> {
-    if chunk.len() < min_len || !write_vectored {
-        return Some(chunk);
-    }
-
-    let chunk = match chunk.try_into_mut() {
-        Ok(buf) if buf.capacity() > buf.len() => return Some(buf.freeze()),
-        Ok(buf) => buf.freeze(),
-        Err(chunk) => chunk,
-    };
-
-    match codec.try_take_chunk(&chunk) {
-        Some(body) => {
-            *write_body = Some(body);
-            None
-        }
-        None => Some(chunk),
-    }
-}
-
 bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
@@ -226,13 +195,16 @@ pin_project! {
 
         // Unwritten bytes of one large fixed-length body chunk, sent after `write_buf`.
         //
-        // Chunks at least `h1_write_buffer_size` bytes long are retained here without copying
-        // them into `write_buf`, limited to the remaining declared body length, when the stream
-        // supports vectored writes and the chunk holds no spare capacity (see `hold_chunk`). This
-        // can be the entire body or one chunk from a stream with a known total length.
-        // Partial writes advance this slice; body polling pauses while this field is `Some`, and
-        // `write_buf` is released until it drains once the head is written.
-        // Continue responses and upgrades move any remaining bytes back into `write_buf`.
+        // Chunks at least `h1_write_buffer_size` bytes long can be stored here without copying them
+        // into `write_buf` if the connection supports vectored writes. Uniquely owned chunks with
+        // spare capacity are copied into `write_buf` instead (see `prepare_chunk`).
+        //
+        // This can be the entire body or one chunk from a stream with a known total length. The
+        // slice is limited to the remaining declared body length.
+        //
+        // Partial writes advance the slice. The next body chunk is not polled while this field is
+        // `Some`. Continue responses and upgrades copy any remaining bytes into `write_buf` to
+        // preserve write order.
         write_body: Option<Bytes>,
 
         // Number of bytes to busy-buffer before flushing.
@@ -497,11 +469,7 @@ where
                     // `write_buf_written` counts only buffered bytes and cannot exceed
                     // `write_buf.len()`
                     write_buf.advance(write_buf_written);
-                    if write_buf.is_empty() && write_body.is_some() {
-                        // the head is out, so free the buffer while the body drains
-                        *write_buf = BytesMut::new();
-                        *write_buf_needs_reset = true;
-                    }
+
                     return Poll::Pending;
                 }
             }
@@ -808,15 +776,16 @@ where
                         && this.write_body.is_none()
                     {
                         match body.as_mut().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => {
+                            Poll::Ready(Some(Ok(chunk))) => {
                                 let write_vectored =
                                     this.io.as_ref().is_some_and(|io| io.is_write_vectored());
-                                if let Some(item) = hold_chunk(
+
+                                if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
                                     this.codec,
                                     this.write_body,
                                     write_vectored,
                                     *this.h1_write_buffer_size,
-                                    item,
+                                    chunk,
                                 ) {
                                     this.codec
                                         .encode(Message::Chunk(Some(item)), this.write_buf)?;
@@ -878,15 +847,16 @@ where
                         && this.write_body.is_none()
                     {
                         match body.as_mut().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => {
+                            Poll::Ready(Some(Ok(chunk))) => {
                                 let write_vectored =
                                     this.io.as_ref().is_some_and(|io| io.is_write_vectored());
-                                if let Some(item) = hold_chunk(
+
+                                if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
                                     this.codec,
                                     this.write_body,
                                     write_vectored,
                                     *this.h1_write_buffer_size,
-                                    item,
+                                    chunk,
                                 ) {
                                     this.codec
                                         .encode(Message::Chunk(Some(item)), this.write_buf)?;
@@ -1653,6 +1623,55 @@ where
                 poll
             }
         }
+    }
+}
+
+#[derive(Debug)]
+enum ChunkDisposition {
+    /// The chunk is stored in `write_body` for direct writing.
+    WriteDirectly,
+
+    /// The caller must encode this chunk into `write_buf`.
+    NeedsBuffering(Bytes),
+}
+
+/// Stores a large chunk of a fixed-length body in `write_body` without copying it into `write_buf`.
+///
+/// Returns `WriteDirectly` if the chunk was stored, or `NeedsBuffering(chunk)` for the caller to encode
+/// into `write_buf`.
+///
+/// Chunks smaller than `min_len` are always buffered. Connections without vectored writes also use
+/// the buffer, so the head and body can be passed to the I/O in one write.
+///
+/// Uniquely owned chunks with spare capacity are also buffered. For example, the `String` produced
+/// by JSON serialization can have more capacity than the body needs. Copying its contents into
+/// `write_buf` lets the original allocation be freed instead of retaining that spare capacity while
+/// the body is pending.
+fn prepare_chunk(
+    codec: &mut Codec,
+    write_body: &mut Option<Bytes>,
+    write_vectored: bool,
+    min_len: usize,
+    chunk: Bytes,
+) -> ChunkDisposition {
+    if chunk.len() < min_len || !write_vectored {
+        return ChunkDisposition::NeedsBuffering(chunk);
+    }
+
+    let chunk = match chunk.try_into_mut() {
+        Ok(buf) if buf.capacity() > buf.len() => {
+            return ChunkDisposition::NeedsBuffering(buf.freeze());
+        }
+        Ok(buf) => buf.freeze(),
+        Err(chunk) => chunk,
+    };
+
+    match codec.encoder.try_take_chunk(&chunk) {
+        Some(body) => {
+            *write_body = Some(body);
+            ChunkDisposition::WriteDirectly
+        }
+        None => ChunkDisposition::NeedsBuffering(chunk),
     }
 }
 
