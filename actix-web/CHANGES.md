@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Send GOAWAY to HTTP/2 connections during graceful shutdown so they close once their in-flight streams finish instead of being held until the shutdown timeout.
-
 ## 4.18.2
 
 - Increase the default form payload limit to 32 KiB.
