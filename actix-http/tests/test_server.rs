@@ -951,10 +951,6 @@ async fn h1_on_connect() {
 /// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
 #[actix_rt::test]
 async fn not_modified_spec_h1() {
-    // TODO: this test needing a few seconds to complete reveals some weirdness with either the
-    // dispatcher or the client, though similar hangs occur on other tests in this file, only
-    // succeeding, it seems, because of the keepalive timer
-
     static CL: header::HeaderName = header::CONTENT_LENGTH;
 
     let mut srv = test_server(|| {
@@ -1020,10 +1016,8 @@ async fn not_modified_spec_h1() {
         res.headers().get(&CL),
         Some(&header::HeaderValue::from_static("4")),
     );
-    // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug in the client, especially since CL header can differ in length
-    // from the body
-    assert!(!srv.load_body(res).await.unwrap().is_empty());
+    // RFC 9112 §6.3: the client must not read a body for a 304 response.
+    assert!(srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
 
