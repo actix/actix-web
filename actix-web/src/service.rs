@@ -153,9 +153,8 @@ impl ServiceRequest {
 
     /// Create `ServiceResponse` from this request and given response.
     #[inline]
-    pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
-        let res = HttpResponse::from(res.into());
-        ServiceResponse::new(self.req, res)
+    pub fn into_response<B, R: Into<HttpResponse<B>>>(self, res: R) -> ServiceResponse<B> {
+        ServiceResponse::new(self.req, res.into())
     }
 
     /// Create `ServiceResponse` from this request and given error.
@@ -461,6 +460,12 @@ impl<B> ServiceResponse<B> {
     #[inline]
     pub fn response_mut(&mut self) -> &mut HttpResponse<B> {
         &mut self.response
+    }
+
+    /// Retrieve the source `error` for this response, leaving a `None` in its place.
+    #[inline]
+    pub fn take_error(&mut self) -> Option<Error> {
+        self.response.take_error()
     }
 
     /// Returns response status code.
@@ -801,6 +806,17 @@ mod tests {
         let s = format!("{:?}", res);
         assert!(s.contains("ServiceResponse"));
         assert!(s.contains("x-test"));
+    }
+
+    #[test]
+    fn test_take_error() {
+        let res = HttpResponse::from_error(crate::error::ErrorBadRequest("error"));
+        let mut res = TestRequest::default().to_srv_response(res);
+        assert!(res.response().error().is_some());
+
+        let err = res.take_error();
+        assert!(err.is_some());
+        assert!(res.response().error().is_none());
     }
 
     #[actix_rt::test]
