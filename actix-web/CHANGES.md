@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Enable `TCP_NODELAY` by default on accepted TCP connections.
+- Enable automatic cleartext HTTP/2 detection for `HttpServer::bind()` and `listen()` when the `http2` feature is enabled. Call `auto_h2c(false)` before adding listeners to accept only HTTP/1.x.
+- Deprecate `HttpServer::bind_auto_h2c()` and `listen_auto_h2c()`. Use `bind()` and `listen()` instead; automatic h2c detection is now enabled by default.
 
 ## 4.18.2
 

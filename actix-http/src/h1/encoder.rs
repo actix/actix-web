@@ -358,7 +358,7 @@ impl<T: MessageType> MessageEncoder<T> {
     /// [`Self::encode_chunk`] when it returns `None`.
     pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
         match self.te.kind {
-            TransferEncodingKind::Length(ref mut remaining) if *remaining > 0 => {
+            TransferEncodingKind::Length { ref mut remaining } if *remaining > 0 => {
                 let capped_bytes_yielded = cmp::min(chunk.len() as u64, *remaining);
                 *remaining -= capped_bytes_yielded;
                 Some(chunk.slice(..capped_bytes_yielded as usize))

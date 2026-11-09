@@ -563,3 +563,66 @@ async fn test_dual_stack_ipv6_on_windows() {
 async fn test_tcp_nodelay_default() {
     assert_tcp_nodelay_config(None).await;
 }
+
+#[cfg(feature = "http2")]
+#[actix_rt::test]
+async fn test_plaintext_protocol_selection() {
+    for (disable, explicit, expect_h2) in [
+        (false, false, true),
+        (true, false, false),
+        (true, true, true),
+    ] {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut server =
+            HttpServer::new(|| App::new().route("/", web::get().to(|| async { "hello" })))
+                .workers(1)
+                .disable_signals();
+
+        if disable {
+            server = server.auto_h2c(false);
+        }
+
+        let server = if explicit {
+            // Check that the deprecated method still overrides the opt-out.
+            #[allow(deprecated)]
+            server.listen_auto_h2c(listener).unwrap()
+        } else {
+            server.listen(listener).unwrap()
+        }
+        .run();
+        let handle = server.handle();
+        let task = actix_web::rt::spawn(server);
+
+        let response = awc::Client::default()
+            .get(format!("http://{addr}/"))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        assert_eq!(response.version(), actix_web::http::Version::HTTP_11);
+
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\x00\x00\x00\x04\x00\x00\x00\x00\x00")
+            .await
+            .unwrap();
+        let mut head = [0; 9];
+        timeout(Duration::from_secs(2), stream.read_exact(&mut head))
+            .await
+            .unwrap()
+            .unwrap();
+
+        if expect_h2 {
+            // The first server frame must be SETTINGS on stream zero.
+            assert_eq!(head[3], 4);
+            assert_eq!(&head[5..], &[0; 4]);
+        } else {
+            assert_eq!(&head, b"HTTP/1.1 ");
+        }
+
+        drop(stream);
+        handle.stop(false).await;
+        task.await.unwrap().unwrap();
+    }
+}
