@@ -103,7 +103,7 @@ You may consider checking out [this directory](https://github.com/actix/examples
 
 ## Benchmarks
 
-One of the fastest web frameworks available according to the [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r21&test=composite).
+One of the fastest web frameworks available according to [HTTP Arena](https://http-arena.com/#sort=rps:-1&type=flagship&tuned=0&q=rust%2Cgo%2Cpython%2Cruby%2Cnode%2Celixir%2Cc%2B%2B%2Cc%23).
 
 ## License
 
