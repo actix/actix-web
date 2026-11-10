@@ -1156,7 +1156,7 @@ async fn h2_graceful_shutdown_sends_goaway() {
     .workers(1)
     .disable_signals()
     .shutdown_timeout(30)
-    .listen_auto_h2c(listener)
+    .listen(listener)
     .unwrap()
     .run();
 

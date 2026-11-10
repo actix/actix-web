@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.18.2)](https://docs.rs/actix-web/4.18.2)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.19.0)](https://docs.rs/actix-web/4.19.0)
 ![MSRV](https://img.shields.io/badge/rustc-1.89+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.18.2/status.svg)](https://deps.rs/crate/actix-web/4.18.2)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.19.0/status.svg)](https://deps.rs/crate/actix-web/4.19.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![Coverage](https://github.com/actix/actix-web/actions/workflows/coverage.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/coverage.yml)
@@ -103,7 +103,7 @@ You may consider checking out [this directory](https://github.com/actix/examples
 
 ## Benchmarks
 
-One of the fastest web frameworks available according to the [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r21&test=composite).
+One of the fastest web frameworks available according to [HTTP Arena](https://http-arena.com/#sort=rps:-1&type=flagship&tuned=0&q=rust%2Cgo%2Cpython%2Cruby%2Cnode%2Celixir%2Cc%2B%2B%2Cc%23).
 
 ## License
 

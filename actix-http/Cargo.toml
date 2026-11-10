@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.20.5"
+version = "3.21.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -97,7 +97,7 @@ actix-service = "2"
 actix-utils = "3"
 
 bitflags = "2"
-bytes = "1"
+bytes = "1.7"
 bytestring = "1"
 derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"

@@ -48,7 +48,7 @@ async fn main() -> io::Result<()> {
 
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
-        .bind_auto_h2c(bind)?
+        .bind(bind)?
         .workers(2)
         .run()
         .await

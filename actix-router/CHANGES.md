@@ -2,21 +2,18 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.89.
-- Add support for extracting multi-component path params into a sequence (Vec, tuple, ...). [#3432]
-- Compile each distinct route pattern once per process instead of once per worker. [#4283]
+- Compile each distinct route pattern once per process instead of once per worker.
 
-[#3432]: https://github.com/actix/actix-web/pull/3432
-[#4283]: https://github.com/actix/actix-web/pull/4283
+## 0.5.5
+
+- Add support for extracting multi-component path params into a sequence (Vec, tuple, ...).
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 0.5.4
 
 - Minimum supported Rust version (MSRV) is now 1.88.
-- Support `deserialize_any` in `PathDeserializer` (enables derived `#[serde(untagged)]` enums in path segments). [#2881]
-- Fix stale path segment indices after path rewrites, preventing out-of-bounds access during extraction. [#3562]
-
-[#2881]: https://github.com/actix/actix-web/pull/2881
-[#3562]: https://github.com/actix/actix-web/issues/3562
+- Support `deserialize_any` in `PathDeserializer` (enables derived `#[serde(untagged)]` enums in path segments).
+- Fix stale path segment indices after path rewrites, preventing out-of-bounds access during extraction.
 
 ## 0.5.3
 
