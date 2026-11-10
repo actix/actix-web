@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.8.8
+
+- Significant performance improvement when reading fields.
+
 ## 0.8.7
 
 - Add `MultipartFormConfig::max_parts()` with a default global limit of 100 parts per form.
