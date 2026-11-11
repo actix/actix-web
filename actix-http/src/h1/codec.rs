@@ -23,7 +23,7 @@ bitflags! {
 /// HTTP/1 Codec
 pub struct Codec {
     config: ServiceConfig,
-    decoder: decoder::MessageDecoder<Request>,
+    decoder: decoder::RequestDecoder,
     payload: Option<PayloadDecoder>,
     version: Version,
     conn_type: ConnectionType,
@@ -61,7 +61,7 @@ impl Codec {
         Codec {
             config,
             flags,
-            decoder: decoder::MessageDecoder::default(),
+            decoder: decoder::RequestDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
             conn_type: ConnectionType::Close,
