@@ -1382,9 +1382,9 @@ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
 name = "err-report"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c938813462d5001478fc06956acf5debbe2e5dd74f531244ed16a03ad07b3d05"
+checksum = "5bb4f001d0c6b9fb6de1fde9a65b19c0958dd4b5e6bce04676a10a33255f367d"
 
 [[package]]
 name = "errno"
