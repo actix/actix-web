@@ -880,13 +880,13 @@ mod tests {
         form.add_text("field", "7 bytes");
         form.add_text("unknown", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/unknown").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         let mut form = multipart::Form::default();
         form.add_text("field", "first_value");
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/duplicate").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[actix_rt::test]
@@ -1084,7 +1084,7 @@ mod tests {
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/text").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Memory limit should not apply when the data is being streamed to disk
         let mut form = multipart::Form::default();
@@ -1116,13 +1116,13 @@ mod tests {
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/text").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Exceeds the 20 byte overall limit
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/file").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[derive(MultipartForm)]
@@ -1160,7 +1160,7 @@ mod tests {
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is more than 30 bytes long");
         let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Total of values (14 bytes) is within 30 byte limit for "field"
         let mut form = multipart::Form::default();
@@ -1174,7 +1174,7 @@ mod tests {
         form.add_text("field", "this string is 28 bytes long");
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[actix_rt::test]

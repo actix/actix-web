@@ -104,6 +104,7 @@ impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
             Error::Field { source, .. } => source.as_response_error().status_code(),
+            Error::Payload(err) => err.status_code(),
             Error::ContentTypeIncompatible => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::BAD_REQUEST,
         }
@@ -126,6 +127,8 @@ mod tests {
             Report::new(&err).to_string(),
             "Payload error: Payload reached size limit",
         );
+        assert_eq!(err.status_code(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(err.error_response().status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         let err = Error::Parse(ParseError::Incomplete);
         assert_eq!(
