@@ -353,7 +353,7 @@ impl ClientRequest {
         )
     }
 
-    /// Set a urlencoded body and generate `ClientRequest`
+    /// Set a URL-encoded body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn send_form<T: Serialize>(self, value: &T) -> SendClientRequest {

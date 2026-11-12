@@ -16,7 +16,7 @@ use actix_web::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
             ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
@@ -488,6 +488,8 @@ impl NamedFile {
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
@@ -502,10 +504,12 @@ impl NamedFile {
             false
         };
 
+        let is_get_or_head = matches!(*req.method(), Method::GET | Method::HEAD);
+
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if !is_get_or_head || req.headers().contains_key(header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -552,15 +556,33 @@ impl NamedFile {
 
         res.insert_header((header::ACCEPT_RANGES, "bytes"));
 
+        if precondition_failed || (not_modified && !is_get_or_head) {
+            return res.status(StatusCode::PRECONDITION_FAILED).finish();
+        } else if not_modified {
+            return res
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
+        }
+
         let mut length = self.md.len();
         let mut offset = 0;
         let mut ranged_req = false;
 
-        // check for range header
+        // RFC 9110 Section 14.2 defines range handling only for GET.
         if let Some(ranges) = req
             .headers()
             .get(header::RANGE)
+            .filter(|_| req.method() == Method::GET)
             .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+            // RFC 9110 section 14.2 requires unknown range units to be ignored.
+            .filter(|ranges| {
+                ranges
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.split_once('='))
+                    .is_none_or(|(unit, _)| unit.eq_ignore_ascii_case("bytes"))
+            })
         {
             if let Ok(ranges_header) = ranges.to_str() {
                 if let Some(range) = HttpRange::parse(ranges_header, length)
@@ -583,15 +605,6 @@ impl NamedFile {
                 return res.status(StatusCode::BAD_REQUEST).finish();
             };
         };
-
-        if precondition_failed {
-            return res.status(StatusCode::PRECONDITION_FAILED).finish();
-        } else if not_modified {
-            return res
-                .status(StatusCode::NOT_MODIFIED)
-                .body(body::None::new())
-                .map_into_boxed_body();
-        }
 
         let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 

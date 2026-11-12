@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn host_guard_details_include_host_and_scheme() {
         let host = Host("example.com").scheme("https");
-        let details = host.details().expect("missing guard details");
+        let details = host.details().expect("Missing guard details");
 
         assert!(details.iter().any(|detail| match detail {
             crate::guard::GuardDetail::Headers(headers) => headers

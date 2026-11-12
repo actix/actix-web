@@ -757,7 +757,7 @@ mod tests {
             .method(http::Method::PUT)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), http::StatusCode::METHOD_NOT_ALLOWED);
     }
 
     // allow deprecated App::data

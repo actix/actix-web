@@ -6,7 +6,7 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::{
     body::BodySize,
@@ -14,7 +14,8 @@ use crate::{
         map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
         UPGRADE,
     },
-    helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
+    helpers::{self, MutWriter},
+    ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;
@@ -330,25 +331,44 @@ impl MessageType for RequestHeadType {
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.as_ref();
         dst.reserve(INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE);
-        write!(
-            helpers::MutWriter(dst),
-            "{} {} {}",
-            head.method,
-            head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-            match head.version {
-                Version::HTTP_09 => "HTTP/0.9",
-                Version::HTTP_10 => "HTTP/1.0",
-                Version::HTTP_11 => "HTTP/1.1",
-                Version::HTTP_2 => "HTTP/2.0",
-                Version::HTTP_3 => "HTTP/3.0",
-                _ => return Err(io::Error::other("Unsupported version")),
-            }
-        )
-        .map_err(io::Error::other)
+
+        let method = &head.method;
+        let uri = head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/");
+
+        let version = match head.version {
+            Version::HTTP_09 => "HTTP/0.9",
+            Version::HTTP_10 => "HTTP/1.0",
+            Version::HTTP_11 => "HTTP/1.1",
+            Version::HTTP_2 => "HTTP/2.0",
+            Version::HTTP_3 => "HTTP/3.0",
+            _ => return Err(io::Error::other("Unsupported version")),
+        };
+
+        write!(MutWriter(dst), "{method} {uri} {version}")
     }
 }
 
 impl<T: MessageType> MessageEncoder<T> {
+    /// Returns a shared slice of `chunk` for direct writes.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that stored length by the number
+    /// of bytes returned.
+    ///
+    /// Returns `None` unless fixed-length encoding is active and bytes remain. Use
+    /// [`Self::encode_chunk`] when it returns `None`.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        match self.te.kind {
+            TransferEncodingKind::Length { ref mut remaining } if *remaining > 0 => {
+                let capped_bytes_yielded = cmp::min(chunk.len() as u64, *remaining);
+                *remaining -= capped_bytes_yielded;
+                Some(chunk.slice(..capped_bytes_yielded as usize))
+            }
+
+            // Transfer is empty or unknown length.
+            _ => None,
+        }
+    }
+
     /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
@@ -394,12 +414,6 @@ impl<T: MessageType> MessageEncoder<T> {
     }
 }
 
-/// Encoders to handle different Transfer-Encodings.
-#[derive(Debug)]
-pub(crate) struct TransferEncoding {
-    kind: TransferEncodingKind,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
@@ -408,7 +422,7 @@ enum TransferEncodingKind {
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
-    Length(u64),
+    Length { remaining: u64 },
 
     /// An Encoder for when Content-Length is not known.
     ///
@@ -416,70 +430,76 @@ enum TransferEncodingKind {
     Eof,
 }
 
+/// Encoders to handle different Transfer-Encodings.
+#[derive(Debug)]
+pub(crate) struct TransferEncoding {
+    kind: TransferEncodingKind,
+}
+
 impl TransferEncoding {
-    #[inline]
-    pub fn empty() -> TransferEncoding {
+    pub(crate) fn empty() -> TransferEncoding {
         TransferEncoding {
-            kind: TransferEncodingKind::Length(0),
+            kind: TransferEncodingKind::Length { remaining: 0 },
         }
     }
 
-    #[inline]
-    pub fn eof() -> TransferEncoding {
+    pub(crate) fn eof() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Eof,
         }
     }
 
-    #[inline]
-    pub fn chunked() -> TransferEncoding {
+    pub(crate) fn chunked() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Chunked(false),
         }
     }
 
-    #[inline]
-    pub fn length(len: u64) -> TransferEncoding {
+    pub(crate) fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
-            kind: TransferEncodingKind::Length(len),
+            kind: TransferEncodingKind::Length { remaining: len },
         }
     }
 
-    /// Encode message. Return `EOF` state of encoder
-    #[inline]
-    pub fn encode(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
+    /// Encode `body` bytes into `buf`, returning true when the end of the body is reached.
+    ///
+    /// For fixed-length bodies, writes at most the remaining content length and returns `true`
+    /// when that length is exhausted. For chunked and EOF-delimited bodies, an empty `msg`
+    /// signals the end of the body. Chunked encoding also writes the final chunk once.
+    pub(crate) fn encode(&mut self, body: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
-                let eof = msg.is_empty();
-                buf.extend_from_slice(msg);
+                let eof = body.is_empty();
+                buf.extend_from_slice(body);
                 Ok(eof)
             }
+
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if *eof {
                     return Ok(true);
                 }
 
-                if msg.is_empty() {
+                if body.is_empty() {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
-                        .map_err(io::Error::other)?;
+                    writeln!(MutWriter(buf), "{:X}\r", body.len())?;
 
-                    buf.reserve(msg.len() + 2);
-                    buf.extend_from_slice(msg);
+                    buf.reserve(body.len() + 2);
+                    buf.extend_from_slice(body);
                     buf.extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
             }
-            TransferEncodingKind::Length(ref mut remaining) => {
+
+            TransferEncodingKind::Length { ref mut remaining } => {
                 if *remaining > 0 {
-                    if msg.is_empty() {
+                    if body.is_empty() {
                         return Ok(*remaining == 0);
                     }
-                    let len = cmp::min(*remaining, msg.len() as u64);
+                    let len = cmp::min(*remaining, body.len() as u64);
 
-                    buf.extend_from_slice(&msg[..len as usize]);
+                    buf.extend_from_slice(&body[..len as usize]);
 
                     *remaining -= len;
                     Ok(*remaining == 0)
@@ -490,12 +510,13 @@ impl TransferEncoding {
         }
     }
 
-    /// Encode eof. Return `EOF` state of encoder
-    #[inline]
-    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
+    /// Finish encoding the body, writing the final chunk for chunked encoding if needed.
+    ///
+    /// Returns an error if fewer bytes than the specified content length were encoded.
+    pub(crate) fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         match self.kind {
             TransferEncodingKind::Eof => Ok(()),
-            TransferEncodingKind::Length(rem) => {
+            TransferEncodingKind::Length { remaining: rem } => {
                 if rem != 0 {
                     Err(io::Error::new(io::ErrorKind::UnexpectedEof, ""))
                 } else {
@@ -507,6 +528,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 }
+
                 Ok(())
             }
         }

@@ -7,15 +7,17 @@ use std::{
     future::Future,
     io::{Read, Write},
     pin::Pin,
+    str,
     task::{Context, Poll},
     time::Duration,
 };
 
 use actix_web::{
     cookie::Cookie,
+    error::{InternalError, UrlencodedError},
     http::{header, StatusCode},
     middleware::{Compress, NormalizePath, TrailingSlash},
-    web, App, Error, HttpResponse,
+    web, App, Error, HttpResponse, ResponseError,
 };
 use bytes::Bytes;
 use futures_core::ready;
@@ -287,6 +289,24 @@ async fn test_head_binary() {
 
     let bytes = res.body().await.unwrap();
     assert!(bytes.is_empty());
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn test_query_method() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::query().to(|body: Bytes| async { HttpResponse::Ok().body(body) })),
+        )
+    });
+
+    let mut res = srv.query("/").send_body("query body").await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"query body"));
 
     srv.stop().await;
 }
@@ -905,4 +925,86 @@ async fn test_accept_encoding_no_match() {
     assert!(!bytes.is_empty());
 
     srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn zstd_decoding_over_limit_is_early_rejected() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use actix_web::{dev::Payload, test};
+    use futures_util::{stream, StreamExt as _};
+
+    const UNCOMPRESSED_SIZE_LIMIT: usize = 1024;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(
+                web::FormConfig::default()
+                    .limit(UNCOMPRESSED_SIZE_LIMIT)
+                    .error_handler(|err, _| {
+                        assert!(
+                            matches!(err, UrlencodedError::OverflowUnknownLength { limit: 1024 }),
+                            "Unexpected type of form error: {err:?}"
+                        );
+
+                        let err_status = err.status_code();
+                        let err_string = err.to_string();
+
+                        InternalError::from_response(
+                            err_string.clone(),
+                            HttpResponse::build(err_status).body(err_string),
+                        )
+                        .into()
+                    }),
+            )
+            .route(
+                "/",
+                web::post().to(|_: web::Form<Vec<(String, String)>>| async {
+                    HttpResponse::Ok().finish()
+                }),
+            ),
+    )
+    .await;
+
+    let data = format!("value={}", "a".repeat(1024 * 1024 - 6));
+    let compressed = utils::zstd::encode(&data);
+    assert!(compressed.len() <= UNCOMPRESSED_SIZE_LIMIT);
+
+    let chunks = compressed
+        .chunks(16)
+        .map(Bytes::copy_from_slice)
+        .collect::<Vec<_>>();
+
+    let chunk_count = chunks.len();
+    let chunks_consumed = Arc::new(AtomicUsize::new(0));
+
+    let stream = stream::iter(chunks.into_iter().map(Ok)).inspect({
+        let chunks_consumed = Arc::clone(&chunks_consumed);
+        move |_| {
+            chunks_consumed.fetch_add(1, Ordering::Relaxed);
+        }
+    });
+
+    let mut req = test::TestRequest::post()
+        .insert_header((header::CONTENT_ENCODING, "zstd"))
+        .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+        .to_request();
+    *req.payload() = Payload::from(stream.boxed_local());
+
+    let res = test::call_service(&app, req).await;
+
+    // Assert that the server rejected the payload...
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+    // ... and that it did so without reading it all.
+    assert!(chunks_consumed.load(Ordering::Relaxed) < chunk_count);
+
+    let body = test::read_body(res).await;
+    assert_eq!(
+        body,
+        "URL encoded payload is larger than allowed (limit: 1024 bytes)"
+    );
 }

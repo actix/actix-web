@@ -52,8 +52,9 @@ struct Config {
 ///   always supported, and HTTP/2 is supported when the `http2` feature is enabled. Use either of
 ///   the `.bind_rustls()` or `.bind_openssl()` methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
-///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
-///   the `.bind_auto_h2c()` method to enable this behavior.
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections.
+///   This is enabled by default when the `http2` feature is enabled. Call
+///   `.auto_h2c(false)` before `.bind()` or `.listen()` to accept only HTTP/1.x.
 ///
 /// # Examples
 ///
@@ -85,6 +86,8 @@ where
     pub(super) factory: F,
     config: Arc<Mutex<Config>>,
     backlog: u32,
+    #[cfg(feature = "http2")]
+    auto_h2c: bool,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
     graceful_shutdown_signal: GracefulShutdownSignal,
@@ -123,7 +126,7 @@ where
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
-                tcp_nodelay: None,
+                tcp_nodelay: Some(true),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 h1_allow_half_closed: true,
@@ -133,6 +136,8 @@ where
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
+            #[cfg(feature = "http2")]
+            auto_h2c: true,
             sockets: Vec::new(),
             builder,
             graceful_shutdown_signal,
@@ -170,8 +175,7 @@ where
 
     /// Sets `TCP_NODELAY` value on accepted TCP connections.
     ///
-    /// By default, accepted TCP connections keep the OS default.
-    /// This method overrides that behavior for all accepted TCP connections.
+    /// Enabled by default to send small writes without waiting for an acknowledgement.
     pub fn tcp_nodelay(self, enabled: bool) -> Self {
         self.config.lock().unwrap().tcp_nodelay = Some(enabled);
         self
@@ -453,6 +457,9 @@ where
 
     /// Resolves socket address(es) and binds server to created listener(s).
     ///
+    /// With the `http2` feature, HTTP/2 cleartext detection is enabled by default.
+    /// Call `.auto_h2c(false)` before this method to accept only HTTP/1.x.
+    ///
     /// # Hostname Resolution
     ///
     /// When `addrs` includes a hostname, it is possible for this method to bind to both the IPv4
@@ -515,16 +522,34 @@ where
         Ok(self)
     }
 
+    /// Sets automatic HTTP/2 detection for subsequent plaintext listeners.
+    ///
+    /// Enabled by default. Call this method before [`bind()`](Self::bind()) or
+    /// [`listen()`](Self::listen()). Set to `false` to accept only HTTP/1.x.
+    ///
+    /// This setting does not affect TLS listeners or explicit calls to
+    /// [`bind_auto_h2c()`](Self::bind_auto_h2c()) and
+    /// [`listen_auto_h2c()`](Self::listen_auto_h2c()).
+    #[cfg(feature = "http2")]
+    pub fn auto_h2c(mut self, enabled: bool) -> Self {
+        self.auto_h2c = enabled;
+        self
+    }
+
     /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
     /// or HTTP/2 connections.
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     #[cfg(feature = "http2")]
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `bind()` instead."
+    )]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
         for lst in sockets {
-            self = self.listen_auto_h2c(lst)?;
+            self = self.listen_auto_h2c_inner(lst)?;
         }
 
         Ok(self)
@@ -636,7 +661,15 @@ where
     ///
     /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
     /// passing ownership to `listen()`.
+    ///
+    /// With the `http2` feature, HTTP/2 cleartext detection is enabled by default.
+    /// Call `.auto_h2c(false)` before this method to accept only HTTP/1.x.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        #[cfg(feature = "http2")]
+        if self.auto_h2c {
+            return self.listen_auto_h2c_inner(lst);
+        }
+
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
@@ -703,7 +736,16 @@ where
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
-    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `listen()` instead."
+    )]
+    pub fn listen_auto_h2c(self, lst: net::TcpListener) -> io::Result<Self> {
+        self.listen_auto_h2c_inner(lst)
+    }
+
+    #[cfg(feature = "http2")]
+    fn listen_auto_h2c_inner(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
@@ -1349,6 +1391,8 @@ where
     B: MessageBody,
 {
     /// Start listening for incoming connections.
+    ///
+    /// The server does not accept connections until the returned [`Server`] future is first polled.
     ///
     /// # Workers
     /// This method starts a number of HTTP workers in separate threads. The number of workers in a

@@ -33,6 +33,13 @@ license-files = [
 [bans]
 multiple-versions = "allow"
 
+# Keep the legacy advisory exceptions below from allowing affected modern TLS dependencies.
+deny = [
+    { crate = "rustls-webpki:>=0.103, <0.103.16", reason = "RUSTSEC-2026-0382" },
+    { crate = "webpki-roots:>=0.26, <0.26.11", reason = "RUSTSEC-2026-0381" },
+    { crate = "webpki-roots:>=0.27, <1.0.10", reason = "RUSTSEC-2026-0381" },
+]
+
 [bans.build]
 executables = "deny"
 
@@ -50,6 +57,7 @@ ignore = [
     "RUSTSEC-2026-0258",
     # FIXME: needs to eliminate old rustls dependency
     "RUSTSEC-2026-0346",
-    "RUSTSEC-2026-0348",
     "RUSTSEC-2026-0349",
+    { id = "RUSTSEC-2026-0381", reason = "Legacy rustls 0.20 and 0.21 require webpki-roots 0.22 and 0.25, which have no patched releases." },
+    { id = "RUSTSEC-2026-0382", reason = "Legacy rustls 0.21 and 0.22 require rustls-webpki 0.101 and 0.102, which have no patched releases." },
 ]

@@ -220,7 +220,7 @@ impl ResponseBuilder {
             return Err(Error::new_http().with_cause(err));
         }
 
-        let head = self.head.take().expect("cannot reuse response builder");
+        let head = self.head.take().expect("Cannot reuse response builder");
 
         Ok(Response {
             head,

@@ -922,7 +922,7 @@ impl ResourceDef {
             })
             .unwrap_or_else(|| {
                 panic!(
-                    r#"pattern "{}" contains malformed dynamic segment"#,
+                    r#"Pattern "{}" contains malformed dynamic segment"#,
                     pattern
                 )
             });
@@ -1018,7 +1018,7 @@ impl ResourceDef {
 
             // panic in tests to make this case detectable
             #[cfg(test)]
-            panic!("prefix resource definitions should not have tail segments");
+            panic!("Prefix resource definitions should not have tail segments");
         }
 
         #[allow(clippy::literal_string_with_formatting_args)]
@@ -1034,7 +1034,7 @@ impl ResourceDef {
 
             // panic in tests to make this case detectable
             #[cfg(test)]
-            panic!("tail segments must have names");
+            panic!("Tail segments must have names");
         } else if !has_tail_segment && !unprocessed.is_empty() {
             // prevent `Const("")` element from being added after last dynamic segment
 

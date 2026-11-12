@@ -417,7 +417,7 @@ where
                     }),
                 },
             }
-            .expect("test server could not be created");
+            .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx
@@ -695,6 +695,11 @@ impl TestServer {
     /// Create `PATCH` request.
     pub fn patch(&self, path: impl AsRef<str>) -> ClientRequest {
         self.client.patch(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create `QUERY` request.
+    pub fn query(&self, path: impl AsRef<str>) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
     }
 
     /// Create `DELETE` request.

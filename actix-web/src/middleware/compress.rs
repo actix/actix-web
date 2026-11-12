@@ -300,9 +300,9 @@ mod tests {
         assert!(
             res.headers()
                 .get(header::CONTENT_TYPE)
-                .expect("content-type header should be present")
+                .expect("Content-type header should be present")
                 .to_str()
-                .expect("content-type header should be utf-8")
+                .expect("Content-type header should be utf-8")
                 .contains(ct),
             "response's content-type did not match {}",
             ct
@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(
             res.headers()
                 .get(header::CONTENT_ENCODING)
-                .expect("response should be gzip compressed"),
+                .expect("Response should be gzip compressed"),
             "gzip",
         );
     }

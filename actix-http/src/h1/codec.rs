@@ -30,7 +30,7 @@ pub struct Codec {
 
     // encoder part
     flags: Flags,
-    encoder: encoder::MessageEncoder<Response<()>>,
+    pub(in crate::h1) encoder: encoder::MessageEncoder<Response<()>>,
 }
 
 impl Default for Codec {

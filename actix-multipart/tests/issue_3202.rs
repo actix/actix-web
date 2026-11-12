@@ -93,7 +93,7 @@ async fn check_live(tail: &str, valid: bool) {
         .timeout(Duration::from_secs(1))
         .send_body(body(tail))
         .await
-        .expect("live upload did not return a response");
+        .expect("Live upload did not return a response");
 
     assert_eq!(response.status().as_u16(), if valid { 200 } else { 400 });
 }
@@ -115,7 +115,7 @@ async fn raw_field_with_trailing_crlf_returns_error() {
 
     let result = timeout(Duration::from_secs(1), field.next())
         .await
-        .expect("raw Field stream did not finish at EOF");
+        .expect("Raw Field stream did not finish at EOF");
     assert!(matches!(
         result,
         Some(Err(actix_multipart::MultipartError::Incomplete))

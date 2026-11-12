@@ -22,14 +22,14 @@ fn find_item<'a>(items: &'a [serde_json::Value], path: &str) -> &'a serde_json::
     items
         .iter()
         .find(|item| item.get("full_path").and_then(|v| v.as_str()) == Some(path))
-        .unwrap_or_else(|| panic!("missing route for {path}"))
+        .unwrap_or_else(|| panic!("Missing route for {path}"))
 }
 
 fn find_external<'a>(items: &'a [serde_json::Value], name: &str) -> &'a serde_json::Value {
     items
         .iter()
         .find(|item| item.get("name").and_then(|v| v.as_str()) == Some(name))
-        .unwrap_or_else(|| panic!("missing external resource for {name}"))
+        .unwrap_or_else(|| panic!("Missing external resource for {name}"))
 }
 
 #[actix_rt::test]
@@ -68,13 +68,13 @@ async fn introspection_report_includes_details_and_metadata() {
 
     let body = test::read_body(resp).await;
     let items: Vec<serde_json::Value> =
-        serde_json::from_slice(&body).expect("invalid introspection json");
+        serde_json::from_slice(&body).expect("Invalid introspection json");
 
     let alpha = find_item(&items, "/alpha");
     let patterns = alpha
         .get("patterns")
         .and_then(|v| v.as_array())
-        .expect("patterns missing");
+        .expect("Missing patterns");
     let patterns = patterns
         .iter()
         .filter_map(|v| v.as_str())
@@ -94,7 +94,7 @@ async fn introspection_report_includes_details_and_metadata() {
     let guards = guarded
         .get("guards")
         .and_then(|v| v.as_array())
-        .expect("guards missing");
+        .expect("Missing guards");
     assert!(guards
         .iter()
         .any(|v| v.as_str() == Some("Header(accept, text/plain)")));
@@ -102,17 +102,17 @@ async fn introspection_report_includes_details_and_metadata() {
     let guard_details = guarded
         .get("guards_detail")
         .and_then(|v| v.as_array())
-        .expect("guards_detail missing");
+        .expect("Missing guards_detail");
     assert!(!guard_details.is_empty());
 
     let alpha_guards = alpha
         .get("guards")
         .and_then(|v| v.as_array())
-        .expect("alpha guards missing");
+        .expect("Alpha guards missing");
     let alpha_guard_details = alpha
         .get("guards_detail")
         .and_then(|v| v.as_array())
-        .expect("alpha guards_detail missing");
+        .expect("Alpha guards_detail missing");
     assert!(alpha_guards.is_empty());
     assert!(!alpha_guard_details.is_empty());
 
@@ -124,7 +124,7 @@ async fn introspection_report_includes_details_and_metadata() {
     let scoped_guards = scoped
         .get("guards")
         .and_then(|v| v.as_array())
-        .expect("scoped guards missing");
+        .expect("Scoped guards missing");
     assert!(scoped_guards
         .iter()
         .any(|v| v.as_str() == Some("Header(x-scope, 1)")));
@@ -137,13 +137,13 @@ async fn introspection_report_includes_details_and_metadata() {
 
     let body = test::read_body(resp).await;
     let externals: Vec<serde_json::Value> =
-        serde_json::from_slice(&body).expect("invalid externals json");
+        serde_json::from_slice(&body).expect("Invalid externals json");
 
     let app_external = find_external(&externals, "app-external");
     let app_patterns = app_external
         .get("patterns")
         .and_then(|v| v.as_array())
-        .expect("app external patterns missing");
+        .expect("App external patterns missing");
     assert!(app_patterns
         .iter()
         .any(|v| v.as_str() == Some("https://example.com/{id}")));
@@ -156,7 +156,7 @@ async fn introspection_report_includes_details_and_metadata() {
     let scope_patterns = scope_external
         .get("patterns")
         .and_then(|v| v.as_array())
-        .expect("scope external patterns missing");
+        .expect("Scope external patterns missing");
     assert!(scope_patterns
         .iter()
         .any(|v| v.as_str() == Some("https://scope.example/{id}")));

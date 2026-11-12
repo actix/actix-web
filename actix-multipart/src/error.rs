@@ -57,6 +57,10 @@ pub enum Error {
     #[display("Nested multipart is not supported")]
     Nested,
 
+    /// The form contains more parts than the configured limit.
+    #[display("Multipart form has too many parts")]
+    TooManyParts,
+
     /// Multipart stream is incomplete.
     #[display("Multipart stream is incomplete")]
     Incomplete,
@@ -120,13 +124,13 @@ mod tests {
         let err = Error::Payload(PayloadError::Overflow);
         assert_eq!(
             Report::new(&err).to_string(),
-            "Payload error: payload reached size limit",
+            "Payload error: Payload reached size limit",
         );
 
         let err = Error::Parse(ParseError::Incomplete);
         assert_eq!(
             Report::new(&err).to_string(),
-            "Error during field parsing: message is incomplete"
+            "Error during field parsing: Message is incomplete"
         );
 
         let err = Error::ContentDispositionNameMissing;

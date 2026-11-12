@@ -2,8 +2,32 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.89.
+## 4.19.0
+
+- Enable `TCP_NODELAY` by default.
+- Enable automatic cleartext HTTP/2 detection for `HttpServer::bind()` and `listen()` when the `http2` feature is enabled.
+- Deprecate `HttpServer::bind_auto_h2c()` and `listen_auto_h2c()` methods.
+- Add `HttpServer::auto_h2c(bool)` method.
+
+## 4.18.2
+
+- Increase the default form payload limit to 32 KiB.
+- Bound decompressed request payloads using the same configured size limits for form, JSON, bytes, and string extractors. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
+- Add `UrlencodedError::OverflowUnknownLength` error enum variant for form payloads that exceed the limit while streaming.
+- Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
+- Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
+
+## 4.18.1
+
+- Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
+
+## 4.18.0
+
+- Add `#[query]` route handler macro.
+- Add support for `method = "QUERY"` in `#[route]`.
+- Add `guard::Query()` method guard.
 - Document that `HttpServer::on_connect()` must be called before `bind()`.
+- Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 4.17.0
 

@@ -453,6 +453,24 @@ method_guard!(Connect, CONNECT);
 method_guard!(Patch, PATCH);
 method_guard!(Trace, TRACE);
 
+/// Creates a guard that matches the `QUERY` request method.
+///
+/// # Examples
+///
+/// The route in this example will only respond to `QUERY` requests.
+///
+/// ```
+/// use actix_web::{guard, web, HttpResponse};
+///
+/// web::route()
+///     .guard(guard::Query())
+///     .to(|| HttpResponse::Ok());
+/// ```
+#[allow(non_snake_case)]
+pub fn Query() -> impl Guard {
+    MethodGuard(HttpMethod::from_bytes(b"QUERY").unwrap())
+}
+
 /// Creates a guard that matches if request contains given header name and value.
 ///
 /// # Examples
@@ -568,6 +586,16 @@ mod tests {
             .to_srv_request();
         assert!(Trace().check(&req.guard_ctx()));
         assert!(!Trace().check(&get_req.guard_ctx()));
+
+        let query_method = Method::from_bytes(b"QUERY").unwrap();
+        let req = TestRequest::default().method(query_method).to_srv_request();
+        assert!(Query().check(&req.guard_ctx()));
+        assert!(!Query().check(&get_req.guard_ctx()));
+
+        let other_req = TestRequest::default()
+            .method(Method::from_bytes(b"NOT_A_QUERY").unwrap())
+            .to_srv_request();
+        assert!(!Query().check(&other_req.guard_ctx()));
     }
 
     #[test]
