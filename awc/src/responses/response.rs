@@ -28,9 +28,12 @@ pin_project! {
         pub(crate) payload: Payload<S>,
         pub(crate) timeout: ResponseTimeout,
         pub(crate) extensions: RefCell<Extensions>,
-
+        pub(crate) decode_limit: Option<DecodeLimitFn<S>>,
     }
 }
+
+/// Applies a decoded size limit to a decompressing payload before it is first polled.
+pub(crate) type DecodeLimitFn<S> = fn(Payload<S>, usize) -> Payload<S>;
 
 impl<S> ClientResponse<S> {
     /// Create new Request instance
@@ -40,6 +43,7 @@ impl<S> ClientResponse<S> {
             payload,
             timeout: ResponseTimeout::default(),
             extensions: RefCell::new(Extensions::new()),
+            decode_limit: None,
         }
     }
 
@@ -80,6 +84,7 @@ impl<S> ClientResponse<S> {
             head: self.head,
             timeout: self.timeout,
             extensions: self.extensions,
+            decode_limit: None,
         }
     }
 
@@ -107,6 +112,7 @@ impl<S> ClientResponse<S> {
             head: self.head,
             timeout,
             extensions: self.extensions,
+            decode_limit: self.decode_limit,
         }
     }
 
@@ -115,6 +121,13 @@ impl<S> ClientResponse<S> {
     /// timer wheel.
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
+        self
+    }
+
+    /// Sets how [`ResponseBody`] and [`JsonBody`] pass their size limit to a decompressing payload.
+    #[cfg(feature = "__compress")]
+    pub(crate) fn _decode_limit(mut self, decode_limit: DecodeLimitFn<S>) -> Self {
+        self.decode_limit = Some(decode_limit);
         self
     }
 

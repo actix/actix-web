@@ -63,7 +63,11 @@ where
             .and_then(|len_str| len_str.parse::<usize>().ok());
 
         JsonBody {
-            body: Some(ReadBody::new(res.take_payload(), DEFAULT_BODY_LIMIT)),
+            body: Some(ReadBody::new(
+                res.take_payload(),
+                DEFAULT_BODY_LIMIT,
+                res.decode_limit,
+            )),
             length,
             timeout: mem::take(&mut res.timeout),
             err: None,
@@ -74,7 +78,7 @@ where
     /// Change max size of payload. Default limit is 2 MiB.
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(ref mut fut) = self.body {
-            fut.limit = limit;
+            fut.set_limit(limit);
         }
 
         self
@@ -188,5 +192,28 @@ mod tests {
                 name: "test".to_owned()
             }
         );
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    #[actix_rt::test]
+    async fn decode_limit() {
+        use futures_util::StreamExt as _;
+
+        use crate::responses::gzip_response;
+
+        let data = vec![b' '; DEFAULT_BODY_LIMIT * 2];
+
+        // decoding stops at the limit instead of yielding the whole decompressed chunk
+        let mut json = gzip_response(&data).json::<MyObject>();
+        let chunk = json.body.as_mut().unwrap().stream.next().await;
+        assert!(matches!(chunk, Some(Err(PayloadError::Overflow))));
+
+        let mut json = gzip_response(&data).json::<MyObject>().limit(1024);
+        let chunk = json.body.as_mut().unwrap().stream.next().await;
+        assert!(matches!(chunk, Some(Err(PayloadError::Overflow))));
+
+        let mut res = gzip_response(br#"{"name": "test"}"#);
+        let json = res.json::<MyObject>().limit(16).await;
+        assert_eq!(json.unwrap().name, "test");
     }
 }

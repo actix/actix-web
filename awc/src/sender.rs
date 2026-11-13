@@ -118,6 +118,7 @@ impl Future for SendClientRequest {
                                 }
                             }
                         })
+                        ._decode_limit(limit_decoded_payload)
                 });
 
                 Poll::Ready(res)
@@ -127,6 +128,21 @@ impl Future for SendClientRequest {
                 None => panic!("Attempting to call completed future"),
             },
         }
+    }
+}
+
+/// Stops decompression once decoded output exceeds `limit`, so a small compressed response can't
+/// expand past the body limit in memory.
+#[cfg(feature = "__compress")]
+pub(crate) fn limit_decoded_payload(
+    payload: Payload<Decoder<Payload>>,
+    limit: usize,
+) -> Payload<Decoder<Payload>> {
+    match payload {
+        Payload::Stream { payload } => Payload::Stream {
+            payload: payload.limit(limit),
+        },
+        payload => payload,
     }
 }
 

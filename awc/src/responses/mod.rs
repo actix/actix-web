@@ -15,6 +15,38 @@ pub use self::{json_body::JsonBody, response::ClientResponse};
 /// Default body size limit: 2 MiB
 const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
+/// Builds a response whose payload is decompressed like one from `SendClientRequest`, with `data`
+/// gzip-compressed into a single chunk.
+#[cfg(all(test, feature = "compress-gzip"))]
+fn gzip_response(
+    data: &[u8],
+) -> ClientResponse<actix_http::encoding::Decoder<actix_http::Payload>> {
+    use std::io::Write as _;
+
+    use actix_http::{
+        encoding::Decoder, header::ContentEncoding, BoxedPayloadStream, Payload, ResponseHead,
+        StatusCode,
+    };
+    use bytes::Bytes;
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    encoder.write_all(data).unwrap();
+    let chunk = Bytes::from(encoder.finish().unwrap());
+
+    let stream: BoxedPayloadStream = Box::pin(futures_util::stream::once(async { Ok(chunk) }));
+    let payload = Payload::Stream {
+        payload: Decoder::new(Payload::from(stream), ContentEncoding::Gzip),
+    };
+
+    let mut head = ResponseHead::new(StatusCode::OK);
+    head.headers.insert(
+        actix_http::header::CONTENT_TYPE,
+        actix_http::header::HeaderValue::from_static("application/json"),
+    );
+
+    ClientResponse::new(head, payload)._decode_limit(crate::sender::limit_decoded_payload)
+}
+
 /// Helper enum with reusable sleep passed from `SendClientResponse`.
 ///
 /// See [`ClientResponse::_timeout`] for reason.
