@@ -29,7 +29,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
@@ -57,7 +57,7 @@ async fn h1_v2() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_close() {
     let srv = test_server(move || {
         HttpService::build()
@@ -71,7 +71,7 @@ async fn connection_close() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn with_query_parameter() {
     let srv = test_server(move || {
         HttpService::build()
@@ -102,7 +102,7 @@ impl From<ExpectFailed> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_expect() {
     let srv = test_server(move || {
         HttpService::build()

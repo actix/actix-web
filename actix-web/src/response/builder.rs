@@ -470,7 +470,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json() {
         let res = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
         let ct = res.headers().get(CONTENT_TYPE).unwrap();
@@ -491,7 +491,7 @@ mod tests {
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_serde_json_in_body() {
         let resp = HttpResponse::Ok()
             .body(serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap());

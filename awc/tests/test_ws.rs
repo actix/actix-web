@@ -18,7 +18,7 @@ async fn ws_service(req: ws::Frame) -> Result<ws::Message, io::Error> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_simple() {
     let mut srv = test_server(|| {
         HttpService::build()

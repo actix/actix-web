@@ -204,7 +204,7 @@ fn legacy_close_payload_parser_wrongly_allows_non_utf8() {
     assert_eq!(reason.description.as_deref(), Some("\u{fffd}"));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn simple() {
     let mut srv = test_server(|| {
         HttpService::build()

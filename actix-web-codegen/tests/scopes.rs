@@ -91,7 +91,7 @@ mod mod_scope_v2 {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_get_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::test));
 
@@ -100,7 +100,7 @@ async fn scope_get_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_get_param_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::twice));
 
@@ -111,7 +111,7 @@ async fn scope_get_param_async() {
     assert_eq!(body_str, "Twice value: 8");
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_post_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::post));
 
@@ -122,7 +122,7 @@ async fn scope_post_async() {
     assert_eq!(body_str, "post works");
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn multiple_shared_path_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::multiple_shared_path));
 
@@ -135,7 +135,7 @@ async fn multiple_shared_path_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn multiple_multi_path_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::multiple_separate_paths));
 
@@ -156,7 +156,7 @@ async fn multiple_multi_path_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_delete_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::delete));
 
@@ -167,7 +167,7 @@ async fn scope_delete_async() {
     assert_eq!(body_str, "delete works");
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_get_with_guard_async() {
     let srv = actix_test::start(|| App::new().service(scope_module::guard));
 
@@ -178,7 +178,7 @@ async fn scope_get_with_guard_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn scope_v1_v2_async() {
     let srv = actix_test::start(|| {
         App::new()

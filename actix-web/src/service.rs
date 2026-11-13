@@ -734,7 +734,7 @@ mod tests {
         web, App,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service() {
         let srv =
             init_service(
@@ -762,7 +762,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service_data() {
         let srv = init_service(
             App::new()
@@ -803,7 +803,7 @@ mod tests {
         assert!(s.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_services_macro() {
         let scoped = services![
             web::service("/scoped_test1").name("scoped_test1").finish(
@@ -841,7 +841,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_services_vec() {
         let services = vec![
             web::resource("/test1").to(|| async { "test1" }),
@@ -877,7 +877,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     async fn cloning_request_panics() {
         async fn index(_name: web::Path<(String,)>) -> &'static str {

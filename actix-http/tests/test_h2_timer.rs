@@ -4,7 +4,7 @@ use actix_http::{error::Error, HttpService, Response};
 use actix_server::Server;
 use tokio::io::AsyncWriteExt;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_ping_pong() -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
 
@@ -77,7 +77,7 @@ async fn h2_ping_pong() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_handshake_timeout() -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
 

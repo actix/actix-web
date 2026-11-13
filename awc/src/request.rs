@@ -514,7 +514,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_debug() {
         let request = Client::new().get("/").append_header(("x-test", "111"));
         let repr = format!("{:?}", request);
@@ -522,7 +522,7 @@ mod tests {
         assert!(repr.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_basics() {
         let req = Client::new()
             .put("/")
@@ -559,7 +559,7 @@ mod tests {
         let _ = req.send_body("");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_client_header() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -577,7 +577,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_client_header_override() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -596,7 +596,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_basic_auth() {
         let req = Client::new().get("/").basic_auth("username", "password");
         assert_eq!(
@@ -621,7 +621,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_bearer_auth() {
         let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
@@ -635,7 +635,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_query() {
         let req = Client::new()
             .get("/")

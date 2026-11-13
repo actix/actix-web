@@ -214,7 +214,7 @@ pub(crate) mod tests {
         web, App,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_option_responder() {
         let srv = init_service(
             App::new()
@@ -233,7 +233,7 @@ pub(crate) mod tests {
         assert_body_eq!(resp, b"some");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
@@ -342,7 +342,7 @@ pub(crate) mod tests {
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_result_responder() {
         let req = TestRequest::default().to_http_request();
 

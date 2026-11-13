@@ -39,7 +39,7 @@ async fn read_http1_response_head(stream: &mut TcpStream) -> io::Result<Vec<u8>>
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_start() {
     let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
@@ -108,7 +108,7 @@ async fn test_start() {
     srv.stop(false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_app_data_dropped_after_graceful_shutdown_with_slow_request() {
     struct State {
         _data: Arc<String>,
@@ -176,7 +176,7 @@ async fn test_app_data_dropped_after_graceful_shutdown_with_slow_request() {
     panic!("App data still referenced after graceful shutdown");
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request() {
     let request_started = Arc::new(Notify::new());
     let finish_request = Arc::new(Notify::new());
@@ -315,7 +315,7 @@ async fn graceful_shutdown_closes_idle_http1_connection_after_in_flight_request(
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn shutdown_signal_closes_idle_http1_connection() {
     // Control the exact point at which the builder-configured shutdown signal resolves.
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -385,7 +385,7 @@ fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
     builder
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 #[cfg(feature = "openssl")]
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
@@ -504,17 +504,17 @@ async fn assert_tcp_nodelay_config(nodelay: Option<bool>) {
     srv.stop(false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_tcp_nodelay_enabled() {
     assert_tcp_nodelay_config(Some(true)).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_tcp_nodelay_disabled() {
     assert_tcp_nodelay_config(Some(false)).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 #[cfg(windows)]
 async fn test_dual_stack_ipv6_on_windows() {
     let (tx, rx) = mpsc::channel();
@@ -559,13 +559,13 @@ async fn test_dual_stack_ipv6_on_windows() {
     srv.stop(false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_tcp_nodelay_default() {
     assert_tcp_nodelay_config(None).await;
 }
 
 #[cfg(feature = "http2")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_plaintext_protocol_selection() {
     for (disable, explicit, expect_h2) in [
         (false, false, true),

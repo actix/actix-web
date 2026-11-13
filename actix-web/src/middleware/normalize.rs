@@ -245,7 +245,7 @@ mod tests {
         web, App, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap() {
         let app = init_service(
             App::new()
@@ -281,7 +281,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn trim_trailing_slashes() {
         let app = init_service(
             App::new()
@@ -318,7 +318,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn trim_root_trailing_slashes_with_query() {
         let app = init_service(
             App::new().wrap(NormalizePath(TrailingSlash::Trim)).service(
@@ -338,7 +338,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn ensure_trailing_slash() {
         let app = init_service(
             App::new()
@@ -375,7 +375,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn ensure_root_trailing_slash_with_query() {
         let app = init_service(
             App::new()
@@ -397,7 +397,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn keep_trailing_slash_unchanged() {
         let app = init_service(
             App::new()
@@ -438,7 +438,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn scope_dynamic_tail_path_is_reindexed() {
         async fn handler(path: web::Path<String>) -> HttpResponse {
             HttpResponse::Ok().body(path.into_inner())
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(read_body(res).await, Bytes::from_static(b"uaie/iuaei"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn scope_static_prefix_skip_is_reindexed() {
         let app = init_service(
             App::new().service(
@@ -477,7 +477,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn no_path() {
         let app = init_service(
             App::new()
@@ -493,7 +493,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_in_place_normalization() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());
@@ -519,7 +519,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn should_normalize_nothing() {
         const URI: &str = "/v1/something";
 
@@ -538,7 +538,7 @@ mod tests {
         assert!(res.status().is_success());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn should_normalize_no_trail() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());

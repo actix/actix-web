@@ -178,7 +178,7 @@ mod tests {
     use super::*;
     use crate::{error::ReadlinesError, test::TestRequest};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_readlines() {
         let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(

@@ -71,5 +71,8 @@ tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", default-features = false, optional = true }
 tokio = { version = "1.38.2", features = ["sync"] }
 
+[dev-dependencies]
+tokio = { version = "1.51", features = ["macros", "rt"] }
+
 [lints]
 workspace = true

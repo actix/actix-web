@@ -101,7 +101,7 @@ mod tests {
         web, App, HttpMessage, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn req_data_extractor() {
         let srv = init_service(
             App::new()
@@ -141,7 +141,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn req_data_internal_mutability() {
         let srv = init_service(
             App::new()

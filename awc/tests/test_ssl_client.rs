@@ -52,7 +52,7 @@ fn tls_config() -> SslAcceptor {
     builder.build()
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_connection_reuse_h2() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -102,7 +102,7 @@ async fn test_connection_reuse_h2() {
 }
 
 // Regression test for https://github.com/actix/actix-web/issues/2305.
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_streaming_body_does_not_send_transfer_encoding() {
     let has_transfer_encoding = Arc::new(AtomicBool::new(false));
     let has_transfer_encoding2 = Arc::clone(&has_transfer_encoding);

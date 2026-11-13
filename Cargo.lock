@@ -42,6 +42,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "tempfile",
+ "tokio",
  "v_htmlescape",
  "winapi-util",
 ]
@@ -394,6 +395,7 @@ dependencies = [
  "quote",
  "rustversion-msrv",
  "syn 3.0.9",
+ "tokio",
  "trybuild",
 ]
 

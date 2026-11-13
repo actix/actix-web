@@ -5,7 +5,7 @@ use actix_web::{
     App,
 };
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_directory_traversal_prevention() {
     let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
 

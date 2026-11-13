@@ -24,7 +24,7 @@ use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use rand::RngExt as _;
 use regex::Regex;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_basic() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -45,7 +45,7 @@ async fn h1_basic() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_2() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -67,7 +67,7 @@ async fn h1_2() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_query() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -95,7 +95,7 @@ impl From<ExpectFailed> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_continue() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -128,7 +128,7 @@ async fn expect_continue() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_continue_h1() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -163,7 +163,7 @@ async fn expect_continue_h1() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn chunked_payload() {
     let chunk_sizes = [32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
@@ -284,14 +284,14 @@ async fn send_pipelined_chunked_requests(last_chunk: &[u8]) -> (Vec<String>, Vec
     (seen, raw)
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn chunked_well_formed_last_chunk_keeps_pipelined_requests_aligned() {
     let (seen, _) = send_pipelined_chunked_requests(b"\r\n").await;
 
     assert_eq!(seen, ["/test", "/front", "/third"]);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
     let (seen, raw) = send_pipelined_chunked_requests(b"\n").await;
 
@@ -307,7 +307,7 @@ async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
     assert_eq!(seen.first().map(String::as_str), Some("/test"));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -343,7 +343,7 @@ async fn slow_request_408() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_malformed_request() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -361,7 +361,7 @@ async fn http1_malformed_request() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -384,7 +384,7 @@ async fn http1_keepalive() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_timeout() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -410,7 +410,7 @@ async fn http1_keepalive_timeout() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_close() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -434,7 +434,7 @@ async fn http1_keepalive_close() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http10_keepalive_default_close() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -456,7 +456,7 @@ async fn http10_keepalive_default_close() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http10_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -484,7 +484,7 @@ async fn http10_keepalive() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_disabled() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -507,7 +507,7 @@ async fn http1_keepalive_disabled() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn content_length() {
     use actix_http::{
         header::{HeaderName, HeaderValue},
@@ -556,7 +556,7 @@ async fn content_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn content_length_truncated() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -612,7 +612,7 @@ async fn content_length_truncated() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
@@ -678,7 +678,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -697,7 +697,7 @@ async fn h1_body() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -724,7 +724,7 @@ async fn h1_head_empty() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -751,7 +751,7 @@ async fn h1_head_binary() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_binary2() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -774,7 +774,7 @@ async fn h1_head_binary2() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -798,7 +798,7 @@ async fn h1_body_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_chunked_explicit() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -835,7 +835,7 @@ async fn h1_body_chunked_explicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_chunked_implicit() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -868,7 +868,7 @@ async fn h1_body_chunked_implicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_response_http_error_handling() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -907,7 +907,7 @@ impl From<BadRequest> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -926,7 +926,7 @@ async fn h1_service_error() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_on_connect() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -949,7 +949,7 @@ async fn h1_on_connect() {
 
 /// Tests compliance with 304 Not Modified spec in RFC 7232 §4.1.
 /// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn not_modified_spec_h1() {
     static CL: header::HeaderName = header::CONTENT_LENGTH;
 
@@ -1024,7 +1024,7 @@ async fn not_modified_spec_h1() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2c_auto() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -1065,7 +1065,7 @@ async fn h2c_auto() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_flow_control_window_sizes() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -1131,7 +1131,7 @@ async fn h2_flow_control_window_sizes() {
 }
 
 #[cfg(feature = "http2")]
-#[tokio::test]
+#[tokio::test(flavor = "local")]
 async fn h2_graceful_shutdown_sends_goaway() {
     use actix_web::{web, App, HttpResponse, HttpServer};
     use tokio::sync::Notify;

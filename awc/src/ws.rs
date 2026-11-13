@@ -479,7 +479,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_debug() {
         let request = Client::new().ws("/").header("x-test", "111");
         let repr = format!("{:?}", request);
@@ -487,7 +487,7 @@ mod tests {
         assert!(repr.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_header_override() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -506,7 +506,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn basic_auth() {
         let req = Client::new()
             .ws("/")
@@ -533,7 +533,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn bearer_auth() {
         let req = Client::new().ws("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
@@ -550,13 +550,13 @@ mod tests {
         let _ = req.connect();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn camel_case_headers() {
         let req = Client::new().ws("/").set_camel_case_headers(true);
         assert!(req.camel_case_headers());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn basics() {
         let req = Client::new()
             .ws("http://localhost/")

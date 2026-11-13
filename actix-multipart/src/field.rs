@@ -603,7 +603,7 @@ mod tests {
         (bytes, headers)
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn bytes_unlimited() {
         let (body, headers) = create_double_request_with_header();
 
@@ -632,7 +632,7 @@ mod tests {
         assert_eq!(field, "two+two+two");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn bytes_limited() {
         let (body, headers) = create_double_request_with_header();
 
@@ -660,7 +660,7 @@ mod tests {
         assert_eq!(field, "two+two+two");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn boundary_marker_split_across_chunks() {
         let (body, headers) = create_double_request_with_header();
         let boundary_start = memchr::memmem::find_iter(&body, b"\r\n--")
@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(field, "two+two+two");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn bare_cr_before_boundary_is_field_data() {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -832,7 +832,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn marker_candidates_and_all_chunk_splits_preserve_field_data() {
         for content_type in [
             "",

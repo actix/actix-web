@@ -480,7 +480,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
@@ -496,7 +496,7 @@ mod tests {
         assert_body_eq!(res, b"{\"name\":\"test\"}");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_error_responder() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(msg.name, "invalid request");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extract() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -586,7 +586,7 @@ mod tests {
         assert!(format!("{}", s.err().unwrap()).contains("Content type error"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
@@ -662,7 +662,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_bad_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -681,7 +681,7 @@ mod tests {
         assert!(s.is_err())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_good_custom_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -702,7 +702,7 @@ mod tests {
         assert!(s.is_ok())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_bad_custom_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -723,7 +723,7 @@ mod tests {
         assert!(s.is_err())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_with_no_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -738,7 +738,7 @@ mod tests {
         assert!(s.is_ok())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_ignoring_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -757,7 +757,7 @@ mod tests {
         assert!(s.is_ok());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_config_in_data_wrapper() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON))

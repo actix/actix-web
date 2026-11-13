@@ -337,7 +337,7 @@ mod tests {
         name: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_route() {
         let srv =
             init_service(
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn route_middleware() {
         let srv = init_service(
             App::new()
@@ -442,7 +442,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::ACCEPTED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service_handler() {
         struct HelloWorld;
 

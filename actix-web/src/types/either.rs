@@ -288,7 +288,7 @@ mod tests {
         hello: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_first_try() {
         let (req, mut pl) = TestRequest::default()
             .set_form(TestForm {
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(&form.hello, "world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_fallback() {
         let (req, mut pl) = TestRequest::default()
             .set_json(TestForm {
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(&form.hello, "world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_recursive_fallback() {
         let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"!@$%^&*()"))
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(&payload.as_ref(), &b"!@$%^&*()");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_recursive_fallback_inner() {
         let (req, mut pl) = TestRequest::default()
             .set_json(TestForm {

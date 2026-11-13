@@ -184,7 +184,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_file_upload() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_file_route)));
 

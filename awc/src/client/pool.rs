@@ -452,7 +452,7 @@ mod test {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pool_limit() {
         let connector = TestPoolConnector {
             generated: Rc::new(Cell::new(0)),
@@ -491,7 +491,7 @@ mod test {
         assert!(now.elapsed() >= Duration::from_millis(100));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pool_keep_alive() {
         let generated = Rc::new(Cell::new(0));
         let generated_clone = generated.clone();
@@ -533,7 +533,7 @@ mod test {
         release(conn);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pool_lifetime() {
         let generated = Rc::new(Cell::new(0));
         let generated_clone = generated.clone();
@@ -575,7 +575,7 @@ mod test {
         release(conn);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pool_authority_key() {
         let generated = Rc::new(Cell::new(0));
         let generated_clone = generated.clone();
@@ -612,7 +612,7 @@ mod test {
         release(conn);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pool_drop() {
         let generated = Rc::new(Cell::new(0));
         let generated_clone = generated.clone();

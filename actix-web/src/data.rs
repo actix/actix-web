@@ -203,7 +203,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_extractor() {
         let srv = init_service(
             App::new()
@@ -248,7 +248,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_app_data_extractor() {
         let srv = init_service(
             App::new()
@@ -274,7 +274,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_route_data_extractor() {
         let srv = init_service(
             App::new().service(
@@ -305,7 +305,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_override_data() {
         let srv = init_service(
             App::new()
@@ -324,14 +324,14 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_from_arc() {
         let data_new = Data::new(String::from("test-123"));
         let data_from_arc = Data::from(Arc::new(String::from("test-123")));
         assert_eq!(data_new.0, data_from_arc.0);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_from_dyn_arc() {
         trait TestTrait {
             fn get_num(&self) -> i32;
@@ -351,7 +351,7 @@ mod tests {
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_dyn_data_into_arc() {
         trait TestTrait {
             fn get_num(&self) -> i32;
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(data_arc.get_num(), arc_from_data.get_num())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_get_ref_from_dyn_data() {
         trait TestTrait {
             fn get_num(&self) -> i32;

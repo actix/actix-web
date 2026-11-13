@@ -329,7 +329,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_double_compressing() {
         let app = test::init_service({
             App::new()
@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(gzip_decode(bytes), TEXT_DATA.as_bytes());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn retains_previously_set_vary_header() {
         let app = test::init_service({
             App::new()
@@ -413,7 +413,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_jpeg() {
         let app = test::init_service(
             App::new()
@@ -435,7 +435,7 @@ mod tests {
         assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_empty() {
         let app = test::init_service({
             App::new()
@@ -453,7 +453,7 @@ mod tests {
         assert!(test::read_body(res).await.is_empty());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn skips_compression_partial_content() {
         let app = test::init_service({
             App::new()
@@ -483,7 +483,7 @@ mod tests_brotli {
     use super::*;
     use crate::{test, web, App};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_empty() {
         let app = test::init_service({
             App::new()

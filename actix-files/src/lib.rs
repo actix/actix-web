@@ -96,7 +96,7 @@ mod tests {
     use super::*;
     use crate::named::File;
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn test_file_extension_to_mime() {
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_none_match_get_and_head() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap().to_string();
@@ -137,7 +137,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_none_match_post() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap().to_string();
@@ -160,7 +160,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_modified_since_get_and_head() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
@@ -184,7 +184,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_modified_since_post() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
@@ -209,7 +209,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_modified_since_without_if_none_match() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_modified_since_without_if_none_match_same() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
@@ -233,7 +233,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_modified_since_with_if_none_match() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
@@ -246,7 +246,7 @@ mod tests {
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_match_overrides_if_unmodified_since() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap();
@@ -260,7 +260,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_match_failure_with_if_unmodified_since() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_unmodified_since() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = file.last_modified().unwrap();
@@ -285,7 +285,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_if_unmodified_since_failed() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_text() {
         assert!(NamedFile::open("test--").is_err());
         let mut file = NamedFile::open("Cargo.toml").unwrap();
@@ -321,7 +321,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_content_disposition() {
         assert!(NamedFile::open("test--").is_err());
         let mut file = NamedFile::open("Cargo.toml").unwrap();
@@ -348,7 +348,7 @@ mod tests {
         assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_non_ascii_file_name() {
         let file = crate::named::File::open("Cargo.toml").unwrap();
 
@@ -373,7 +373,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_set_content_type() {
         let mut file = NamedFile::open("Cargo.toml")
             .unwrap()
@@ -398,7 +398,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_image() {
         let mut file = NamedFile::open("tests/test.png").unwrap();
         {
@@ -421,7 +421,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_javascript() {
         let file = NamedFile::open("tests/test.js").unwrap();
 
@@ -437,7 +437,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_image_attachment() {
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
@@ -466,7 +466,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_binary() {
         let mut file = NamedFile::open("tests/test.binary").unwrap();
         {
@@ -490,7 +490,7 @@ mod tests {
     }
 
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn status_code_customize_same_output() {
         let file1 = NamedFile::open("Cargo.toml")
             .unwrap()
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(res2.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_status_code_text() {
         let mut file = NamedFile::open("Cargo.toml").unwrap();
 
@@ -537,7 +537,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_mime_override() {
         fn all_attachment(_: &mime::Name<'_>) -> DispositionType {
             DispositionType::Attachment
@@ -566,7 +566,7 @@ mod tests {
         assert_eq!(content_disposition, "attachment; filename=\"Cargo.toml\"");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_ranges_status_code() {
         let srv = test::init_service(
             App::new().service(Files::new("/test", ".").index_file("Cargo.toml")),
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_if_none_match_before_range() {
         let req = TestRequest::get().to_http_request();
         let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);
@@ -620,7 +620,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_if_match_before_range() {
         for range in ["bytes=999999999-", "bytes=0-9"] {
             let req = TestRequest::get()
@@ -645,7 +645,7 @@ mod tests {
         }
     }
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn byte_range_units_are_case_insensitive() {
         let file = tempfile::NamedTempFile::new().unwrap();
         fs::write(file.path(), b"0123456789").unwrap();
@@ -672,7 +672,7 @@ mod tests {
         }
     }
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn unknown_range_units_are_ignored() {
         let file = tempfile::NamedTempFile::new().unwrap();
         fs::write(file.path(), b"0123456789").unwrap();
@@ -696,7 +696,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_if_range_etag() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let etag = file.etag().unwrap();
@@ -732,7 +732,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_if_range_date() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let content = fs::read("Cargo.toml").unwrap();
@@ -765,7 +765,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_empty_range_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -783,7 +783,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_content_range_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -808,7 +808,7 @@ mod tests {
         assert_eq!(content_range.to_str().unwrap(), "bytes */100");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_range_header_from_zero_to_end_returns_partial_content() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -832,7 +832,7 @@ mod tests {
         assert!(transfer_encoding.is_none());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_content_length_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_head_content_length_headers() {
         let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
@@ -887,7 +887,7 @@ mod tests {
         assert_eq!(content_length, "100");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_with_spaces() {
         let srv =
             test::init_service(App::new().service(Files::new("/", ".").index_file("Cargo.toml")))
@@ -904,7 +904,7 @@ mod tests {
     }
 
     #[cfg(not(target_os = "windows"))]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_with_special_characters() {
         // Create the file we want to test against ad-hoc. We can't check it in as otherwise
         // Windows can't even checkout this repository.
@@ -927,7 +927,7 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_files_not_allowed() {
         let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
 
@@ -948,7 +948,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_files_guards() {
         let srv = test::init_service(
             App::new().service(Files::new("/", ".").method_guard(guard::Post())),
@@ -964,7 +964,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_content_encoding() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
@@ -985,7 +985,7 @@ mod tests {
         assert!(!test::read_body(res).await.is_empty());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_content_encoding_gzip() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
@@ -1012,7 +1012,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_allowed_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let file = NamedFile::open("Cargo.toml").unwrap();
@@ -1020,7 +1020,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files() {
         let srv =
             test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
@@ -1048,7 +1048,7 @@ mod tests {
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_to_slash_directory() {
         // should not redirect if no index and files listing is disabled
         let srv = test::init_service(
@@ -1105,7 +1105,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_bad_directory() {
         let service = Files::new("/", "./missing").new_service(()).await.unwrap();
 
@@ -1115,7 +1115,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_bad_directory_does_not_serve_cwd_files() {
         let service = Files::new("/", "./missing").new_service(()).await.unwrap();
 
@@ -1125,7 +1125,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_accepts_borrowed_os_string_directory() {
         let dir = OsString::from(".");
         let service = Files::new("/", &dir).new_service(()).await.unwrap();
@@ -1136,7 +1136,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_empty_directories() {
         let service = Files::new("/", Vec::<PathBuf>::new())
             .new_service(())
@@ -1164,7 +1164,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1189,7 +1189,7 @@ mod tests {
         assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_file_as_parent_falls_back() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1213,7 +1213,7 @@ mod tests {
         assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_default_handler() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1242,7 +1242,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_index_file() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1270,7 +1270,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_index_file_as_parent_falls_back() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1301,7 +1301,7 @@ mod tests {
         assert_eq!(test::read_body(resp).await, Bytes::from_static(b"fallback"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_index_file_error_falls_back_to_listing() {
         let dir = tempfile::tempdir().unwrap();
 
@@ -1321,7 +1321,7 @@ mod tests {
         assert!(format!("{bytes:?}").contains("listed.txt"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_show_files_listing() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1341,7 +1341,7 @@ mod tests {
         assert!(format!("{bytes:?}").contains("listed.txt"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_files_multiple_directories_redirect_precedence() {
         let first_dir = tempfile::tempdir().unwrap();
         let second_dir = tempfile::tempdir().unwrap();
@@ -1362,7 +1362,7 @@ mod tests {
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/item/");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_handler_file_missing() {
         let st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| async {
@@ -1379,7 +1379,7 @@ mod tests {
         assert_eq!(bytes, web::Bytes::from_static(b"default content"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_hidden_files_reject_cur_dir_segment() {
         let service = Files::new("/", Vec::<PathBuf>::new())
             .use_hidden_files()
@@ -1394,7 +1394,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_serve_index_nested() {
         let service = Files::new(".", ".")
             .index_file("lib.rs")
@@ -1416,7 +1416,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn integration_serve_index() {
         let srv = test::init_service(
             App::new().service(Files::new("test", ".").index_file("Cargo.toml")),
@@ -1450,7 +1450,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn integration_percent_encoded() {
         let srv = test::init_service(
             App::new().service(Files::new("test", ".").index_file("Cargo.toml")),
@@ -1471,7 +1471,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_percent_encoding_2() {
         let temp_dir = tempfile::tempdir().unwrap();
         let filename = match cfg!(unix) {
@@ -1496,7 +1496,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_serve_named_file() {
         let factory = NamedFile::open("Cargo.toml").unwrap();
         let srv = test::init_service(App::new().service(factory)).await;
@@ -1514,7 +1514,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_serve_named_file_prefix() {
         let factory = NamedFile::open("Cargo.toml").unwrap();
         let srv =
@@ -1533,7 +1533,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_default_service() {
         let factory = NamedFile::open("Cargo.toml").unwrap();
         let srv = test::init_service(App::new().default_service(factory)).await;
@@ -1549,7 +1549,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_handler_named_file() {
         let factory = NamedFile::open("Cargo.toml").unwrap();
         let st = Files::new("/", ".")
@@ -1566,7 +1566,7 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_symlinks() {
         let srv = test::init_service(App::new().service(Files::new("test", "."))).await;
 
@@ -1581,7 +1581,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_index_with_show_files_listing() {
         let service = Files::new(".", ".")
             .index_file("lib.rs")
@@ -1610,7 +1610,7 @@ mod tests {
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_directory_listing_href_escaping() {
         let dir = tempfile::tempdir().unwrap();
         let cases = [
@@ -1660,7 +1660,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_directory_listing_nested_href() {
         let dir = tempfile::tempdir().unwrap();
         let nested = dir.path().join("nested");
@@ -1684,7 +1684,7 @@ mod tests {
         assert!(body.contains("<a href=\"/nested/folder%20%26%20more\">folder &amp; more/</a>"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_path_filter() {
         // prevent searching subdirectories
         let st = Files::new("/", ".")
@@ -1702,7 +1702,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_handler_filter() {
         let st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| async {

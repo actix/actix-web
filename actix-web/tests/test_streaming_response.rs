@@ -38,7 +38,7 @@ impl Stream for FixedSizeStream {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_streaming_response_with_content_length() {
     let stream = FixedSizeStream::new(100);
 
@@ -71,7 +71,7 @@ async fn test_streaming_response_with_content_length() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_streaming_response_default_content_type() {
     let stream = FixedSizeStream::new(50);
 
@@ -84,7 +84,7 @@ async fn test_streaming_response_default_content_type() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_streaming_response_user_defined_content_type() {
     let stream = FixedSizeStream::new(25);
 
@@ -99,7 +99,7 @@ async fn test_streaming_response_user_defined_content_type() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_streaming_response_empty_stream() {
     let stream = FixedSizeStream::new(0);
 

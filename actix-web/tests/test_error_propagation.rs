@@ -84,7 +84,7 @@ where
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn error_cause_should_be_propagated_to_middlewares() {
     let lock = Arc::new(Mutex::new(None));
     let spy_middleware = SpyMiddleware(lock.clone());
@@ -139,7 +139,7 @@ async fn cors_like_middleware<B>(
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn error_response_mapper_allows_cors_like_middleware_to_augment_errors() {
     let srv = actix_test::start(|| {
         App::new()

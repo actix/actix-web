@@ -54,7 +54,7 @@ async fn common_test_code(mut srv: actix_test::TestServer, frame_size: usize) {
     assert_eq!(item, ws::Frame::Close(Some(ws::CloseCode::Normal.into())));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn simple_builder() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -67,7 +67,7 @@ async fn simple_builder() {
     common_test_code(srv, DEFAULT_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_with_frame_size() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -82,7 +82,7 @@ async fn builder_with_frame_size() {
     common_test_code(srv, MAX_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_with_frame_size_exceeded() {
     const MAX_FRAME_SIZE: usize = 64;
 
@@ -111,7 +111,7 @@ async fn builder_with_frame_size_exceeded() {
     assert_eq!(close_reason.code, ws::CloseCode::Error);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_with_codec() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -126,7 +126,7 @@ async fn builder_with_codec() {
     common_test_code(srv, DEFAULT_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_with_protocols() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -141,7 +141,7 @@ async fn builder_with_protocols() {
     common_test_code(srv, DEFAULT_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_with_codec_and_frame_size() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -157,7 +157,7 @@ async fn builder_with_codec_and_frame_size() {
     common_test_code(srv, DEFAULT_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn builder_full() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
@@ -174,7 +174,7 @@ async fn builder_full() {
     common_test_code(srv, MAX_FRAME_SIZE).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn simple_start() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(

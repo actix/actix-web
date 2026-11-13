@@ -76,7 +76,7 @@ mod tests {
     use super::*;
     use crate::{http::StatusCode, service::ServiceResponse, HttpResponse};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn assert_body_works_for_service_and_regular_response() {
         let res = HttpResponse::with_body(StatusCode::OK, "http response");
         assert_body_eq!(res, b"http response");

@@ -390,7 +390,7 @@ mod test {
 
     use super::*;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_h2_connection_drop() {
         env_logger::try_init().ok();
 

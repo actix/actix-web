@@ -8,7 +8,7 @@ use actix_web::{
     web, App,
 };
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_utf8_file_contents() {
     // use default ISO-8859-1 encoding
     let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
@@ -36,7 +36,7 @@ async fn test_utf8_file_contents() {
     );
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_compression_encodings() {
     use actix_web::body::MessageBody;
 
@@ -166,7 +166,7 @@ async fn test_compression_encodings() {
     assert_eq!(res.headers().get(header::CONTENT_ENCODING), None);
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_compression_encodings_multiple_directories() {
     use actix_web::body::MessageBody;
 
@@ -204,7 +204,7 @@ async fn test_compression_encodings_multiple_directories() {
     );
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn partial_range_response_encoding() {
     let srv = test::init_service(App::new().default_service(web::to(|| async {
         NamedFile::open("./tests/test.binary").unwrap()

@@ -204,7 +204,7 @@ mod tests {
         HttpMessage as _, StatusCode,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn upgrade_advertisement_preserves_keep_alive() {
         for (version, camel_case, connection) in [
             ("HTTP/1.1", false, "connection: upgrade\r\n"),
@@ -239,7 +239,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_http_request_chunked_payload_and_next_message() {
         let mut codec = Codec::default();
 
@@ -278,7 +278,7 @@ mod tests {
         assert!(req.chunked().unwrap());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_http_request_rejects_content_length_and_chunked() {
         let mut codec = Codec::default();
         let mut buf = BytesMut::from(

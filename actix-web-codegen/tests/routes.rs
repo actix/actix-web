@@ -229,7 +229,7 @@ async fn get_catalog() -> impl Responder {
     HttpResponse::Ok().body("123123123")
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_params() {
     let srv = actix_test::start(|| {
         App::new()
@@ -251,7 +251,7 @@ async fn test_params() {
     assert_eq!(response.status(), http::StatusCode::NO_CONTENT);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body() {
     let srv = actix_test::start(|| {
         App::new()
@@ -367,7 +367,7 @@ async fn test_body() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_auto_async() {
     let srv = actix_test::start(|| App::new().service(auto_async));
 
@@ -376,7 +376,7 @@ async fn test_auto_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_wrap() {
     let srv = actix_test::start(|| App::new().service(get_wrap));
 
@@ -389,7 +389,7 @@ async fn test_wrap() {
     assert!(body.contains("wrong number of parameters"));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_query() {
     let srv = actix_test::start(|| App::new().service(query_test));
 
