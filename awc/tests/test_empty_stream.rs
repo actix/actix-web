@@ -9,7 +9,7 @@ use tokio::{
     time::timeout,
 };
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn empty_body_stream_does_not_use_chunked_encoding() {
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();

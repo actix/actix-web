@@ -42,7 +42,7 @@ use crate::{
 ///     }
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// # // force rustdoc to display the correct thing and also compile check the test
 /// # async fn _test() {}
 /// async fn test_index() {
@@ -361,7 +361,7 @@ mod tests {
     use super::*;
     use crate::{http::header, test::init_service, web, App, Error, Responder};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_app_data_is_dropped() {
         fn assert_dropped(make_request: impl FnOnce(TestRequest)) {
             let data = Arc::new(());
@@ -375,7 +375,7 @@ mod tests {
         assert_dropped(|req| drop(req.to_http_parts()));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_basics() {
         let req = TestRequest::default()
             .version(Version::HTTP_2)
@@ -403,7 +403,7 @@ mod tests {
         assert_eq!(*data, 20);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_send_request() {
         let app = init_service(
             App::new().service(
@@ -422,7 +422,7 @@ mod tests {
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_async_with_block() {
         async fn async_with_block() -> Result<HttpResponse, Error> {
             let res = web::block(move || Some(4usize).ok_or("wrong")).await;
@@ -446,7 +446,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {
             assert_eq!(**data, 10);

@@ -438,7 +438,7 @@ mod tests {
         counter: i64,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_form() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -467,7 +467,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_urlencoded_error() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -494,7 +494,7 @@ mod tests {
         assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_urlencoded() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -530,7 +530,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
@@ -547,7 +547,7 @@ mod tests {
         assert_body_eq!(res, b"hello=world&counter=123");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_config_in_data_wrapper() {
         let ctype = HeaderValue::from_static("application/x-www-form-urlencoded");
 

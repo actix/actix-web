@@ -193,40 +193,40 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oversized_write_buffer_released_after_flush() {
     check_buffer_retention(1024 * 1024, 32 * 1024, false, true).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oversized_write_buffer_released_after_partial_write() {
     check_buffer_retention(1024 * 1024, 32 * 1024, true, true).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn normal_write_buffer_reused_after_flush() {
     check_buffer_retention(1024, 32 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn configured_write_buffer_reused_after_flush() {
     // A custom watermark above 128 KiB also raises the retention limit.
     check_buffer_retention(256 * 1024, 1024 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn small_write_watermark_preserves_normal_buffer() {
     // A small watermark must not lower the 128 KiB retention limit.
     check_buffer_retention(64 * 1024, 8 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn buffer_above_configured_write_watermark_released() {
     // A larger watermark sets the limit directly; it is not multiplied by four.
     check_buffer_retention(512 * 1024, 256 * 1024, false, true).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn blocked_sized_body_retains_write_buffer() {
     const BODY_LEN: usize = 64 * 1024;
 

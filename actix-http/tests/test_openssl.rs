@@ -66,7 +66,7 @@ fn tls_config() -> SslAcceptor {
     builder.build()
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
@@ -81,7 +81,7 @@ async fn h2() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
@@ -103,7 +103,7 @@ async fn h2_1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024); // 640 KiB
     let mut srv = test_server(move || {
@@ -125,7 +125,7 @@ async fn h2_body() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_content_length() {
     let srv = test_server(move || {
         HttpService::build()
@@ -173,7 +173,7 @@ async fn h2_content_length() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
@@ -238,7 +238,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -256,7 +256,7 @@ async fn h2_body2() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -280,7 +280,7 @@ async fn h2_head_empty() {
     assert!(bytes.is_empty());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -303,7 +303,7 @@ async fn h2_head_binary() {
     assert!(bytes.is_empty());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
@@ -322,7 +322,7 @@ async fn h2_head_binary2() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -346,7 +346,7 @@ async fn h2_body_length() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_chunked_explicit() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -374,7 +374,7 @@ async fn h2_body_chunked_explicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -414,7 +414,7 @@ impl From<BadRequest> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -432,7 +432,7 @@ async fn h2_service_error() {
     assert_eq!(bytes, Bytes::from_static(b"error"));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()

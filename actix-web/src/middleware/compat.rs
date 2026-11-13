@@ -148,7 +148,7 @@ mod tests {
         web, App, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_scope_middleware() {
         use crate::middleware::Compress;
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_resource_scope_middleware() {
         use crate::middleware::Compress;
@@ -194,7 +194,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_condition_scope_middleware() {
         let srv = |req: ServiceRequest| {
             Box::pin(
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn compat_noop_is_noop() {
         let srv = test::ok_service();
 

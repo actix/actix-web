@@ -979,7 +979,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_http_request_pool() {
         let srv = init_service(
             App::new().service(web::resource("/").to(|req: HttpRequest| {
@@ -998,7 +998,7 @@ mod tests {
         assert_eq!(resp.headers().get("pool_cap").unwrap(), "128");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_dropped_after_service_does_not_reenter_pool() {
         struct State {
             _data: Arc<String>,
@@ -1033,7 +1033,7 @@ mod tests {
         assert!(weak_data.upgrade().is_none());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data() {
         let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
             |req: HttpRequest| {
@@ -1066,7 +1066,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_cascading_data() {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
@@ -1097,7 +1097,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"88"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_overwrite_data() {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
@@ -1128,7 +1128,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_app_data_dropped() {
         struct Tracker {
             pub dropped: bool,
@@ -1163,7 +1163,7 @@ mod tests {
         assert!(tracker.borrow().dropped);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn extract_path_pattern() {
         let srv = init_service(
             App::new().service(
@@ -1192,7 +1192,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn extract_path_pattern_with_guards() {
         let srv = init_service(
             App::new().service(
@@ -1230,7 +1230,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn extract_path_pattern_complex() {
         let srv = init_service(
             App::new()
@@ -1266,7 +1266,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn url_for_closest_named_resource() {
         // we mount the route named 'nested' on 2 different scopes, 'a' and 'b'
         let srv = test::init_service(

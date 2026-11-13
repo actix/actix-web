@@ -58,6 +58,7 @@ tokio = { version = "1.38.2", features = ["sync"] }
 
 [dev-dependencies]
 actix-http = "3"
+tokio = { version = "1.51", features = ["macros", "rt"] }
 
 [lints]
 workspace = true

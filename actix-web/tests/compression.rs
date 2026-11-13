@@ -75,7 +75,7 @@ macro_rules! test_server {
     };
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn negotiate_encoding_identity() {
     let srv = test_server!();
 
@@ -94,7 +94,7 @@ async fn negotiate_encoding_identity() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn negotiate_encoding_gzip() {
     let srv = test_server!();
 
@@ -123,7 +123,7 @@ async fn negotiate_encoding_gzip() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn negotiate_encoding_br() {
     let srv = test_server!();
 
@@ -170,7 +170,7 @@ async fn negotiate_encoding_br() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn negotiate_encoding_zstd() {
     let srv = test_server!();
 
@@ -204,7 +204,7 @@ async fn negotiate_encoding_zstd() {
     feature = "compress-gzip",
     feature = "compress-zstd",
 ))]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_encoding_prefers_brotli() {
     let srv = test_server!();
 
@@ -220,7 +220,7 @@ async fn client_encoding_prefers_brotli() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn gzip_no_decompress() {
     let srv = test_server!();
 
@@ -242,7 +242,7 @@ async fn gzip_no_decompress() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn manual_custom_coding() {
     let srv = test_server!();
 
@@ -264,7 +264,7 @@ async fn manual_custom_coding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn deny_identity_coding() {
     let srv = test_server!();
 
@@ -284,7 +284,7 @@ async fn deny_identity_coding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn deny_identity_coding_no_decompress() {
     let srv = test_server!();
 
@@ -307,7 +307,7 @@ async fn deny_identity_coding_no_decompress() {
 }
 
 // Regression test for https://github.com/actix/actix-web/issues/3410.
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn gzip_stream_delivers_content_while_body_is_pending() {
     const INITIAL_CONTENT: &[u8] = b"This content appears immediately";
 
@@ -360,7 +360,7 @@ async fn gzip_stream_delivers_content_while_body_is_pending() {
 // TODO: fix test
 // currently fails because negotiation doesn't consider unknown encoding types
 #[ignore]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn deny_identity_for_manual_coding() {
     let srv = test_server!();
 

@@ -329,7 +329,7 @@ mod tests {
     }
 
     /// Test using an external library to prevent the two-wrongs-make-a-right class of errors.
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn ecosystem_compat() {
         let (pl, headers) = create_form_data_payload_and_headers(
             "foo",
@@ -373,7 +373,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_compat() {
         let app =
             init_service(App::new().route("/", web::post().to(multipart_test_request_route))).await;

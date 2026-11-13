@@ -14,7 +14,7 @@
 //!     Ok(HttpResponse::Ok())
 //! }
 //!
-//! #[actix_rt::test]
+//! #[tokio::test(flavor = "local")]
 //! async fn test_example() {
 //!     let srv = actix_test::start(||
 //!         App::new().service(my_handler)
@@ -66,7 +66,7 @@ use tokio::sync::mpsc;
 ///     Ok(HttpResponse::Ok())
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_example() {
 ///     let srv = actix_test::start(||
 ///         App::new().service(my_handler)
@@ -105,7 +105,7 @@ where
 ///     Ok(HttpResponse::Ok())
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_example() {
 ///     let srv = actix_test::start_with(actix_test::config().h1(), ||
 ///         App::new().service(my_handler)

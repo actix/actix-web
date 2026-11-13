@@ -35,7 +35,6 @@ v_htmlescape = "0.17"
 winapi-util = "0.1"
 
 [dev-dependencies]
-actix-rt = "2.7"
 actix-test = "0.1"
 actix-web = "4"
 env_logger = "0.11"

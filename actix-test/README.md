@@ -29,7 +29,7 @@ async fn my_handler() -> Result<impl Responder, Error> {
     Ok(HttpResponse::Ok())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_example() {
     let srv = actix_test::start(||
         App::new().service(my_handler)

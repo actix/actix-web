@@ -215,7 +215,7 @@ mod tests {
         Error, Request, Response, ServiceConfig,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn camel_case_headers() {
         let mut srv = actix_http_test::test_server(|| {
             H1Service::with_config(ServiceConfig::default(), |req: Request| async move {

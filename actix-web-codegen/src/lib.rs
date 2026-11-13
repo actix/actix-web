@@ -264,7 +264,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Examples
 /// ```
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test() {
 ///     assert_eq!(async { "Hello world" }.await, "Hello world");
 /// }

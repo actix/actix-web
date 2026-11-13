@@ -32,7 +32,7 @@ fn find_external<'a>(items: &'a [serde_json::Value], name: &str) -> &'a serde_js
         .unwrap_or_else(|| panic!("Missing external resource for {name}"))
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn introspection_report_includes_details_and_metadata() {
     let app = test::init_service(
         App::new()

@@ -334,7 +334,7 @@ mod tests {
         (rx, handle)
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn wake_on_error() {
         let (mut sender, payload) = Payload::create(false);
         let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
@@ -344,7 +344,7 @@ mod tests {
         timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn wake_on_eof() {
         let (mut sender, payload) = Payload::create(false);
         let (rx, handle) = prepare_waking_test(payload, None);
@@ -354,7 +354,7 @@ mod tests {
         timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn wake_on_sender_drop() {
         let (sender, payload) = Payload::create(false);
         let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
@@ -364,7 +364,7 @@ mod tests {
         timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_unread_data() {
         let (_, mut payload) = Payload::create(false);
 

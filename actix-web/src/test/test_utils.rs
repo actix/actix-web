@@ -20,7 +20,7 @@ use crate::{
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
@@ -70,7 +70,7 @@ where
 /// ```
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_response() {
 ///     let app = test::init_service(
 ///         App::new()
@@ -116,7 +116,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -167,7 +167,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -222,7 +222,7 @@ where
 ///     name: String,
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_post_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -291,7 +291,7 @@ where
 ///     name: String
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_add_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -364,7 +364,7 @@ mod tests {
         dev::ServiceRequest, http::header, test::TestRequest, web, App, HttpMessage, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_methods() {
         let app = init_service(
             App::new().service(
@@ -408,7 +408,7 @@ mod tests {
 
     // `QUERY` is safe and idempotent like `GET`, but (like `POST`) carries a request body;
     // this proves body extractors work for `QUERY` handlers. See RFC 10008.
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_query_carries_json_body() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -435,7 +435,7 @@ mod tests {
         name: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_response_json() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -455,7 +455,7 @@ mod tests {
         assert_eq!(&result.id, "12345");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_try_response_json_error() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -476,7 +476,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_body_json() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -497,7 +497,7 @@ mod tests {
         assert_eq!(&result.name, "User name");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_try_body_json_error() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -519,7 +519,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_response_form() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(&result.name, "User name");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_response() {
         let app = init_service(
             App::new().service(
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_response_json() {
         let app =
             init_service(App::new().service(web::resource("/people").route(
@@ -588,7 +588,7 @@ mod tests {
         assert_eq!(&result.name, "User name");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[allow(dead_code)]
     async fn return_opaque_types() {
         fn test_app() -> App<

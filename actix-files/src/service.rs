@@ -466,7 +466,7 @@ mod tests {
         name
     }
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     #[ignore = "requires an NTFS temporary directory with 8.3 name creation enabled"]
     async fn hidden_short_names() {
         let temp = tempfile::tempdir().unwrap();

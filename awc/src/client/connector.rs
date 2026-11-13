@@ -1128,7 +1128,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn h2c_connector() {
         let mut srv = test_server(|| {
             HttpService::build()

@@ -129,7 +129,7 @@ mod tests {
         Error,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn to_bytes_complete() {
         let bytes = to_bytes(()).await.unwrap();
         assert!(bytes.is_empty());
@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(bytes, b"123"[..]);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn to_bytes_streams() {
         let stream = stream::iter(vec![Bytes::from_static(b"123"), Bytes::from_static(b"abc")])
             .map(Ok::<_, Error>);
@@ -148,7 +148,7 @@ mod tests {
         assert_eq!(bytes, b"123abc"[..]);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn to_bytes_limited_complete() {
         let bytes = to_bytes_limited((), 0).await.unwrap().unwrap();
         assert!(bytes.is_empty());
@@ -166,7 +166,7 @@ mod tests {
         assert!(to_bytes_limited(Bytes::from_static(b"12"), 3).await.is_ok());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn to_bytes_limited_streams() {
         // hinting a larger body fails
         let body = SizedStream::new(8, stream::empty().map(Ok::<_, Error>));
@@ -187,7 +187,7 @@ mod tests {
         assert!(to_bytes_limited(body, 3).await.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn to_body_limit_error() {
         let err_stream = stream::once(async { Err(io::Error::other("")) });
         let body = SizedStream::new(8, err_stream);

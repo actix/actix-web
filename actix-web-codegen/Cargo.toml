@@ -24,13 +24,13 @@ syn = { version = "3", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
 actix-macros = "0.2.4"
-actix-rt = "2.2"
 actix-test = "0.1"
 actix-utils = "3"
 actix-web = "4"
 
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 rustversion-msrv = "0.100"
+tokio = { version = "1.51", features = ["macros", "rt"] }
 trybuild = "1"
 
 [lints]

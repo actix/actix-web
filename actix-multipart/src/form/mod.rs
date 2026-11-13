@@ -655,7 +655,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_options() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_options_route)));
 
@@ -685,7 +685,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_vec() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_vec_route)));
 
@@ -718,7 +718,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_option_vec() {
         let srv =
             actix_test::start(|| App::new().route("/", web::post().to(test_option_vec_route)));
@@ -749,7 +749,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_field_renaming() {
         let srv =
             actix_test::start(|| App::new().route("/", web::post().to(test_field_renaming_route)));
@@ -779,7 +779,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_deny_unknown() {
         let srv = actix_test::start(|| {
             App::new()
@@ -835,7 +835,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_duplicate_field() {
         let srv = actix_test::start(|| {
             App::new()
@@ -863,7 +863,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_discarded_fields_count_towards_total_limit() {
         let srv = actix_test::start(|| {
             App::new()
@@ -889,7 +889,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_max_parts() {
         #[derive(MultipartForm)]
         struct Upload {
@@ -923,7 +923,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_derived_max_parts() {
         #[derive(MultipartForm)]
         #[multipart(max_parts = 2)]
@@ -966,7 +966,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_configured_max_parts() {
         #[derive(MultipartForm)]
         struct Upload {
@@ -1015,7 +1015,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_discarded_fields_count_towards_max_parts() {
         let app = init_service(
             App::new()
@@ -1067,7 +1067,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_memory_limits() {
         let srv = actix_test::start(|| {
             App::new()
@@ -1093,7 +1093,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_total_limit() {
         let srv = actix_test::start(|| {
             App::new()
@@ -1138,7 +1138,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_field_level_limits() {
         let srv = actix_test::start(|| {
             App::new()
@@ -1177,7 +1177,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn non_multipart_form_data() {
         #[derive(MultipartForm)]
         struct TestNonMultipartFormData {
@@ -1213,7 +1213,7 @@ mod tests {
     }
 
     #[should_panic(expected = "Field should not be polled after completion")]
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn field_try_next_panic() {
         #[derive(Debug)]
         struct NullSink;

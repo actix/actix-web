@@ -370,7 +370,7 @@ mod tests {
     use super::*;
     use crate::{date::DATE_VALUE_LENGTH, notify_on_drop};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_update() {
         let settings =
             ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
@@ -403,7 +403,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_drop() {
         let service = Rc::new(DateService::new());
 
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date() {
         let settings = ServiceConfig::default();
 
@@ -450,7 +450,7 @@ mod tests {
         assert_eq!(buf1, buf2);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_camel_case() {
         let settings = ServiceConfig::default();
 

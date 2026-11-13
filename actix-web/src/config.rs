@@ -435,7 +435,7 @@ mod tests {
 
     // allow deprecated `ServiceConfig::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_external_resource() {
         let srv = init_service(
             App::new()
@@ -477,7 +477,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn registers_default_service() {
         let srv = init_service(
             App::new()
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"scoped four oh four"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service() {
         let srv = init_service(App::new().configure(|cfg| {
             cfg.service(web::resource("/test").route(web::get().to(HttpResponse::Created)))
@@ -530,7 +530,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn nested_service_configure() {
         fn cfg_root(cfg: &mut ServiceConfig) {
             cfg.configure(cfg_sub);

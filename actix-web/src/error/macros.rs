@@ -90,7 +90,7 @@ mod tests {
     impl MB for String {}
     impl MB for () {}
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_any_casting() {
         let mut body = String::from("hello cast");
         let resp_body: &mut dyn MB = &mut body;

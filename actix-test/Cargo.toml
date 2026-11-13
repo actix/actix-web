@@ -52,7 +52,6 @@ openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 actix-codec = "0.5"
 actix-http = "3.7"
 actix-http-test = "3"
-actix-rt = "2.1"
 actix-service = "2"
 actix-utils = "3"
 actix-web = { version = "4.6", default-features = false, features = ["cookies"] }
@@ -70,6 +69,9 @@ tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true }
 tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", default-features = false, optional = true }
 tokio = { version = "1.38.2", features = ["sync"] }
+
+[dev-dependencies]
+tokio = { version = "1.51", features = ["macros", "rt"] }
 
 [lints]
 workspace = true

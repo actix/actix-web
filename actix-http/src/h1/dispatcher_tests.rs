@@ -68,7 +68,7 @@ fn stabilize_date_header(payload: &mut [u8]) {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn late_request() {
     let mut buf = TestBuffer::empty();
 
@@ -135,7 +135,7 @@ async fn late_request() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oneshot_connection() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -196,7 +196,7 @@ async fn oneshot_connection() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -275,7 +275,7 @@ async fn keep_alive_timeout() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_follow_up_req() {
     let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -401,7 +401,7 @@ async fn keep_alive_follow_up_req() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn graceful_shutdown_does_not_start_buffered_request() {
     use crate::config::{GracefulShutdownSignal, ServiceConfigBuilder};
 
@@ -442,7 +442,7 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
@@ -475,7 +475,7 @@ async fn req_parse_err() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_ok() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -547,7 +547,7 @@ async fn pipelining_ok_then_ok() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn early_response_with_payload_lingers_before_closing() {
     lazy(|cx| {
         let buf = TestSeqBuffer::new(http_msg(
@@ -618,7 +618,7 @@ async fn early_response_with_payload_lingers_before_closing() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
     lazy(|cx| {
         let buf = TestSeqBuffer::new(http_msg(
@@ -691,7 +691,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn lingering_timeout_uses_graceful_shutdown() {
     let buf = TestSeqBuffer::new(
         "\
@@ -749,7 +749,7 @@ async fn lingering_timeout_uses_graceful_shutdown() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -819,7 +819,7 @@ async fn pipelining_ok_then_bad() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -897,7 +897,7 @@ async fn expect_handling() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -964,7 +964,7 @@ async fn expect_eager() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn upgrade_handling() {
     struct TestUpgrade;
 
@@ -1024,7 +1024,7 @@ async fn upgrade_handling() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn upgrade_response_does_not_close_unfinished_payload() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1084,7 +1084,7 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
 }
 
 #[cfg(feature = "ws")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn unsupported_websocket_version_closes_connection() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1137,7 +1137,7 @@ async fn unsupported_websocket_version_closes_connection() {
 // fix in #2624 reverted temporarily
 // complete fix tracked in #2745
 #[ignore]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn handler_drop_payload() {
     let _ = env_logger::try_init();
 
@@ -1284,7 +1284,7 @@ async fn handler_drop_payload() {
 // rest of the request body so clients that do not read the response until they've finished
 // writing the request (like `requests` in Python) do not deadlock.
 // ref. https://github.com/actix/actix-web/issues/2972
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn handler_drop_payload_drains_body() {
     let _ = env_logger::try_init();
 
@@ -1408,7 +1408,7 @@ async fn handler_drop_payload_drains_body() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn allow_half_closed() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1461,7 +1461,7 @@ async fn allow_half_closed() {
     assert!(inner.state.is_none());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn disallow_half_closed() {
     use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
 
@@ -1503,7 +1503,7 @@ async fn disallow_half_closed() {
     assert!(matches!(inner.state, State::ServiceCall { .. }))
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_write_buffer_size_limits_buffering() {
     let request = "GET /stream HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
 
@@ -1549,7 +1549,7 @@ async fn h1_write_buffer_size_limits_buffering() {
     assert_eq!(custom_polls.get(), 1);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 #[should_panic(expected = "HTTP/1 write buffer size must be greater than zero")]
 async fn h1_write_buffer_size_rejects_zero() {
     let _ = crate::config::ServiceConfigBuilder::new().h1_write_buffer_size(0);
@@ -1627,7 +1627,7 @@ impl AsyncWrite for TrickleIo {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn sized_body_does_not_grow_write_buf() {
     let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let io = TrickleIo {
@@ -1661,7 +1661,7 @@ async fn sized_body_does_not_grow_write_buf() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn sized_body_survives_partial_writes() {
     for vectored in [true, false] {
         let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
@@ -1705,7 +1705,7 @@ async fn sized_body_survives_partial_writes() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn sized_body_batches_small_chunks() {
     let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let writes = Rc::new(Cell::new(0));
