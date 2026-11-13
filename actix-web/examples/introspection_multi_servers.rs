@@ -1,7 +1,7 @@
 // Example showcasing the experimental introspection feature with multiple App instances.
 // Run with: `cargo run --features experimental-introspection --example introspection_multi_servers`
 
-#[actix_web::main]
+#[tokio::main(flavor = "local")]
 async fn main() -> std::io::Result<()> {
     #[cfg(feature = "experimental-introspection")]
     {

@@ -186,7 +186,7 @@ serde = { version = "1", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
-tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.51", features = ["rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7", default-features = false, features = ["time"] }
 zstd = "0.14"
 
