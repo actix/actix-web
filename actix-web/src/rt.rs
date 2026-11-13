@@ -70,7 +70,7 @@
 // In particular:
 // - Omit the `Arbiter` types because they have limited value here.
 // - Re-export but hide the runtime macros because they won't work directly but are required for
-//   `#[actix_web::main]` and `#[tokio::test(flavor = "local")]` to work.
+//   `#[actix_web::main]` and `#[actix_web::test]` to work.
 
 #[cfg(feature = "macros")]
 #[doc(hidden)]
