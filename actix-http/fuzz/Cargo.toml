@@ -1,0 +1,39 @@
+[package]
+name = "actix-http-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+actix-http = { path = "..", features = ["ws"] }
+bytes = "1"
+libfuzzer-sys = "0.4"
+tokio = { version = "1", features = ["rt", "time"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "h1_request"
+path = "fuzz_targets/h1_request.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "h1_response"
+path = "fuzz_targets/h1_response.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ws_frame"
+path = "fuzz_targets/ws_frame.rs"
+test = false
+doc = false
