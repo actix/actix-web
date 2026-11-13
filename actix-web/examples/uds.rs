@@ -20,7 +20,7 @@ async fn no_params() -> &'static str {
 }
 
 #[cfg(unix)]
-#[actix_web::main]
+#[tokio::main(flavor = "local")]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 

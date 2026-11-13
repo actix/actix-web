@@ -1,7 +1,7 @@
 // Example showcasing the experimental introspection feature.
 // Run with: `cargo run --features experimental-introspection --example introspection`
 
-#[actix_web::main]
+#[tokio::main(flavor = "local")]
 async fn main() -> std::io::Result<()> {
     #[cfg(feature = "experimental-introspection")]
     {
