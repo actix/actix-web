@@ -228,6 +228,7 @@ struct Args {
     path: syn::LitStr,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Path>,
+    guard_objs: Vec<syn::Expr>,
     wrappers: Vec<syn::Expr>,
     methods: HashSet<MethodTypeExt>,
 }
@@ -236,6 +237,7 @@ impl Args {
     fn new(args: RouteArgs, method: Option<MethodType>) -> syn::Result<Self> {
         let mut resource_name = None;
         let mut guards = Vec::new();
+        let mut guard_objs = Vec::new();
         let mut wrappers = Vec::new();
         let mut methods = HashSet::new();
 
@@ -269,6 +271,19 @@ impl Args {
                     return Err(syn::Error::new_spanned(
                         nv.value,
                         "Attribute guard expects literal string",
+                    ));
+                }
+            } else if nv.path.is_ident("guard_obj") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) = nv.value
+                {
+                    guard_objs.push(lit.parse()?);
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        nv.value,
+                        "Attribute guard_obj expects literal string",
                     ));
                 }
             } else if nv.path.is_ident("wrap") {
@@ -310,7 +325,7 @@ impl Args {
             } else {
                 return Err(syn::Error::new_spanned(
                     nv.path,
-                    "Unknown attribute key is specified; allowed: guard, method and wrap",
+                    "Unknown attribute key is specified; allowed: guard, guard_obj, method and wrap",
                 ));
             }
         }
@@ -319,6 +334,7 @@ impl Args {
             path: args.path,
             resource_name,
             guards,
+            guard_objs,
             wrappers,
             methods,
         })
@@ -429,6 +445,7 @@ impl ToTokens for Route {
                     path,
                     resource_name,
                     guards,
+                    guard_objs,
                     wrappers,
                     methods,
                 } = args;
@@ -459,6 +476,7 @@ impl ToTokens for Route {
                         .name(#resource_name)
                         #method_guards
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
+                        #(.guard(#guard_objs))*
                         #(.wrap(#wrappers))*
                         .to(#name);
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);

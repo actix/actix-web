@@ -99,6 +99,7 @@ mod scope;
 /// - `method = "HTTP_METHOD"`: Registers HTTP method to provide guard for. Upper-case string,
 ///   "GET", "POST" for example.
 /// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+/// - `guard_obj = "guard_expression"`: Registers guard object implementing `actix_web::guard::Guard`.
 /// - `wrap = "Middleware"`: Registers a resource middleware.
 ///
 /// # Notes
@@ -166,6 +167,7 @@ macro_rules! method_macro {
         /// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the
         ///   function name of handler is used.
         /// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+        /// - `guard_obj = "guard_expression"`: Registers guard object implementing `actix_web::guard::Guard`.
         /// - `wrap = "Middleware"`: Registers a resource middleware.
         ///
         /// # Notes
