@@ -34,7 +34,6 @@ tokio = { version = "1.38.2", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
-actix-rt = "2.2"
 actix-test = "0.1"
 actix-web = { version = "4", features = ["macros"] }
 awc = { version = "3", default-features = false }

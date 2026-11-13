@@ -24,7 +24,6 @@ name = "actix-files"
 version = "0.7.4"
 dependencies = [
  "actix-http",
- "actix-rt",
  "actix-service",
  "actix-test",
  "actix-utils",
@@ -149,7 +148,6 @@ dependencies = [
  "actix-http",
  "actix-multipart-derive",
  "actix-multipart-rfc7578",
- "actix-rt",
  "actix-test",
  "actix-utils",
  "actix-web",
@@ -261,7 +259,6 @@ dependencies = [
  "actix-codec",
  "actix-http",
  "actix-http-test",
- "actix-rt",
  "actix-service",
  "actix-utils",
  "actix-web",
@@ -386,7 +383,6 @@ version = "4.5.0"
 dependencies = [
  "actix-macros",
  "actix-router",
- "actix-rt",
  "actix-test",
  "actix-utils",
  "actix-web",

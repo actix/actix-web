@@ -52,7 +52,6 @@ openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 actix-codec = "0.5"
 actix-http = "3.7"
 actix-http-test = "3"
-actix-rt = "2.1"
 actix-service = "2"
 actix-utils = "3"
 actix-web = { version = "4.6", default-features = false, features = ["cookies"] }
