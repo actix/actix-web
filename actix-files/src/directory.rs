@@ -7,7 +7,6 @@ use std::{
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-use v_htmlescape::escape_fmt;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -53,9 +52,17 @@ const PATH_SEGMENT: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'~');
 
 /// Returns a percent encoded file URL path escaped for an HTML attribute.
+///
+/// ```plain
+/// " => &quot;
+/// & => &amp;
+/// ' => &#x27;
+/// < => &lt;
+/// > => &gt;
+/// ```
 macro_rules! encode_file_url {
     ($path:ident) => {
-        escape_fmt(
+        v_html5escape::escape_fmt(
             &$path
                 .split('/')
                 .map(|segment| utf8_percent_encode(segment, PATH_SEGMENT).to_string())
@@ -63,8 +70,6 @@ macro_rules! encode_file_url {
                 .join("/"),
         )
         .to_string()
-        // Slashes are safe in a quoted attribute. Keep path separators literal.
-        .replace("&#x2f;", "/")
     };
 }
 
@@ -80,7 +85,7 @@ macro_rules! encode_file_url {
 /// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_fmt(&$entry.file_name().to_string_lossy())
+        v_htmlescape::escape_fmt(&$entry.file_name().to_string_lossy())
     };
 }
 

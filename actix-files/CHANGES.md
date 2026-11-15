@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `v_htmlescape` and use `v_html5escape` for file URLs in generated directory listings.
+
 ## 0.7.4
 
 - Fix hidden-file protection bypass through Windows short filename aliases. [GHSA-8hcm-m7r7-frwc](https://github.com/actix/actix-web/security/advisories/GHSA-8hcm-m7r7-frwc)
