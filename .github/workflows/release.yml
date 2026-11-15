@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: github.repository == 'actix/actix-web'
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
+
+      - name: release-plz
+        uses: release-plz/action@v0.5.140
+        id: release-plz
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Install Nix
+        if: steps.release-plz.outputs.releases_created == 'true'
+        uses: nixbuild/nix-quick-install-action@v35
+
+      - name: Enter Nix devshell
+        if: steps.release-plz.outputs.releases_created == 'true'
+        uses: nicknovitski/nix-develop@v1.2.1
+        with:
+          arguments: .#ci-release
+
+      - name: Update release notes
+        if: steps.release-plz.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PLZ_RELEASES_JSON: ${{ steps.release-plz.outputs.releases }}
+        run: |
+          # The shared release tool reads CHANGELOG.md.
+          for changelog in */CHANGES.md; do
+            ln -s CHANGES.md "${changelog%CHANGES.md}CHANGELOG.md"
+          done
+
+          x52-update-release-notes --then-undraft
