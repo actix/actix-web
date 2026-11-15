@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.21.3
+
 - Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings.
 
 ## 3.21.2
