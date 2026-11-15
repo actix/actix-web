@@ -5,12 +5,12 @@ use tracing::{debug, trace};
 
 macro_rules! byte (
     ($rdr:ident) => ({
-        if $rdr.len() > 0 {
-            let b = $rdr[0];
-            $rdr.advance(1);
-            b
-        } else {
-            return Poll::Pending
+        match &$rdr[..] {
+            &[b, ..] => {
+                $rdr.advance(1);
+                b
+            }
+            [] => return Poll::Pending,
         }
     })
 );
