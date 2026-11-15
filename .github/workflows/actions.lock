@@ -33,6 +33,12 @@ workflows:
         - 'taiki-e/install-action@v2.90.3'
         - 'useblacksmith/checkout@v1.8.2'
         - 'zizmorcore/zizmor-action@v0.8.1'
+    '.github/workflows/release.yml':
+        - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
+        - 'actions/checkout@v7.0.1'
+        - 'nicknovitski/nix-develop@v1.2.1'
+        - 'nixbuild/nix-quick-install-action@v35'
+        - 'release-plz/action@v0.5.140'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
         - 'taiki-e/install-action@v2.90.3'
@@ -50,6 +56,11 @@ dependencies:
         commit: 'sha1-55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
         owner_id: 44036562
         repo_id: 215566462
+    'actions/checkout@v7.0.1':
+        ref: 'v7.0.1'
+        commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
+        owner_id: 44036562
+        repo_id: 197814629
     'actions/labeler@v7.0.0':
         ref: 'v7.0.0'
         commit: 'sha1-bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13'
@@ -60,6 +71,11 @@ dependencies:
         commit: 'sha1-2b21a77928be8d5168c2b9581a67f2adbebacc52'
         owner_id: 44036562
         repo_id: 1220171870
+    'cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72':
+        ref: 'v1.25.2'
+        commit: 'sha1-c06f6a0003f7c6165a00c89d1697731c9e8a5c72'
+        owner_id: 110581826
+        repo_id: 321270638
     'embarkstudios/cargo-deny-action@v2.1.1':
         ref: 'v2.1.1'
         commit: 'sha1-3c6349835b2b7b196a839186cb8b78e02f7b5f25'
@@ -80,6 +96,30 @@ dependencies:
         commit: 'sha1-72793074d3c8cdda771dba85f6deafe00623038b'
         owner_id: 1256587
         repo_id: 211647646
+    'nicknovitski/nix-develop@v1.2.1':
+        ref: 'v1.2.1'
+        commit: 'sha1-9be7cfb4b10451d3390a75dc18ad0465bed4932a'
+        owner_id: 151337
+        repo_id: 706956179
+    'nixbuild/nix-quick-install-action@v35':
+        ref: 'v35'
+        commit: 'sha1-9f63be77f412a248c9d9a65a4c82cf066cdf8f0c'
+        owner_id: 60610456
+        repo_id: 296639338
+    'release-plz/action@v0.5.140':
+        ref: 'v0.5.140'
+        commit: 'sha1-18641b6c63063cc5ff8786ebf69cd57e8541bae1'
+        owner_id: 188756284
+        repo_id: 476470908
+        uses:
+            - 'cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72'
+            - 'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4'
+            - 'taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad'
+    'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4':
+        ref: 'v0.1.2'
+        commit: 'sha1-59144859caf016f8b817a2ac9b051578729173c4'
+        owner_id: 188756284
+        repo_id: 735058483
     'rui314/setup-mold@v1':
         ref: 'v1'
         commit: 'sha1-339e96b4ff1f3bd865856ba4cbbe8818a7acb038'
@@ -97,6 +137,11 @@ dependencies:
         repo_id: 588643148
         uses:
             - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
+    'taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad':
+        ref: 'v2.87.26'
+        commit: 'sha1-f7e5d7c961414b23f5b25b2da9294395d08513ad'
+        owner_id: 43724913
+        repo_id: 442947557
     'taiki-e/install-action@v2.90.3':
         ref: 'v2.90.3'
         commit: 'sha1-cfdb7ed4ccc7c7dce37759eae89dc5674b469b39'

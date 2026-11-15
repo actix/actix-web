@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections.
+
 ## 3.21.1
 
 - Reject bare LF as trailer terminator after chunked encodings. [GHSA-9w4r-xc43-v236](https://github.com/actix/actix-web/security/advisories/GHSA-9w4r-xc43-v236)
