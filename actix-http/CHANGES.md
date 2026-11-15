@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply the request head timeout to each HTTP/1 request, including partial pipelined requests on keep-alive connections.
+
 ## 3.21.0
 
 - Enable `TCP_NODELAY` by default.

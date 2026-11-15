@@ -434,6 +434,289 @@ async fn http1_keepalive_close() {
     srv.stop().await;
 }
 
+#[test]
+fn http1_keepalive_partial_second_request_timeout() {
+    keepalive_partial_second_request_probe(b"G");
+}
+
+#[test]
+fn http1_keepalive_crlf_probe_timeout() {
+    keepalive_partial_second_request_probe(b"\r\n");
+}
+
+#[test]
+fn http1_keepalive_pipelined_then_partial_timeout() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    rt.block_on(async move {
+        let mut srv = test_server(|| {
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .client_request_timeout(Duration::from_secs(1))
+                .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+                .tcp()
+        })
+        .await;
+
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+        let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let mut data = vec![0; 256];
+        let _ = stream.read(&mut data);
+
+        // pipelined second request followed by one byte of a third request, then silence
+        let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\nG");
+
+        let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+        assert!(
+            response.contains("408"),
+            "connection was not timed out; got: {response:?}"
+        );
+
+        srv.stop().await;
+    });
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_is_not_renewed() {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream.write_all(b"G").await.unwrap();
+
+        let (mut reader, mut writer) = stream.split();
+        let mut response = String::new();
+
+        timeout(Duration::from_secs(2), async {
+            let read = reader.read_to_string(&mut response);
+            tokio::pin!(read);
+
+            let mut interval = tokio::time::interval(Duration::from_millis(150));
+
+            loop {
+                tokio::select! {
+                    result = &mut read => {
+                        result.unwrap();
+                        break;
+                    }
+
+                    _ = interval.tick() => {
+                        let _ = writer.write_all(b"E").await;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("request head deadline was renewed by incoming bytes");
+
+        assert!(response.starts_with("HTTP/1.1 408 Request Timeout"));
+    }
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_does_not_limit_uploads() {
+    use tokio::io::AsyncWriteExt as _;
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|mut req: Request| async move {
+                let mut payload = req.take_payload();
+
+                while let Some(chunk) = payload.next().await {
+                    chunk.unwrap();
+                }
+
+                Ok::<_, Infallible>(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream
+            .write_all(b"POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nd")
+            .await
+            .unwrap();
+
+        sleep(Duration::from_millis(1300)).await;
+
+        stream.write_all(b"ata").await.unwrap();
+
+        assert!(read_http1_response_head(&mut stream)
+            .await
+            .contains("200 OK"));
+    }
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_pipelined_partial_head_uses_request_timeout() {
+    use tokio::io::AsyncWriteExt as _;
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_millis(200))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+    stream
+        .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\nG")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
+
+    sleep(Duration::from_millis(600)).await;
+
+    stream
+        .write_all(b"ET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
+
+    srv.stop().await;
+}
+
+/// Reads a complete response head from a service with an empty response body.
+async fn read_http1_response_head(stream: &mut TcpStream) -> String {
+    use tokio::io::AsyncReadExt as _;
+
+    timeout(Duration::from_secs(5), async {
+        let mut response = Vec::new();
+        let mut chunk = [0; 256];
+
+        while !response.ends_with(b"\r\n\r\n") {
+            let len = stream.read(&mut chunk).await.unwrap();
+            assert_ne!(
+                len, 0,
+                "connection closed before the response head was complete"
+            );
+
+            response.extend_from_slice(&chunk[..len]);
+        }
+
+        String::from_utf8(response).unwrap()
+    })
+    .await
+    .expect("response head was not received within 5 seconds")
+}
+
+/// Sends `probe` as the start of a second request on an idle keep-alive connection and checks
+/// that the connection is eventually closed.
+fn keepalive_partial_second_request_probe(probe: &'static [u8]) {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    rt.block_on(async move {
+        let mut srv = test_server(|| {
+            HttpService::build()
+                .keep_alive(Duration::from_secs(1))
+                .client_request_timeout(Duration::from_secs(1))
+                .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+                .tcp()
+        })
+        .await;
+
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+        let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let mut data = vec![0; 256];
+        let _ = stream.read(&mut data);
+        assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+        let _ = stream.write_all(probe);
+
+        let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+        assert!(
+            response.is_empty() || response.contains("408"),
+            "connection was neither closed nor timed out; got: {response:?}"
+        );
+
+        srv.stop().await;
+    });
+}
+
+/// Reads the socket until EOF and returns everything received. Panics if EOF does not arrive
+/// within `timeout`.
+fn read_to_end_with_deadline(mut stream: net::TcpStream, timeout: Duration) -> String {
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    thread::spawn(move || {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 256];
+
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            }
+        }
+
+        let _ = tx.send(String::from_utf8_lossy(&buf).into_owned());
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(response) => response,
+        Err(_) => panic!("connection was not closed within {timeout:?}"),
+    }
+}
+
 #[tokio::test(flavor = "local")]
 async fn http10_keepalive_default_close() {
     let mut srv = test_server(|| {

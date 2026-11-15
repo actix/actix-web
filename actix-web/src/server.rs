@@ -230,10 +230,13 @@ where
         self
     }
 
-    /// Sets server client timeout for first request.
+    /// Sets the timeout for reading a client request head.
     ///
     /// Defines a timeout for reading client request head. If a client does not transmit the entire
     /// set headers within this time, the request is terminated with a 408 (Request Timeout) error.
+    ///
+    /// For later HTTP/1 requests, the timeout starts when data for the next head arrives.
+    /// The timeout does not apply to request bodies.
     ///
     /// To disable timeout set value to 0.
     ///

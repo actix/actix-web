@@ -92,7 +92,7 @@ impl ServiceConfigBuilder {
         self
     }
 
-    /// Sets the timeout for the client to finish sending the head of its first request
+    /// Sets the timeout for the client to finish sending a request head.
     pub fn client_request_timeout(mut self, timeout: Duration) -> Self {
         self.inner.client_request_timeout = timeout;
         self
@@ -274,8 +274,8 @@ impl ServiceConfig {
         }
     }
 
-    /// Creates a time object representing the deadline for the client to finish sending the head of
-    /// its first request.
+    /// Creates a time object representing the deadline for the client to finish sending a request
+    /// head.
     ///
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     pub fn client_request_deadline(&self) -> Option<Instant> {
