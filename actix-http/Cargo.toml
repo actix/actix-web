@@ -161,6 +161,7 @@ tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls_023 = { package = "rustls", version = "0.23" }
 tokio = { version = "1.51", features = ["net", "rt", "macros", "sync", "time"] }
 tokio-test = "0.4"
+tokio-util = { version = "0.7", features = ["io", "codec", "time"] }
 
 [lints]
 workspace = true

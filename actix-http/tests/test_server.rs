@@ -23,6 +23,8 @@ use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use rand::RngExt as _;
 use regex::Regex;
+use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio_util::future::FutureExt as _;
 
 #[tokio::test(flavor = "local")]
 async fn h1_basic() {
@@ -305,6 +307,61 @@ async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
     );
 
     assert_eq!(seen.first().map(String::as_str), Some("/test"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn chunked_bare_lf_trailer_is_rejected() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    // Leave the payload unread so the dispatcher must validate the trailer.
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                })
+                .tcp()
+        }
+    })
+    .await;
+
+    // Cover both no follow-up bytes and a request pipelined after the invalid trailer.
+    for next_request in [
+        b"".as_slice(),
+        b"POST /second HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+    ] {
+        // The last chunk is valid; its trailer ends with bare LF instead of CRLF.
+        let mut input = b"POST /first HTTP/1.1\r\n\
+                          Host: localhost\r\n\
+                          Transfer-Encoding: chunked\r\n\r\n\
+                          0\r\nX\n"
+            .to_vec();
+        input.extend_from_slice(next_request);
+
+        let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+        conn.write_all(&input).await.unwrap();
+
+        // Keep the client write side open so rejection cannot depend on EOF.
+        // The parser error must close the connection before the keep-alive timeout.
+        let mut raw = Vec::new();
+        conn.read_to_end(&mut raw)
+            .timeout(Duration::from_secs(5))
+            .await
+            .expect("connection remained open after a bare LF in a trailer")
+            .unwrap();
+    }
+
+    srv.stop().await;
+
+    // Both first requests reach the service; the pipelined second request must not.
+    assert_eq!(*seen.lock().unwrap(), ["/first", "/first"]);
 }
 
 #[tokio::test(flavor = "local")]

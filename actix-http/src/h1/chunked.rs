@@ -198,7 +198,29 @@ impl ChunkedState {
     fn read_trailer(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         loop {
             match byte!(rdr) {
+                // End of trailer signal. Must read LF next.
                 b'\r' => return Poll::Ready(Ok(ChunkedState::TrailerLf)),
+
+                // Trailer field lines must end with CRLF, not a bare LF.
+                b'\n' => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid chunk trailer CR",
+                    )))
+                }
+
+                // Allow horizontal tab, which is a control char but allowed by RFC 9110 §5.5.
+                0x09 => continue,
+
+                // Reject other control bytes that cannot appear within a trailer field line.
+                b if b.is_ascii_control() => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid character in chunk trailer",
+                    )))
+                }
+
+                // Continue reading this trailer's bytes.
                 _ => continue,
             }
         }
@@ -217,7 +239,7 @@ impl ChunkedState {
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            b'\n' => Poll::Ready(Err(io::Error::new(
+            0x00..=0x08 | 0x0a..=0x1f | 0x7f => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Invalid chunk end CR",
             ))),
@@ -246,7 +268,7 @@ mod tests {
 
     use crate::{
         error::ParseError,
-        h1::decoder::{MessageDecoder, PayloadItem},
+        h1::decoder::{MessageDecoder, PayloadDecoder, PayloadItem},
         HttpMessage as _, Request,
     };
 
@@ -546,6 +568,92 @@ mod tests {
 
         assert_decode_chunk_eq!(pl, buf, b"data");
         assert_decode_chunked_eof!(pl, buf);
+    }
+
+    #[test]
+    fn test_chunked_bare_lf_in_trailer_without_follow_up() {
+        // Read the last chunk and partial trailer both byte by byte and in one read.
+        for chunk_size in [1, 4] {
+            let mut pl = PayloadDecoder::chunked();
+            let mut buf = BytesMut::new();
+
+            for chunk in b"0\r\nX".chunks(chunk_size) {
+                buf.extend_from_slice(chunk);
+                assert!(pl.decode(&mut buf).unwrap().is_none());
+                assert!(buf.is_empty());
+            }
+
+            buf.extend_from_slice(b"\n");
+
+            // Reject LF immediately, without waiting for a later CR or connection EOF.
+            let err = pl.decode(&mut buf).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+            assert!(buf.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_chunked_trailer_rejects_control_bytes() {
+        for byte in (0x00..=0x1f).chain([0x7f]) {
+            // HT is valid field whitespace, and CR starts the line terminator.
+            if matches!(byte, b'\t' | b'\r') {
+                continue;
+            }
+
+            // Check both the first trailer byte and a byte inside the field value.
+            for prefix in [b"0\r\n".as_slice(), b"0\r\nX: "] {
+                let mut pl = PayloadDecoder::chunked();
+                let mut buf = BytesMut::from(prefix);
+                buf.extend_from_slice(&[byte]);
+
+                let err = pl.decode(&mut buf).unwrap_err();
+                assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+            }
+        }
+    }
+
+    #[test]
+    fn test_chunked_trailers_partial_reads() {
+        let mut pl = PayloadDecoder::chunked();
+        let mut buf = BytesMut::new();
+
+        // Split both trailer lines and each CRLF across reads. HT and obs-text remain valid.
+        for byte in b"0\r\nX: 1\t\x80\xff\r\nY: 2\r\n\r" {
+            buf.extend_from_slice(&[*byte]);
+            assert!(pl.decode(&mut buf).unwrap().is_none());
+            assert!(buf.is_empty());
+        }
+
+        // Only the final LF completes the empty line after the trailers.
+        buf.extend_from_slice(b"\n");
+        assert_decode_chunked_eof!(pl, buf);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn test_chunked_bare_lf_in_trailer_keeps_next_request_intact() {
+        let mut buf = BytesMut::from(
+            "POST /first HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             Transfer-Encoding: chunked\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let mut pl = reader.decode(&mut buf).unwrap().unwrap().1.unwrap();
+
+        let next_request = b"POST /second HTTP/1.1\r\n\
+                             Host: localhost\r\n\
+                             Content-Length: 2\r\n\r\nab";
+
+        // End the trailer with bare LF, then append a complete request in the same buffer.
+        buf.extend_from_slice(b"5\r\nhello\r\n0\r\nX\n");
+        buf.extend_from_slice(next_request);
+
+        assert_decode_chunk_eq!(pl, buf, b"hello");
+
+        // Stop at the invalid LF and leave the entire next request, including its body, unread.
+        let err = pl.decode(&mut buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(buf.as_ref(), next_request);
     }
 
     #[test]
