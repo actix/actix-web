@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.21.1
+
+- Reject bare LF as trailer terminator after chunked encodings. [GHSA-9w4r-xc43-v236](https://github.com/actix/actix-web/security/advisories/GHSA-9w4r-xc43-v236)
+
 ## 3.21.0
 
 - Enable `TCP_NODELAY` by default.
