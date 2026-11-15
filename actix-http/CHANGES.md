@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow `InfallibleStream` to wrap streams with any item type.
+
 ## 3.21.0
 
 - Enable `TCP_NODELAY` by default.
