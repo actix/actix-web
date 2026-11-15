@@ -1051,7 +1051,7 @@ where
 
                     match msg {
                         Message::Item(mut req) => {
-                            // head timer only applies to first request on connection
+                            // Stop the head timer before reading the request payload.
                             this.head_timer.clear(line!());
 
                             req.head_mut().peer_addr = *this.peer_addr;
@@ -1125,9 +1125,23 @@ where
                     }
                 }
 
-                // decode is partial and buffer is not full yet
-                // break and wait for more read
-                Ok(None) => break,
+                // Decode is partial.
+                Ok(None) => {
+                    if this.payload.is_none()
+                        && this.codec.keep_alive()
+                        && !this.read_buf.is_empty()
+                        && !matches!(this.head_timer, TimerState::Active { .. })
+                    {
+                        // Subsequent requests on this connection get client deadlines too.
+                        if let Some(deadline) = this.config.client_request_deadline() {
+                            this.head_timer
+                                .set_and_init(cx, sleep_until(deadline.into()), line!());
+                        }
+                    }
+
+                    // Needs more bytes read for full head.
+                    break;
+                }
 
                 Err(ParseError::Io(err)) => {
                     trace!("I/O error: {}", &err);
@@ -1187,7 +1201,7 @@ where
 
         if let TimerState::Active { timer } = this.head_timer {
             if timer.as_mut().poll(cx).is_ready() {
-                // timeout on first request (slow request) return 408
+                // Return 408 when a request head takes too long.
 
                 trace!("timed out on slow request; replying with 408 and closing connection");
 
@@ -1517,7 +1531,10 @@ where
                             PollResponse::DoNothing => {
                                 // KEEP_ALIVE is set in send_response_inner if client allows it
                                 // FINISHED is set after writing last chunk of response
-                                if inner.flags.contains(Flags::KEEP_ALIVE | Flags::FINISHED) {
+                                // A partial head uses its own deadline instead of the idle timeout.
+                                if inner.flags.contains(Flags::KEEP_ALIVE | Flags::FINISHED)
+                                    && !matches!(inner.head_timer, TimerState::Active { .. })
+                                {
                                     if let Some(timer) = inner.config.keep_alive_deadline() {
                                         inner.as_mut().project().ka_timer.set_and_init(
                                             cx,
