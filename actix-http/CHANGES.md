@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings.
+
 ## 3.21.2
 
 - Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections.
