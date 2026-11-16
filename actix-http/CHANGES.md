@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `HttpServiceBuilder::max_headers()` and `ServiceConfigBuilder::max_headers()` to limit request header field counts for HTTP/1 and HTTP/2.
 - Allow `InfallibleStream` to wrap streams with any item type.
 - Fix `header::from_comma_delimited()` splitting list elements on commas inside quoted strings.
 

@@ -9,7 +9,10 @@ use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
     encoder, Message, MessageType,
 };
-use crate::{body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig};
+use crate::{
+    body::BodySize, config::DEFAULT_H1_MAX_HEADERS, error::ParseError, ConnectionType, Request,
+    Response, ServiceConfig,
+};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -59,9 +62,11 @@ impl Codec {
         };
 
         Codec {
+            decoder: decoder::MessageDecoder::new(
+                config.max_headers().unwrap_or(DEFAULT_H1_MAX_HEADERS),
+            ),
             config,
             flags,
-            decoder: decoder::MessageDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
             conn_type: ConnectionType::Close,

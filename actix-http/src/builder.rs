@@ -25,6 +25,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     h1_allow_half_closed: bool,
+    max_headers: Option<usize>,
     h1_write_buffer_size: usize,
     h2_conn_window_size: u32,
     h2_stream_window_size: u32,
@@ -52,6 +53,7 @@ where
             secure: false,
             local_addr: None,
             h1_allow_half_closed: true,
+            max_headers: None,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
             h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
             h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
@@ -160,6 +162,14 @@ where
         self
     }
 
+    /// Sets the maximum number of header fields in a request head.
+    ///
+    /// See [`ServiceConfigBuilder::max_headers`] for more details.
+    pub fn max_headers(mut self, max: usize) -> Self {
+        self.max_headers = Some(max);
+        self
+    }
+
     /// Sets the maximum response write buffer size for HTTP/1 connections.
     ///
     /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
@@ -226,6 +236,7 @@ where
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
+            max_headers: self.max_headers,
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
@@ -256,6 +267,7 @@ where
             secure: self.secure,
             local_addr: self.local_addr,
             h1_allow_half_closed: self.h1_allow_half_closed,
+            max_headers: self.max_headers,
             h1_write_buffer_size: self.h1_write_buffer_size,
             h2_conn_window_size: self.h2_conn_window_size,
             h2_stream_window_size: self.h2_stream_window_size,
@@ -289,7 +301,7 @@ where
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
-        let cfg = ServiceConfigBuilder::new()
+        let mut cfg = ServiceConfigBuilder::new()
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
@@ -300,8 +312,13 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
-            .graceful_shutdown_signal(self.graceful_shutdown_signal)
-            .build();
+            .graceful_shutdown_signal(self.graceful_shutdown_signal);
+
+        if let Some(max) = self.max_headers {
+            cfg = cfg.max_headers(max);
+        }
+
+        let cfg = cfg.build();
 
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
@@ -320,7 +337,7 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfigBuilder::new()
+        let mut cfg = ServiceConfigBuilder::new()
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
@@ -331,8 +348,13 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
-            .graceful_shutdown_signal(self.graceful_shutdown_signal)
-            .build();
+            .graceful_shutdown_signal(self.graceful_shutdown_signal);
+
+        if let Some(max) = self.max_headers {
+            cfg = cfg.max_headers(max);
+        }
+
+        let cfg = cfg.build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
             .on_connect_ext(self.on_connect_ext)
@@ -348,7 +370,7 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfigBuilder::new()
+        let mut cfg = ServiceConfigBuilder::new()
             .keep_alive(self.keep_alive)
             .client_request_timeout(self.client_request_timeout)
             .client_disconnect_timeout(self.client_disconnect_timeout)
@@ -359,8 +381,13 @@ where
             .h1_write_buffer_size(self.h1_write_buffer_size)
             .h2_initial_window_size(self.h2_stream_window_size)
             .h2_initial_connection_window_size(self.h2_conn_window_size)
-            .graceful_shutdown_signal(self.graceful_shutdown_signal)
-            .build();
+            .graceful_shutdown_signal(self.graceful_shutdown_signal);
+
+        if let Some(max) = self.max_headers {
+            cfg = cfg.max_headers(max);
+        }
+
+        let cfg = cfg.build();
 
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)

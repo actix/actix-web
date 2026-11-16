@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `HttpServer::max_headers()` to limit request header field counts for HTTP/1 and HTTP/2.
 - Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, splitting elements on commas inside quoted strings.
 
 ## 4.19.0
