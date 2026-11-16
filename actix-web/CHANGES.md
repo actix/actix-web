@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, splitting elements on commas inside quoted strings.
+- Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, failing to parse a field value that holds obs-text (bytes `0x80`-`0xFF`).
 
 ## 4.19.0
 

@@ -4,6 +4,7 @@
 
 - Allow `InfallibleStream` to wrap streams with any item type.
 - Fix `header::from_comma_delimited()` splitting list elements on commas inside quoted strings.
+- Fix `header::from_comma_delimited()` failing on a field value that holds obs-text (bytes `0x80`-`0xFF`). Each field line is now decoded as UTF-8, with U+FFFD for an invalid sequence.
 
 ## 3.21.3
 
