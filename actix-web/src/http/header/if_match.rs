@@ -69,5 +69,11 @@ common_header! {
                      EntityTag::new_strong("r2d2xxxx".to_owned()),
                      EntityTag::new_strong("c3piozzzz".to_owned())])));
         crate::http::header::common_header_test!(test3, [b"*"], Some(IfMatch::Any));
+        crate::http::header::common_header_test!(
+            test4,
+            [b"\"a,b\", \"c\""],
+            Some(HeaderField::Items(
+                vec![EntityTag::new_strong("a,b".to_owned()),
+                     EntityTag::new_strong("c".to_owned())])));
     }
 }
