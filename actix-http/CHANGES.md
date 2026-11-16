@@ -4,11 +4,11 @@
 
 ## 3.21.3
 
-- Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings.
+- Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings. [GHSA-9543-cj4x-h76q](https://github.com/actix/actix-web/security/advisories/GHSA-9543-cj4x-h76q)
 
 ## 3.21.2
 
-- Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections.
+- Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections. [GHSA-54pm-2wm5-hpmg](https://github.com/actix/actix-web/security/advisories/GHSA-54pm-2wm5-hpmg)
 
 ## 3.21.1
 
