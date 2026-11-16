@@ -485,7 +485,7 @@ async fn req(
     r.send().await.unwrap().status()
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_guard_obj_header() {
     let srv = start_guard_obj_server();
 
@@ -502,7 +502,7 @@ async fn test_guard_obj_header() {
     }
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_guard_obj_route_macro_and_coexistence() {
     let srv = start_guard_obj_server();
 
@@ -553,7 +553,7 @@ async fn test_guard_obj_route_macro_and_coexistence() {
     );
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_guard_obj_combinators_and_custom() {
     let srv = start_guard_obj_server();
 
