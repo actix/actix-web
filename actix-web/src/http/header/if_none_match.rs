@@ -62,6 +62,24 @@ crate::http::header::common_header! {
         crate::http::header::common_header_test!(test3, [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
         crate::http::header::common_header_test!(test4, [b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
         crate::http::header::common_header_test!(test5, [b"*"]);
+
+        #[test]
+        fn test_any_requires_single_field_line() {
+            let items = HeaderField::Items(vec![EntityTag::new_strong("a".to_owned())]);
+
+            for (raw, expected) in [
+                (&["*"][..], HeaderField::Any),
+                (&["*, \"a\""][..], items.clone()),
+                (&["*", "\"a\""][..], items),
+            ] {
+                let mut req = test::TestRequest::default();
+                for value in raw {
+                    req.append_header((HeaderField::name(), *value));
+                }
+
+                assert_eq!(HeaderField::parse(&req.finish()).ok(), Some(expected), "{raw:?}");
+            }
+        }
     }
 }
 
