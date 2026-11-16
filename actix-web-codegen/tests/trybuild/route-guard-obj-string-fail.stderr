@@ -1,23 +1,11 @@
-error[E0277]: the trait bound `&str: Guard` is not satisfied
+error: Attribute guard_obj expects a guard expression; remove the surrounding quotes
  --> tests/trybuild/route-guard-obj-string-fail.rs:3:24
   |
 3 | #[get("/", guard_obj = "actix_web::guard::Header(\"x-test\", \"1\")")]
-  | -----------------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^--
-  | |                      |
-  | |                      the trait `for<'a, 'b> Fn(&'a GuardContext<'b>)` is not implemented for `str`
-  | required by a bound introduced by this call
+  |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Attribute guard_obj expects a guard expression; remove the surrounding quotes
+ --> tests/trybuild/route-guard-obj-string-fail.rs:8:42
   |
-  = help: the following other types implement trait `Guard`:
-            Acceptable
-            AllGuard
-            AnyGuard
-            HostGuard
-            Rc<(dyn Guard + 'static)>
-            actix_web::guard::Not<G>
-  = note: required for `&str` to implement `for<'a, 'b> FnOnce(&'a GuardContext<'b>)`
-  = note: required for `&str` to implement `Guard`
-note: required by a bound in `Resource::<T>::guard`
- --> $WORKSPACE/actix-web/src/resource.rs
-  |
-  |     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
-  |                     ^^^^^ required by this bound in `Resource::<T>::guard`
+8 | #[route("/", method = "GET", guard_obj = r#"actix_web::guard::Header("x-test", "1")"#)]
+  |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
