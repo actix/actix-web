@@ -75,5 +75,10 @@ common_header! {
             Some(HeaderField::Items(
                 vec![EntityTag::new_strong("a,b".to_owned()),
                      EntityTag::new_strong("c".to_owned())])));
+        crate::http::header::common_header_test!(
+            test5,
+            [b"\"\xC3\xA9\""],
+            Some(HeaderField::Items(
+                vec![EntityTag::new_strong("é".to_owned())])));
     }
 }

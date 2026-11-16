@@ -10,6 +10,11 @@ use crate::{error::ParseError, header::HTTP_VALUE};
 /// A comma inside a quoted string does not delimit list elements. See [RFC 9110 §5.6.1] and
 /// [RFC 9110 §5.6.4].
 ///
+/// A field value can hold obs-text: the bytes %x80-FF ([RFC 9110 §5.5]). Each field line is
+/// decoded as UTF-8, and each invalid sequence becomes U+FFFD. An element that holds obs-text
+/// reaches the element parser, which decides whether it is valid.
+///
+/// [RFC 9110 §5.5]: https://www.rfc-editor.org/rfc/rfc9110#section-5.5
 /// [RFC 9110 §5.6.1]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1
 /// [RFC 9110 §5.6.4]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.4
 #[inline]
@@ -22,10 +27,10 @@ where
     let mut result = Vec::with_capacity(size_guess);
 
     for h in all {
-        let s = h.to_str().map_err(|_| ParseError::Header)?;
+        let s = String::from_utf8_lossy(h.as_bytes());
 
         result.extend(
-            split_list_elements(s)
+            split_list_elements(&s)
                 .filter_map(|x| match x.trim() {
                     "" => None,
                     y => Some(y),
@@ -157,5 +162,22 @@ mod tests {
         let headers = [HeaderValue::from_static(r#"a="x\", y", b"#)];
         let res: Vec<String> = from_comma_delimited(headers.iter()).unwrap();
         assert_eq!(res, [r#"a="x\", y""#, "b"]);
+    }
+
+    #[test]
+    fn comma_delimited_parsing_accepts_obs_text() {
+        let headers = [
+            HeaderValue::from_bytes("\"é\", 1".as_bytes()).unwrap(),
+            HeaderValue::from_bytes(b"\"\xE9\", 2").unwrap(),
+        ];
+        let res: Vec<String> = from_comma_delimited(headers.iter()).unwrap();
+        assert_eq!(res, ["\"é\"", "1", "\"\u{FFFD}\"", "2"]);
+    }
+
+    #[test]
+    fn comma_delimited_parsing_keeps_commas_with_obs_text() {
+        let headers = [HeaderValue::from_bytes("\"a,é\", \"b\"".as_bytes()).unwrap()];
+        let res: Vec<String> = from_comma_delimited(headers.iter()).unwrap();
+        assert_eq!(res, ["\"a,é\"", "\"b\""]);
     }
 }
