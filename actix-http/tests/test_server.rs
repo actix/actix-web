@@ -3,6 +3,7 @@ use std::{
     future::ready,
     io::{Read, Write},
     net,
+    pin::pin,
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -23,6 +24,11 @@ use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use rand::RngExt as _;
 use regex::Regex;
+use tokio::{
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    time::interval,
+};
+use tokio_util::future::FutureExt as _;
 
 #[tokio::test(flavor = "local")]
 async fn h1_basic() {
@@ -308,6 +314,61 @@ async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
 }
 
 #[tokio::test(flavor = "local")]
+async fn chunked_bare_lf_trailer_is_rejected() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    // Leave the payload unread so the dispatcher must validate the trailer.
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                })
+                .tcp()
+        }
+    })
+    .await;
+
+    // Cover both no follow-up bytes and a request pipelined after the invalid trailer.
+    for next_request in [
+        b"".as_slice(),
+        b"POST /second HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+    ] {
+        // The last chunk is valid; its trailer ends with bare LF instead of CRLF.
+        let mut input = b"POST /first HTTP/1.1\r\n\
+                          Host: localhost\r\n\
+                          Transfer-Encoding: chunked\r\n\r\n\
+                          0\r\nX\n"
+            .to_vec();
+        input.extend_from_slice(next_request);
+
+        let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+        conn.write_all(&input).await.unwrap();
+
+        // Keep the client write side open so rejection cannot depend on EOF.
+        // The parser error must close the connection before the keep-alive timeout.
+        let mut raw = Vec::new();
+        conn.read_to_end(&mut raw)
+            .timeout(Duration::from_secs(5))
+            .await
+            .expect("connection remained open after a bare LF in a trailer")
+            .unwrap();
+    }
+
+    srv.stop().await;
+
+    // Both first requests reach the service; the pipelined second request must not.
+    assert_eq!(*seen.lock().unwrap(), ["/first", "/first"]);
+}
+
+#[tokio::test(flavor = "local")]
 async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -430,6 +491,270 @@ async fn http1_keepalive_close() {
     let mut data = vec![0; 1024];
     let res = stream.read(&mut data).unwrap();
     assert_eq!(res, 0);
+
+    srv.stop().await;
+}
+
+/// Reads the socket until EOF and returns everything received. Panics if EOF does not arrive
+/// within `timeout`.
+fn read_to_end_with_deadline(mut stream: net::TcpStream, timeout: Duration) -> String {
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    thread::spawn(move || {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 256];
+
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            }
+        }
+
+        let _ = tx.send(String::from_utf8_lossy(&buf).into_owned());
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(response) => response,
+        Err(_) => panic!("Connection should close within {timeout:?}"),
+    }
+}
+
+/// Sends `probe` as the start of a second request on an idle keep-alive connection and checks
+/// that the connection is eventually closed.
+async fn keepalive_partial_second_request_probe(probe: &'static [u8]) {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(1))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let mut data = vec![0; 256];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let _ = stream.write_all(probe);
+
+    let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+    assert!(
+        response.is_empty() || response.contains("408"),
+        "Connection should close or time out; got: {response:?}"
+    );
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_partial_second_request_timeout() {
+    keepalive_partial_second_request_probe(b"G").await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_crlf_probe_timeout() {
+    keepalive_partial_second_request_probe(b"\r\n").await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_pipelined_then_partial_timeout() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let mut data = vec![0; 256];
+    let _ = stream.read(&mut data);
+
+    // pipelined second request followed by one byte of a third request, then silence
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\nG");
+
+    let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+    assert!(
+        response.contains("408"),
+        "Connection should time out; got: {response:?}"
+    );
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_is_not_renewed_by_incoming_bytes() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream.write_all(b"G").await.unwrap();
+
+        let (mut reader, mut writer) = stream.split();
+        let mut response = String::new();
+
+        async {
+            let mut read = pin!(reader.read_to_string(&mut response));
+
+            let mut interval = interval(Duration::from_millis(150));
+
+            loop {
+                tokio::select! {
+                    result = &mut read => {
+                        result.unwrap();
+                        break;
+                    }
+
+                    _ = interval.tick() => {
+                        let _ = writer.write_all(b"E").await;
+                    }
+                }
+            }
+        }
+        .timeout(Duration::from_secs(2))
+        .await
+        .expect("Request head deadline should not be renewed by incoming bytes");
+
+        assert!(response.starts_with("HTTP/1.1 408 Request Timeout"));
+    }
+
+    srv.stop().await;
+}
+
+/// Reads a complete response head from a service with an empty response body.
+async fn read_http1_response_head(stream: &mut TcpStream) -> String {
+    async {
+        let mut response = Vec::new();
+        let mut chunk = [0; 256];
+
+        while !response.ends_with(b"\r\n\r\n") {
+            let len = stream.read(&mut chunk).await.unwrap();
+            assert_ne!(
+                len, 0,
+                "Connection should remain open until the response head is complete"
+            );
+
+            response.extend_from_slice(&chunk[..len]);
+        }
+
+        String::from_utf8(response).unwrap()
+    }
+    .timeout(Duration::from_secs(5))
+    .await
+    .expect("Response head should arrive within 5 seconds")
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_does_not_limit_uploads() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|mut req: Request| async move {
+                let mut payload = req.take_payload();
+
+                while let Some(chunk) = payload.next().await {
+                    chunk.unwrap();
+                }
+
+                Ok::<_, Infallible>(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream
+            .write_all(b"POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nd")
+            .await
+            .unwrap();
+
+        sleep(Duration::from_millis(1300)).await;
+
+        stream.write_all(b"ata").await.unwrap();
+
+        assert!(read_http1_response_head(&mut stream)
+            .await
+            .contains("200 OK"));
+    }
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_pipelined_partial_head_uses_request_timeout() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_millis(200))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+    stream
+        // note the trailing "G"
+        .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\nG")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
+
+    sleep(Duration::from_millis(600)).await;
+
+    stream
+        // note that the "G" of GET was pipelined earlier
+        .write_all(b"ET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
 
     srv.stop().await;
 }

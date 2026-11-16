@@ -12,7 +12,8 @@ use std::{
 use actix_codec::Framed;
 use actix_service::{fn_service, Service};
 use bytes::{Bytes, BytesMut};
-use futures_util::future::lazy;
+use futures_util::{future::lazy, StreamExt as _};
+use memchr::memmem;
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     time::{sleep, timeout},
@@ -1792,5 +1793,90 @@ fn http_msg_creates_msg() {
             "
         ),
         "GET / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"
+    );
+}
+
+#[tokio::test(flavor = "local")]
+async fn rejects_crlf_in_open_chunk_extension_value() {
+    let request_count = Rc::new(Cell::new(0));
+
+    let buf = TestBuffer::new(
+        b"POST /legit HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\
+          \r\n\
+          0;x=\"\r\n\
+          \r\n\
+          GET /admin HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          \r\n"
+            .as_slice(),
+    );
+
+    let services = HttpFlow::new(
+        fn_service({
+            let request_count = Rc::clone(&request_count);
+
+            move |mut req: Request| {
+                request_count.set(request_count.get() + 1);
+
+                async move {
+                    let path = req.uri().path().to_owned();
+                    let mut payload = req.take_payload();
+
+                    while let Some(item) = payload.next().await {
+                        if item.is_err() {
+                            return Ok::<_, Error>(Response::bad_request());
+                        }
+                    }
+
+                    Ok(Response::ok().set_body(path).map_into_boxed_body())
+                }
+            }
+        }),
+        ExpectHandler,
+        None,
+    );
+
+    let mut h1 = pin!(Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    ));
+
+    lazy(|cx| {
+        let result = h1.as_mut().poll(cx);
+
+        assert!(
+            result.is_ready(),
+            "Dispatcher should finish after the parse error: {result:?}"
+        );
+    })
+    .await;
+
+    let response = buf.write_buf_slice();
+
+    assert_eq!(
+        request_count.get(),
+        1,
+        "Dispatcher should not dispatch a second request"
+    );
+    assert_eq!(
+        memmem::find_iter(&response, b"HTTP/1.1").count(),
+        1,
+        "Dispatcher should write one response: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"),
+        "Response should be 400 Bad Request: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        memmem::find(&response, b"/admin").is_none(),
+        "Dispatcher should not dispatch the admin request: {:?}",
+        String::from_utf8_lossy(&response)
     );
 }

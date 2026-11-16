@@ -230,7 +230,7 @@ where
         self
     }
 
-    /// Sets server client timeout for first request.
+    /// Sets the timeout for reading a client request head.
     ///
     /// Defines a timeout for reading client request head. If a client does not transmit the entire
     /// set headers within this time, the request is terminated with a 408 (Request Timeout) error.

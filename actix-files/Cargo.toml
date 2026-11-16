@@ -7,8 +7,9 @@ keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 categories = ["asynchronous", "web-programming::http-server"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = ["actix_http::*", "actix_service::*", "actix_web::*", "http::*", "mime::*"]
