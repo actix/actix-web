@@ -406,3 +406,193 @@ async fn test_query() {
         "QUERY"
     );
 }
+
+#[get(
+    "/test/guard_obj/header",
+    guard_obj = actix_web::guard::Header("x-ver", "1")
+)]
+async fn g_header() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[route(
+    "/test/guard_obj/route_macro",
+    method = "PUT",
+    method = "PATCH",
+    guard_obj = actix_web::guard::Header("x-scope", "route_macro")
+)]
+async fn g_route_macro() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/coexist",
+    guard = "guard_module::guard",
+    guard_obj = actix_web::guard::Header("x-secret", "allow")
+)]
+async fn g_coexist() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/combo",
+    guard_obj = actix_web::guard::All(actix_web::guard::Header("x-a", "1")).and(actix_web::guard::Header("x-b", "2"))
+)]
+async fn g_combo() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[get(
+    "/test/guard_obj/multi_attr",
+    guard_obj = actix_web::guard::Header("x-a", "1"),
+    guard_obj = actix_web::guard::Header("x-b", "2")
+)]
+async fn g_multi_attr() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+struct CustomQueryGuard;
+
+impl actix_web::guard::Guard for CustomQueryGuard {
+    fn check(&self, ctx: &actix_web::guard::GuardContext<'_>) -> bool {
+        ctx.head().uri.query() == Some("role=admin")
+    }
+}
+
+#[get("/test/guard_obj/custom", guard_obj = CustomQueryGuard)]
+async fn g_custom() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+fn start_guard_obj_server() -> actix_test::TestServer {
+    actix_test::start(|| {
+        App::new()
+            .service(g_header)
+            .service(g_route_macro)
+            .service(g_coexist)
+            .service(g_combo)
+            .service(g_multi_attr)
+            .service(g_custom)
+    })
+}
+
+async fn req(
+    srv: &actix_test::TestServer,
+    method: http::Method,
+    path: &str,
+    headers: &[(&str, &str)],
+) -> StatusCode {
+    let mut r = srv.request(method, srv.url(path));
+    for &(k, v) in headers {
+        r = r.insert_header((k, v));
+    }
+    r.send().await.unwrap().status()
+}
+
+#[actix_web::test]
+async fn test_guard_obj_header() {
+    let srv = start_guard_obj_server();
+
+    for (headers, expected) in [
+        (&[("x-ver", "1")][..], StatusCode::OK),
+        (&[("x-ver", "wrong")][..], StatusCode::METHOD_NOT_ALLOWED),
+        (&[][..], StatusCode::METHOD_NOT_ALLOWED),
+    ] {
+        assert_eq!(
+            req(&srv, http::Method::GET, "/test/guard_obj/header", headers).await,
+            expected,
+            "headers: {headers:?}"
+        );
+    }
+}
+
+#[actix_web::test]
+async fn test_guard_obj_route_macro_and_coexistence() {
+    let srv = start_guard_obj_server();
+
+    for method in [http::Method::PUT, http::Method::PATCH] {
+        assert_eq!(
+            req(
+                &srv,
+                method,
+                "/test/guard_obj/route_macro",
+                &[("x-scope", "route_macro")]
+            )
+            .await,
+            StatusCode::OK
+        );
+    }
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "image/*"), ("x-secret", "allow")]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "text/plain"), ("x-secret", "allow")]
+        )
+        .await,
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/coexist",
+            &[("Accept", "image/*"), ("x-secret", "wrong")]
+        )
+        .await,
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+}
+
+#[actix_web::test]
+async fn test_guard_obj_combinators_and_custom() {
+    let srv = start_guard_obj_server();
+
+    for path in ["/test/guard_obj/combo", "/test/guard_obj/multi_attr"] {
+        for (headers, expected) in [
+            (&[("x-a", "1"), ("x-b", "2")][..], StatusCode::OK),
+            (&[("x-a", "1")][..], StatusCode::METHOD_NOT_ALLOWED),
+        ] {
+            assert_eq!(
+                req(&srv, http::Method::GET, path, headers).await,
+                expected,
+                "path: {path}, headers: {headers:?}"
+            );
+        }
+    }
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/custom?role=admin",
+            &[]
+        )
+        .await,
+        StatusCode::OK
+    );
+
+    assert_eq!(
+        req(
+            &srv,
+            http::Method::GET,
+            "/test/guard_obj/custom?role=user",
+            &[]
+        )
+        .await,
+        StatusCode::METHOD_NOT_ALLOWED
+    );
+}

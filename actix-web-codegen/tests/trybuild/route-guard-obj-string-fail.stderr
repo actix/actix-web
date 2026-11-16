@@ -1,0 +1,11 @@
+error: Attribute guard_obj expects a guard expression; remove the surrounding quotes
+ --> tests/trybuild/route-guard-obj-string-fail.rs:3:24
+  |
+3 | #[get("/", guard_obj = "actix_web::guard::Header(\"x-test\", \"1\")")]
+  |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Attribute guard_obj expects a guard expression; remove the surrounding quotes
+ --> tests/trybuild/route-guard-obj-string-fail.rs:8:42
+  |
+8 | #[route("/", method = "GET", guard_obj = r#"actix_web::guard::Header("x-test", "1")"#)]
+  |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
