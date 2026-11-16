@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Allow `InfallibleStream` to wrap streams with any item type.
 - Fix `header::from_comma_delimited()` splitting list elements on commas inside quoted strings.
 
 ## 3.21.3
