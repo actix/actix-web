@@ -75,5 +75,23 @@ common_header! {
             Some(HeaderField::Items(
                 vec![EntityTag::new_strong("a,b".to_owned()),
                      EntityTag::new_strong("c".to_owned())])));
+
+        #[test]
+        fn test_any_requires_single_field_line() {
+            let items = HeaderField::Items(vec![EntityTag::new_strong("a".to_owned())]);
+
+            for (raw, expected) in [
+                (&["*"][..], HeaderField::Any),
+                (&["*, \"a\""][..], items.clone()),
+                (&["*", "\"a\""][..], items),
+            ] {
+                let mut req = test::TestRequest::default();
+                for value in raw {
+                    req.append_header((HeaderField::name(), *value));
+                }
+
+                assert_eq!(HeaderField::parse(&req.finish()).ok(), Some(expected), "{raw:?}");
+            }
+        }
     }
 }

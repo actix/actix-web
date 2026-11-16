@@ -241,13 +241,13 @@ macro_rules! common_header {
 
             #[inline]
             fn parse<M: $crate::HttpMessage>(msg: &M) -> Result<Self, $crate::error::ParseError> {
-                let is_any = msg
-                    .headers()
-                    .get(Self::name())
+                let mut headers = msg.headers().get_all(Self::name());
+                let is_any = headers
+                    .next()
                     .and_then(|hdr| hdr.to_str().ok())
                     .map(|hdr| hdr.trim() == "*");
 
-                if let Some(true) = is_any {
+                if is_any == Some(true) && headers.next().is_none() {
                     Ok($id::Any)
                 } else {
                     let headers = msg.headers().get_all(Self::name());

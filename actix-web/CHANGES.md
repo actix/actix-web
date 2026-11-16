@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, splitting elements on commas inside quoted strings.
+- Fix `IfMatch` and `IfNoneMatch` parsing `Any` when a wildcard field line is followed by additional field lines.
 
 ## 4.19.0
 
