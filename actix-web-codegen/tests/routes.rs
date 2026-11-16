@@ -491,8 +491,8 @@ async fn test_guard_obj_header() {
 
     for (headers, expected) in [
         (&[("x-ver", "1")][..], StatusCode::OK),
-        (&[("x-ver", "wrong")][..], StatusCode::NOT_FOUND),
-        (&[][..], StatusCode::NOT_FOUND),
+        (&[("x-ver", "wrong")][..], StatusCode::METHOD_NOT_ALLOWED),
+        (&[][..], StatusCode::METHOD_NOT_ALLOWED),
     ] {
         assert_eq!(
             req(&srv, http::Method::GET, "/test/guard_obj/header", headers).await,
@@ -538,7 +538,7 @@ async fn test_guard_obj_route_macro_and_coexistence() {
             &[("Accept", "text/plain"), ("x-secret", "allow")]
         )
         .await,
-        StatusCode::NOT_FOUND
+        StatusCode::METHOD_NOT_ALLOWED
     );
 
     assert_eq!(
@@ -549,7 +549,7 @@ async fn test_guard_obj_route_macro_and_coexistence() {
             &[("Accept", "image/*"), ("x-secret", "wrong")]
         )
         .await,
-        StatusCode::NOT_FOUND
+        StatusCode::METHOD_NOT_ALLOWED
     );
 }
 
@@ -560,7 +560,7 @@ async fn test_guard_obj_combinators_and_custom() {
     for path in ["/test/guard_obj/combo", "/test/guard_obj/multi_attr"] {
         for (headers, expected) in [
             (&[("x-a", "1"), ("x-b", "2")][..], StatusCode::OK),
-            (&[("x-a", "1")][..], StatusCode::NOT_FOUND),
+            (&[("x-a", "1")][..], StatusCode::METHOD_NOT_ALLOWED),
         ] {
             assert_eq!(
                 req(&srv, http::Method::GET, path, headers).await,
@@ -589,6 +589,6 @@ async fn test_guard_obj_combinators_and_custom() {
             &[]
         )
         .await,
-        StatusCode::NOT_FOUND
+        StatusCode::METHOD_NOT_ALLOWED
     );
 }
