@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, splitting elements on commas inside quoted strings.
+
 ## 4.19.0
 
 - Enable `TCP_NODELAY` by default.

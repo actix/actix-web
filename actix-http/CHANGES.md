@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix `header::from_comma_delimited()` splitting list elements on commas inside quoted strings.
+
 ## 3.21.0
 
 - Enable `TCP_NODELAY` by default.
