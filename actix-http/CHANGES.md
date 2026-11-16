@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix `header::from_comma_delimited()` splitting list elements on commas inside quoted strings.
+
 ## 3.21.3
 
 - Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings. [GHSA-9543-cj4x-h76q](https://github.com/actix/actix-web/security/advisories/GHSA-9543-cj4x-h76q)
