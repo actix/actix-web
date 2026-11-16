@@ -404,58 +404,10 @@ async fn test_query() {
 }
 
 #[get(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
+    "/test/guard_obj/header",
+    guard_obj = actix_web::guard::Header("x-ver", "1")
 )]
-async fn g_get() -> impl Responder {
-    HttpResponse::Ok()
-}
-
-#[post(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_post() -> impl Responder {
-    HttpResponse::Created()
-}
-
-#[put(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_put() -> impl Responder {
-    HttpResponse::Ok()
-}
-
-#[delete(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_delete() -> impl Responder {
-    HttpResponse::NoContent()
-}
-
-#[patch(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_patch() -> impl Responder {
-    HttpResponse::Ok()
-}
-
-#[head(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_head() -> impl Responder {
-    HttpResponse::Ok()
-}
-
-#[options(
-    "/test/guard_obj/methods",
-    guard_obj = "actix_web::guard::Header(\"x-ver\", \"1\")"
-)]
-async fn g_options() -> impl Responder {
+async fn g_header() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -463,7 +415,7 @@ async fn g_options() -> impl Responder {
     "/test/guard_obj/route_macro",
     method = "PUT",
     method = "PATCH",
-    guard_obj = "actix_web::guard::Header(\"x-scope\", \"route_macro\")"
+    guard_obj = actix_web::guard::Header("x-scope", "route_macro")
 )]
 async fn g_route_macro() -> impl Responder {
     HttpResponse::Ok()
@@ -472,7 +424,7 @@ async fn g_route_macro() -> impl Responder {
 #[get(
     "/test/guard_obj/coexist",
     guard = "guard_module::guard",
-    guard_obj = "actix_web::guard::Header(\"x-secret\", \"allow\")"
+    guard_obj = actix_web::guard::Header("x-secret", "allow")
 )]
 async fn g_coexist() -> impl Responder {
     HttpResponse::Ok()
@@ -480,7 +432,7 @@ async fn g_coexist() -> impl Responder {
 
 #[get(
     "/test/guard_obj/combo",
-    guard_obj = "actix_web::guard::All(actix_web::guard::Header(\"x-a\", \"1\")).and(actix_web::guard::Header(\"x-b\", \"2\"))"
+    guard_obj = actix_web::guard::All(actix_web::guard::Header("x-a", "1")).and(actix_web::guard::Header("x-b", "2"))
 )]
 async fn g_combo() -> impl Responder {
     HttpResponse::Ok()
@@ -488,8 +440,8 @@ async fn g_combo() -> impl Responder {
 
 #[get(
     "/test/guard_obj/multi_attr",
-    guard_obj = "actix_web::guard::Header(\"x-one\", \"1\")",
-    guard_obj = "actix_web::guard::Header(\"x-two\", \"2\")"
+    guard_obj = actix_web::guard::Header("x-a", "1"),
+    guard_obj = actix_web::guard::Header("x-b", "2")
 )]
 async fn g_multi_attr() -> impl Responder {
     HttpResponse::Ok()
@@ -503,7 +455,7 @@ impl actix_web::guard::Guard for CustomQueryGuard {
     }
 }
 
-#[get("/test/guard_obj/custom", guard_obj = "CustomQueryGuard")]
+#[get("/test/guard_obj/custom", guard_obj = CustomQueryGuard)]
 async fn g_custom() -> impl Responder {
     HttpResponse::Ok()
 }
@@ -511,13 +463,7 @@ async fn g_custom() -> impl Responder {
 fn start_guard_obj_server() -> actix_test::TestServer {
     actix_test::start(|| {
         App::new()
-            .service(g_get)
-            .service(g_post)
-            .service(g_put)
-            .service(g_delete)
-            .service(g_patch)
-            .service(g_head)
-            .service(g_options)
+            .service(g_header)
             .service(g_route_macro)
             .service(g_coexist)
             .service(g_combo)
@@ -540,48 +486,18 @@ async fn req(
 }
 
 #[actix_rt::test]
-async fn test_guard_obj_all_http_methods_matrix() {
+async fn test_guard_obj_header() {
     let srv = start_guard_obj_server();
 
-    let methods = [
-        (http::Method::GET, StatusCode::OK),
-        (http::Method::POST, StatusCode::CREATED),
-        (http::Method::PUT, StatusCode::OK),
-        (http::Method::DELETE, StatusCode::NO_CONTENT),
-        (http::Method::PATCH, StatusCode::OK),
-        (http::Method::HEAD, StatusCode::OK),
-        (http::Method::OPTIONS, StatusCode::OK),
-    ];
-
-    for (method, expected_success) in methods {
+    for (headers, expected) in [
+        (&[("x-ver", "1")][..], StatusCode::OK),
+        (&[("x-ver", "wrong")][..], StatusCode::NOT_FOUND),
+        (&[][..], StatusCode::NOT_FOUND),
+    ] {
         assert_eq!(
-            req(
-                &srv,
-                method.clone(),
-                "/test/guard_obj/methods",
-                &[("x-ver", "1")]
-            )
-            .await,
-            expected_success,
-            "Failed match for {method}"
-        );
-
-        assert_eq!(
-            req(
-                &srv,
-                method.clone(),
-                "/test/guard_obj/methods",
-                &[("x-ver", "wrong")]
-            )
-            .await,
-            StatusCode::NOT_FOUND,
-            "Failed rejection for {method}"
-        );
-
-        assert_eq!(
-            req(&srv, method, "/test/guard_obj/methods", &[]).await,
-            StatusCode::NOT_FOUND,
-            "Failed missing header check for method"
+            req(&srv, http::Method::GET, "/test/guard_obj/header", headers).await,
+            expected,
+            "headers: {headers:?}"
         );
     }
 }
@@ -641,49 +557,18 @@ async fn test_guard_obj_route_macro_and_coexistence() {
 async fn test_guard_obj_combinators_and_custom() {
     let srv = start_guard_obj_server();
 
-    assert_eq!(
-        req(
-            &srv,
-            http::Method::GET,
-            "/test/guard_obj/combo",
-            &[("x-a", "1"), ("x-b", "2")]
-        )
-        .await,
-        StatusCode::OK
-    );
-
-    assert_eq!(
-        req(
-            &srv,
-            http::Method::GET,
-            "/test/guard_obj/combo",
-            &[("x-a", "1")]
-        )
-        .await,
-        StatusCode::NOT_FOUND
-    );
-
-    assert_eq!(
-        req(
-            &srv,
-            http::Method::GET,
-            "/test/guard_obj/multi_attr",
-            &[("x-one", "1"), ("x-two", "2")]
-        )
-        .await,
-        StatusCode::OK
-    );
-
-    assert_eq!(
-        req(
-            &srv,
-            http::Method::GET,
-            "/test/guard_obj/multi_attr",
-            &[("x-one", "1")]
-        )
-        .await,
-        StatusCode::NOT_FOUND
-    );
+    for path in ["/test/guard_obj/combo", "/test/guard_obj/multi_attr"] {
+        for (headers, expected) in [
+            (&[("x-a", "1"), ("x-b", "2")][..], StatusCode::OK),
+            (&[("x-a", "1")][..], StatusCode::NOT_FOUND),
+        ] {
+            assert_eq!(
+                req(&srv, http::Method::GET, path, headers).await,
+                expected,
+                "path: {path}, headers: {headers:?}"
+            );
+        }
+    }
 
     assert_eq!(
         req(

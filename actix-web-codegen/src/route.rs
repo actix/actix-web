@@ -274,18 +274,7 @@ impl Args {
                     ));
                 }
             } else if nv.path.is_ident("guard_obj") {
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(lit),
-                    ..
-                }) = nv.value
-                {
-                    guard_objs.push(lit.parse()?);
-                } else {
-                    return Err(syn::Error::new_spanned(
-                        nv.value,
-                        "Attribute guard_obj expects literal string",
-                    ));
-                }
+                guard_objs.push(nv.value);
             } else if nv.path.is_ident("wrap") {
                 if let syn::Expr::Lit(syn::ExprLit {
                     lit: syn::Lit::Str(lit),

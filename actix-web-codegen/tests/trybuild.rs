@@ -7,6 +7,9 @@ fn compile_macros() {
     t.compile_fail("tests/trybuild/simple-fail.rs");
 
     t.pass("tests/trybuild/route-ok.rs");
+    t.compile_fail("tests/trybuild/route-guard-obj-string-fail.rs");
+    t.compile_fail("tests/trybuild/route-guard-obj-constructor-fail.rs");
+
     t.compile_fail("tests/trybuild/route-missing-method-fail.rs");
     t.compile_fail("tests/trybuild/route-duplicate-method-fail.rs");
     t.compile_fail("tests/trybuild/route-malformed-path-fail.rs");

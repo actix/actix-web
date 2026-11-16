@@ -1,3 +1,4 @@
+use actix_web::guard;
 use actix_web_codegen::*;
 
 #[route("/", method="GET", method="HEAD")]
@@ -5,7 +6,16 @@ async fn index() -> String {
     "Hello World!".to_owned()
 }
 
-#[get("/guarded", guard_obj = "actix_web::guard::Header(\"x-test\", \"1\")")]
+fn guard_function(_: &guard::GuardContext<'_>) -> bool {
+    true
+}
+
+#[get(
+    "/guarded",
+    guard_obj = guard::Header("x-test", "1"),
+    guard_obj = guard_function,
+    guard_obj = |ctx: &guard::GuardContext<'_>| ctx.head().headers.contains_key("x-test")
+)]
 async fn guarded() -> String {
     "Guarded".to_owned()
 }
