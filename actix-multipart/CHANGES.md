@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map `MultipartError::Payload(PayloadError::Overflow)` to `413 Payload Too Large`, matching `PayloadError`.
+
 ## 0.8.8
 
 - Significant performance improvement when reading fields.
