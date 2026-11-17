@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Reject malformed byte positions in `Range` headers, including internal whitespace.
+## 0.7.5
+
+- Reject malformed byte positions in `Range` headers.
 
 ## 0.7.4
 
