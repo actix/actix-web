@@ -57,7 +57,7 @@ where
     #[inline]
     #[must_use]
     pub fn from_infallible(size: u64, stream: S) -> Self {
-        SizedStream::new(size, InfallibleStream { stream })
+        SizedStream::new(size, InfallibleStream::new(stream))
     }
 }
 
