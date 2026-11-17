@@ -592,6 +592,121 @@ mod tests {
     }
 
     #[tokio::test(flavor = "local")]
+    async fn test_named_file_range_rejects_plus_signs() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in [
+            "bytes=+0-+1",
+            "bytes=+0-1",
+            "bytes=0-+1",
+            "bytes=+0-",
+            "bytes=-+1",
+            "bytes=0-1, +2-3",
+            "bytes=20-+30, 0-1",
+        ] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "{range:?}"
+            );
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                "bytes */10",
+                "{range:?}"
+            );
+            assert!(
+                body::to_bytes(response.into_body())
+                    .await
+                    .unwrap()
+                    .is_empty(),
+                "{range:?}"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_named_file_range_rejects_internal_whitespace() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for range in [
+            "bytes=0 - 1",
+            "bytes=0 -1",
+            "bytes=0- 1",
+            "bytes=0\t-\t1",
+            "bytes=0 -",
+            "bytes=- 1",
+            "bytes=-\t1",
+            "bytes=0-1, 2 -3",
+            "bytes=20 -30, 0-1",
+        ] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(
+                response.status(),
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "{range:?}"
+            );
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                "bytes */10",
+                "{range:?}"
+            );
+            assert!(
+                body::to_bytes(response.into_body())
+                    .await
+                    .unwrap()
+                    .is_empty(),
+                "{range:?}"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_named_file_range_allows_list_whitespace() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"0123456789").unwrap();
+
+        for (range, content_range, expected_body) in [
+            ("bytes=0-1", "bytes 0-1/10", "01"),
+            ("bytes=-2", "bytes 8-9/10", "89"),
+            ("bytes=8-", "bytes 8-9/10", "89"),
+            ("bytes=0-1, 2-3", "bytes 0-1/10", "01"),
+            ("bytes= 0-1 \t,\t 2-3 \t", "bytes 0-1/10", "01"),
+            ("bytes= -2 \t,\t 0-1", "bytes 8-9/10", "89"),
+            ("bytes= 8- \t,\t 0-1", "bytes 8-9/10", "89"),
+            ("bytes=20-30, 0-1", "bytes 0-1/10", "01"),
+            ("bytes=, 0-1 , , 2-3,", "bytes 0-1/10", "01"),
+        ] {
+            let req = TestRequest::get()
+                .insert_header((header::RANGE, range))
+                .to_http_request();
+            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
+
+            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
+            assert_eq!(
+                response.headers().get(header::CONTENT_RANGE).unwrap(),
+                content_range,
+                "{range}"
+            );
+            assert_eq!(
+                body::to_bytes(response.into_body()).await.unwrap(),
+                expected_body,
+                "{range}"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_named_file_if_none_match_before_range() {
         let req = TestRequest::get().to_http_request();
         let resp = NamedFile::open("Cargo.toml").unwrap().into_response(&req);

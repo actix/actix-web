@@ -43,11 +43,31 @@ pub struct HttpRange {
 }
 
 impl HttpRange {
-    /// Parses Range HTTP header string as per RFC 2616.
+    /// Parses a Range HTTP header string as specified in RFC 9110.
     ///
     /// `header` is HTTP Range header (e.g. `bytes=0-9`).
     /// `size` is full size of response (file).
     pub fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ParseRangeErr> {
+        // Check syntax before http-range trims positions or skips ranges beyond the file.
+        if let Some((_, ranges)) = header.split_once('=') {
+            let valid = ranges.split(',').all(|range| {
+                let range = range.trim_matches([' ', '\t']);
+
+                if range.is_empty() {
+                    return true;
+                }
+
+                range.split_once('-').is_some_and(|(start, end)| {
+                    (!start.is_empty() || !end.is_empty())
+                        && start.bytes().chain(end.bytes()).all(|b| b.is_ascii_digit())
+                })
+            });
+
+            if !valid {
+                return Err(ParseRangeErr(HttpRangeParseError::InvalidRange));
+            }
+        }
+
         let ranges =
             http_range::HttpRange::parse(header, size).map_err(|err| ParseRangeErr(err.into()))?;
 
@@ -66,6 +86,28 @@ mod tests {
     use super::*;
 
     struct T(&'static str, u64, Vec<HttpRange>);
+
+    #[test]
+    fn test_parse_rejects_malformed_positions() {
+        for header in [
+            "bytes=+0-+1",
+            "bytes=+0-",
+            "bytes=-+1",
+            "bytes=0 - 1",
+            "bytes=0 -",
+            "bytes=- 1",
+            "bytes=0\t-\t1",
+            "bytes=0-1, 2 -3",
+            "bytes=20 -30, 0-1",
+            "bytes=20-+30, 0-1",
+            "bytes=20--30, 0-1",
+            "bytes=\u{a0}0-1",
+            "bytes=0-\u{a0}1",
+            "bytes=\u{660}-\u{661}",
+        ] {
+            assert!(HttpRange::parse(header, 10).is_err(), "{header:?}");
+        }
+    }
 
     #[test]
     fn test_parse() {
@@ -266,9 +308,9 @@ mod tests {
                     },
                 ],
             ),
-            // Match Apache laxity:
+            // Allow whitespace and empty elements in the range list.
             T(
-                "bytes=   1 -2   ,  4- 5, 7 - 8 , ,,",
+                "bytes=   1-2   ,  4-5, 7-8 , ,,",
                 11,
                 vec![
                     HttpRange {
