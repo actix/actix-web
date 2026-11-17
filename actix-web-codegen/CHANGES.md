@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add `guard_obj` parameter to route attribute macros. [#2229]
+## 4.6.0
+
+- Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
 
 ## 4.5.0
 
