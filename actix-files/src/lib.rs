@@ -613,19 +613,19 @@ mod tests {
             assert_eq!(
                 response.status(),
                 StatusCode::RANGE_NOT_SATISFIABLE,
-                "{range:?}"
+                "range {range:?} should return 416"
             );
             assert_eq!(
                 response.headers().get(header::CONTENT_RANGE).unwrap(),
                 "bytes */10",
-                "{range:?}"
+                "range {range:?} should return Content-Range: bytes */10"
             );
             assert!(
                 body::to_bytes(response.into_body())
                     .await
                     .unwrap()
                     .is_empty(),
-                "{range:?}"
+                "range {range:?} should have an empty response body"
             );
         }
     }
@@ -654,19 +654,19 @@ mod tests {
             assert_eq!(
                 response.status(),
                 StatusCode::RANGE_NOT_SATISFIABLE,
-                "{range:?}"
+                "range {range:?} should return 416"
             );
             assert_eq!(
                 response.headers().get(header::CONTENT_RANGE).unwrap(),
                 "bytes */10",
-                "{range:?}"
+                "range {range:?} should return Content-Range: bytes */10"
             );
             assert!(
                 body::to_bytes(response.into_body())
                     .await
                     .unwrap()
                     .is_empty(),
-                "{range:?}"
+                "range {range:?} should have an empty response body"
             );
         }
     }
@@ -692,16 +692,20 @@ mod tests {
                 .to_http_request();
             let response = NamedFile::open(file.path()).unwrap().into_response(&req);
 
-            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
+            assert_eq!(
+                response.status(),
+                StatusCode::PARTIAL_CONTENT,
+                "range {range:?} should return 206"
+            );
             assert_eq!(
                 response.headers().get(header::CONTENT_RANGE).unwrap(),
                 content_range,
-                "{range}"
+                "range {range:?} should return Content-Range: {content_range}"
             );
             assert_eq!(
                 body::to_bytes(response.into_body()).await.unwrap(),
                 expected_body,
-                "{range}"
+                "range {range:?} should return the requested bytes"
             );
         }
     }
