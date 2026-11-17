@@ -2,11 +2,10 @@
 
 ## Unreleased
 
-- Add `InfallibleStream::new()` constructor.
-
-## 2.22.0
+## 3.22.0
 
 - Allow `InfallibleStream` to wrap streams with any item type.
+- Add `InfallibleStream::new()` constructor.
 - The `header::from_comma_delimited()` helper now correctly splits headers containing quoted strings.
 
 ## 3.21.3

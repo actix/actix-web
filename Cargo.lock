@@ -23,7 +23,7 @@ dependencies = [
 name = "actix-files"
 version = "0.7.4"
 dependencies = [
- "actix-http 3.21.3",
+ "actix-http",
  "actix-service",
  "actix-test",
  "actix-utils",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "2.22.0"
+version = "3.22.0"
 dependencies = [
  "actix-codec",
  "actix-http-test",
@@ -107,51 +107,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-http"
-version = "3.21.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b90352ea64d82226a82060c41dc5fe3925696076f55998ec1bd44ae54611e593"
-dependencies = [
- "actix-codec",
- "actix-service",
- "actix-tls",
- "actix-utils",
- "base64 0.23.1",
- "bitflags 2.13.2",
- "brotli",
- "brotli-decompressor",
- "bytes",
- "bytestring",
- "derive_more",
- "encoding_rs",
- "flate2",
- "foldhash",
- "futures-core",
- "h2",
- "http 0.2.12",
- "httparse",
- "httpdate",
- "itoa",
- "language-tags",
- "local-channel",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "rand 0.10.3",
- "sha1",
- "smallvec",
- "tokio",
- "tokio-util",
- "tracing",
- "zstd",
-]
-
-[[package]]
 name = "actix-http-test"
 version = "3.4.0"
 dependencies = [
  "actix-codec",
- "actix-http 3.21.3",
+ "actix-http",
  "actix-rt",
  "actix-server",
  "actix-service",
@@ -185,7 +145,7 @@ dependencies = [
 name = "actix-multipart"
 version = "0.8.8"
 dependencies = [
- "actix-http 3.21.3",
+ "actix-http",
  "actix-multipart-derive",
  "actix-multipart-rfc7578",
  "actix-test",
@@ -233,7 +193,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af5e8f1e4c6baf42b8b78f3b2a85df02b54f10f5fdf54bf1f9b40211c130e427"
 dependencies = [
- "actix-http 3.21.3",
+ "actix-http",
  "bytes",
  "common-multipart-rfc7578",
  "futures-core",
@@ -297,7 +257,7 @@ name = "actix-test"
 version = "0.1.6"
 dependencies = [
  "actix-codec",
- "actix-http 3.21.3",
+ "actix-http",
  "actix-http-test",
  "actix-service",
  "actix-utils",
@@ -363,7 +323,7 @@ version = "4.20.0"
 dependencies = [
  "actix-codec",
  "actix-files",
- "actix-http 3.21.3",
+ "actix-http",
  "actix-macros",
  "actix-router",
  "actix-rt",
@@ -654,7 +614,7 @@ name = "awc"
 version = "3.11.0"
 dependencies = [
  "actix-codec",
- "actix-http 3.21.3",
+ "actix-http",
  "actix-http-test",
  "actix-rt",
  "actix-server",
