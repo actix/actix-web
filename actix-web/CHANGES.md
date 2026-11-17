@@ -2,8 +2,9 @@
 
 ## Unreleased
 
+## 4.20.0
+
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
-- Fix typed list headers, such as `IfMatch` and `IfNoneMatch`, splitting elements on commas inside quoted strings.
 
 ## 4.19.0
 
