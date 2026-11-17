@@ -267,12 +267,12 @@ fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendReque
             return Uri::try_from(full_url)
                 .map_err(|_| SendRequestError::Url(InvalidUrl::MissingScheme));
         }
-        // when scheme or authority is missing treat the location value as path and query
-        // recover error where location does not have leading slash
+        // when scheme or authority is missing treat the location value as path and query,
+        // resolving a relative path against the previous one
         let path = if location.as_bytes().starts_with(b"/") {
             location.as_bytes().to_owned()
         } else {
-            [b"/", location.as_bytes()].concat()
+            resolve_relative_path(prev_uri, location.as_bytes())
         };
 
         builder
@@ -284,6 +284,61 @@ fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendReque
     };
 
     Ok(uri)
+}
+
+// resolves a relative reference against the previous URI (RFC 3986 §5.2.2 - §5.2.4)
+fn resolve_relative_path(base: &Uri, reference: &[u8]) -> Vec<u8> {
+    // the fragment is never sent
+    let reference = match reference.iter().position(|&b| b == b'#') {
+        Some(idx) => &reference[..idx],
+        None => reference,
+    };
+
+    let (path, query) = match reference.iter().position(|&b| b == b'?') {
+        Some(idx) => reference.split_at(idx),
+        None => (reference, &b""[..]),
+    };
+
+    let base_path = base.path();
+
+    // an empty path keeps the base path, and the base query unless one is given
+    if path.is_empty() {
+        let query = match (query.is_empty(), base.query()) {
+            (true, Some(base_query)) => [b"?", base_query.as_bytes()].concat(),
+            _ => query.to_vec(),
+        };
+
+        return [base_path.as_bytes(), &query].concat();
+    }
+
+    let base_dir = &base_path[..base_path.rfind('/').map_or(0, |idx| idx + 1)];
+    let merged = [base_dir.as_bytes(), path].concat();
+
+    let segments = merged
+        .strip_prefix(b"/")
+        .unwrap_or(&merged)
+        .split(|&b| b == b'/')
+        .collect::<Vec<_>>();
+
+    let mut output = Vec::with_capacity(segments.len());
+
+    for (idx, segment) in segments.iter().enumerate() {
+        match *segment {
+            b"." | b".." => {
+                if *segment == b".." {
+                    output.pop();
+                }
+
+                // a trailing dot segment leaves a trailing slash
+                if idx == segments.len() - 1 {
+                    output.push(&b""[..]);
+                }
+            }
+            segment => output.push(segment),
+        }
+    }
+
+    [b"/", output.join(&b'/').as_slice(), query].concat()
 }
 
 fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, next_uri: &Uri) {
@@ -677,5 +732,65 @@ mod tests {
         let mut headers = gen_headers();
         remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
         assert_eq!(headers.len(), 1);
+    }
+
+    #[test]
+    fn test_resolve_relative_path() {
+        // examples from RFC 3986 §5.4.1
+        let base = Uri::from_static("http://a/b/c/d;p?q");
+
+        for (reference, expected) in [
+            ("g", "/b/c/g"),
+            ("./g", "/b/c/g"),
+            ("g/", "/b/c/g/"),
+            ("?y", "/b/c/d;p?y"),
+            ("#s", "/b/c/d;p?q"),
+            ("g#s", "/b/c/g"),
+            ("g?y#s", "/b/c/g?y"),
+            ("", "/b/c/d;p?q"),
+            ("g?y", "/b/c/g?y"),
+            (";x", "/b/c/;x"),
+            (".", "/b/c/"),
+            ("./", "/b/c/"),
+            ("..", "/b/"),
+            ("../", "/b/"),
+            ("../g", "/b/g"),
+            ("../..", "/"),
+            ("../../", "/"),
+            ("../../g", "/g"),
+            ("../../../g", "/g"),
+            ("g.", "/b/c/g."),
+            ("..g", "/b/c/..g"),
+            ("./../g", "/b/g"),
+            ("g/./h", "/b/c/g/h"),
+            ("g/../h", "/b/c/h"),
+        ] {
+            assert_eq!(
+                resolve_relative_path(&base, reference.as_bytes()),
+                expected.as_bytes(),
+                "reference: {reference}",
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_redirect_relative_to_current_path() {
+        let srv = actix_test::start(|| {
+            App::new()
+                .service(web::resource("/a/b").route(web::to(|| async {
+                    HttpResponse::Found()
+                        .insert_header(("location", "c?x=1"))
+                        .finish()
+                })))
+                .service(
+                    web::resource("/a/c").route(web::to(|req: HttpRequest| async move {
+                        HttpResponse::Ok().body(req.query_string().to_owned())
+                    })),
+                )
+        });
+
+        let mut res = srv.get("/a/b").send().await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.body().await.unwrap(), "x=1");
     }
 }
