@@ -109,7 +109,7 @@ mod tests {
         ] {
             assert!(
                 HttpRange::parse(header, 10).is_err(),
-                "range {header:?} should be rejected"
+                "Range {header:?} should be rejected"
             );
         }
     }
