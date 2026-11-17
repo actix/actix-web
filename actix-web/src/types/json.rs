@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::Payload;
+use actix_http::{error::PayloadError, Payload};
 use bytes::BytesMut;
 use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
@@ -357,6 +357,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -390,6 +391,9 @@ impl<T: DeserializeOwned> JsonBody<T> {
                     }
                 }
 
+                #[cfg(feature = "__compress")]
+                let payload = payload.limit(limit);
+
                 JsonBody::Body {
                     limit,
                     length,
@@ -419,7 +423,10 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                 let res = ready!(Pin::new(&mut *payload).poll_next(cx));
                 match res {
                     Some(chunk) => {
-                        let chunk = chunk?;
+                        let chunk = chunk.map_err(|err| match err {
+                            PayloadError::Overflow => JsonPayloadError::Overflow { limit: *limit },
+                            err => JsonPayloadError::Payload(err),
+                        })?;
                         let buf_len = buf.len() + chunk.len();
                         if buf_len > *limit {
                             return Poll::Ready(Err(JsonPayloadError::Overflow { limit: *limit }));
@@ -473,7 +480,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
@@ -489,7 +496,7 @@ mod tests {
         assert_body_eq!(res, b"{\"name\":\"test\"}");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_error_responder() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -519,7 +526,7 @@ mod tests {
         assert_eq!(msg.name, "invalid request");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extract() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -557,7 +564,7 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(format!("{}", s.err().unwrap())
-            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)"));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -579,7 +586,7 @@ mod tests {
         assert!(format!("{}", s.err().unwrap()).contains("Content type error"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
@@ -655,7 +662,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_bad_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -674,7 +681,7 @@ mod tests {
         assert!(s.is_err())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_good_custom_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -695,7 +702,7 @@ mod tests {
         assert!(s.is_ok())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_json_and_bad_custom_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -716,7 +723,7 @@ mod tests {
         assert!(s.is_err())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_with_no_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -731,7 +738,7 @@ mod tests {
         assert!(s.is_ok())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_ignoring_content_type() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -750,7 +757,7 @@ mod tests {
         assert!(s.is_ok());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_with_config_in_data_wrapper() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON))
@@ -764,7 +771,7 @@ mod tests {
 
         let err_str = s.err().unwrap().to_string();
         assert!(
-            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes).")
+            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)")
         );
     }
 }

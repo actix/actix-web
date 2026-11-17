@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn acceptable_guard_details_include_mime() {
         let guard = Acceptable::new(mime::APPLICATION_JSON).match_star_star();
-        let details = guard.details().expect("missing guard details");
+        let details = guard.details().expect("Missing guard details");
 
         assert!(details.iter().any(|detail| match detail {
             crate::guard::GuardDetail::Generic(value) => value == "match_star_star=true",

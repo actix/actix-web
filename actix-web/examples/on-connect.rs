@@ -39,7 +39,7 @@ fn get_conn_info(connection: &dyn Any, data: &mut Extensions) {
     }
 }
 
-#[actix_web::main]
+#[tokio::main(flavor = "local")]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
@@ -48,7 +48,7 @@ async fn main() -> io::Result<()> {
 
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
-        .bind_auto_h2c(bind)?
+        .bind(bind)?
         .workers(2)
         .run()
         .await

@@ -4,7 +4,7 @@ error: custom attribute panicked
 3 | #[get("/{")]
   | ^^^^^^^^^^^^
   |
-  = help: message: pattern "{" contains malformed dynamic segment
+  = help: message: Pattern "{" contains malformed dynamic segment
 
 error: custom attribute panicked
  --> $DIR/route-malformed-path-fail.rs:8:1
@@ -12,7 +12,7 @@ error: custom attribute panicked
 8 | #[get("/{foo")]
   | ^^^^^^^^^^^^^^^
   |
-  = help: message: pattern "{foo" contains malformed dynamic segment
+  = help: message: Pattern "{foo" contains malformed dynamic segment
 
 error: custom attribute panicked
   --> $DIR/route-malformed-path-fail.rs:13:1

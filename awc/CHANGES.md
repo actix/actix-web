@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 3.11.0
+
+- Add `Client::query()` method for constructing HTTP `QUERY` requests.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.10.0

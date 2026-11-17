@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## 4.6.0
+
+- Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
+
 ## 4.5.0
 
-- Add `#[query]` route handler macro
+- Add `#[query]` route handler macro.
 - Add support for `method = "QUERY"` in `#[route]`.
 - Minimum supported Rust version (MSRV) is now 1.89.
 

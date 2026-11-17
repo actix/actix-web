@@ -167,7 +167,7 @@ mod tests {
         let _ = Condition::new(true, middleware::ErrorHandlers::<Bytes>::new());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_handler_enabled() {
         let srv = |req: ServiceRequest| async move {
             let resp = HttpResponse::InternalServerError().message_body(String::new())?;
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_handler_disabled() {
         let srv = |req: ServiceRequest| async move {
             let resp = HttpResponse::InternalServerError().message_body(String::new())?;

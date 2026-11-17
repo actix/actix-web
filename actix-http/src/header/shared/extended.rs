@@ -99,6 +99,7 @@ pub fn parse_extended_value(val: &str) -> Result<ExtendedValue, crate::error::Pa
 impl fmt::Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let encoded_value = percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
+
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {

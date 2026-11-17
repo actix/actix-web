@@ -141,7 +141,7 @@ impl Extensions {
             .entry(TypeId::of::<T>())
             .or_insert_with(|| Box::new(default()))
             .downcast_mut()
-            .expect("extensions map should now contain a T value")
+            .expect("Extensions map should now contain a T value")
     }
 
     /// Remove an item from the map of a given type.

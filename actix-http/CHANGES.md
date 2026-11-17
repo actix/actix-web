@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+## 2.22.0
+
+- Allow `InfallibleStream` to wrap streams with any item type.
+- The `header::from_comma_delimited()` helper now correctly splits headers containing quoted strings.
+
+## 3.21.3
+
+- Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings. [GHSA-9543-cj4x-h76q](https://github.com/actix/actix-web/security/advisories/GHSA-9543-cj4x-h76q)
+
+## 3.21.2
+
+- Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections. [GHSA-54pm-2wm5-hpmg](https://github.com/actix/actix-web/security/advisories/GHSA-54pm-2wm5-hpmg)
+
+## 3.21.1
+
+- Reject bare LF as trailer terminator after chunked encodings. [GHSA-9w4r-xc43-v236](https://github.com/actix/actix-web/security/advisories/GHSA-9w4r-xc43-v236)
+
+## 3.21.0
+
+- Enable `TCP_NODELAY` by default.
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
+- Significant improvements to HTTP/1.x memory use.
+
+## 3.20.5
+
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+
+## 3.20.4
+
+- Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
+
+## 3.20.3
+
+- Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)
+
+## 3.20.2
+
+- Reject bare LF as last chunk terminator in chunked encodings. [GHSA-2q7f-mf9f-5qhr](https://github.com/actix/actix-web/security/advisories/GHSA-2q7f-mf9f-5qhr)
+
+## 3.20.1
+
+- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
+
+## 3.20.0
+
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.19.0

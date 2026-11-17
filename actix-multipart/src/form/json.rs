@@ -156,7 +156,7 @@ mod tests {
 
     const TEST_JSON: &str = r#"{"key1": "value1", "key2": "value2"}"#;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_json_without_content_type() {
         let srv = actix_test::start(|| {
             App::new()
@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_content_type_validation() {
         let srv = actix_test::start(|| {
             App::new()

@@ -128,7 +128,7 @@ impl HeaderMap {
         let (first_name, first_value) = match drain.next() {
             None => return HeaderMap::new(),
             Some((name, val)) => {
-                let name = name.expect("drained first item had no name");
+                let name = name.expect("Drained first item had no name");
                 (name, val)
             }
         };

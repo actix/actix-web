@@ -12,18 +12,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+      - uses: useblacksmith/checkout@v1.8.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: stable
 
       - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@v2.90.3
         with:
           tool: cargo-semver-checks
 
@@ -35,12 +35,15 @@ jobs:
 
           output_file="$(mktemp)"
 
-          cargo semver-checks \
-            --workspace \
-            --release-type=patch \
-            --baseline-rev "${{ github.event.pull_request.base.sha }}" \
-            2>&1 | tee "$output_file"
-          status=$?
+          if cargo semver-checks \
+              --workspace \
+              --release-type=patch \
+              --baseline-rev "${{ github.event.pull_request.base.sha }}" \
+              2>&1 | tee "$output_file"; then
+            status=0
+          else
+            status=$?
+          fi
 
           semver_type=patch
           if grep -q "semver requires new major version" "$output_file"; then
@@ -57,7 +60,10 @@ jobs:
             echo "semver_type=$semver_type"
           } >> "$GITHUB_OUTPUT"
 
-          exit 0
+          # Report release requirements, but fail on errors that prevented the check.
+          if [ "$status" -ne 0 ] && [ "$status" -ne 100 ]; then
+            exit "$status"
+          fi
 
       - name: Summarize cargo semver-checks output
         if: always() && steps.semver.outcome != 'skipped'

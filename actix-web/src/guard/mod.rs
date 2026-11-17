@@ -456,7 +456,9 @@ method_guard!(Trace, TRACE);
 /// Creates a guard that matches the `QUERY` request method.
 ///
 /// # Examples
+///
 /// The route in this example will only respond to `QUERY` requests.
+///
 /// ```
 /// use actix_web::{guard, web, HttpResponse};
 ///

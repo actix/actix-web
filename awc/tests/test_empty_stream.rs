@@ -9,7 +9,7 @@ use tokio::{
     time::timeout,
 };
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn empty_body_stream_does_not_use_chunked_encoding() {
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -40,7 +40,7 @@ async fn empty_body_stream_does_not_use_chunked_encoding() {
                 break None;
             }
         }
-        .expect("did not receive complete request headers");
+        .expect("Did not receive complete request headers");
 
         let headers_lower = String::from_utf8_lossy(&buf[..header_end]).to_ascii_lowercase();
         let has_chunked = headers_lower.contains("\r\ntransfer-encoding: chunked\r\n");

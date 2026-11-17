@@ -1,6 +1,7 @@
 use std::{
     cell::Cell,
     future::{ready, Future, Ready},
+    io,
     pin::{pin, Pin},
     rc::Rc,
     str,
@@ -10,13 +11,17 @@ use std::{
 
 use actix_codec::Framed;
 use actix_service::{fn_service, Service};
-use bytes::BytesMut;
-use futures_util::future::lazy;
-use tokio::time::{sleep, timeout};
+use bytes::{Bytes, BytesMut};
+use futures_util::{future::lazy, StreamExt as _};
+use memchr::memmem;
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    time::{sleep, timeout},
+};
 
-use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
+use super::*;
 use crate::{
-    body::BoxBody,
+    body::{BoxBody, SizedStream},
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
@@ -64,7 +69,7 @@ fn stabilize_date_header(payload: &mut [u8]) {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn late_request() {
     let mut buf = TestBuffer::empty();
 
@@ -90,7 +95,7 @@ async fn late_request() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Ready(_) => panic!("first poll should not be ready"),
+            Poll::Ready(_) => panic!("First poll should not be ready"),
             Poll::Pending => {}
         }
 
@@ -100,7 +105,7 @@ async fn late_request() {
         buf.extend_read_buf("GET /abcd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("second poll should not be pending"),
+            Poll::Pending => panic!("Second poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -131,7 +136,7 @@ async fn late_request() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oneshot_connection() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -157,7 +162,7 @@ async fn oneshot_connection() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -192,7 +197,7 @@ async fn oneshot_connection() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -271,7 +276,7 @@ async fn keep_alive_timeout() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_follow_up_req() {
     let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
@@ -397,7 +402,7 @@ async fn keep_alive_follow_up_req() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn graceful_shutdown_does_not_start_buffered_request() {
     use crate::config::{GracefulShutdownSignal, ServiceConfigBuilder};
 
@@ -438,7 +443,7 @@ async fn graceful_shutdown_does_not_start_buffered_request() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
@@ -471,7 +476,7 @@ async fn req_parse_err() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_ok() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -506,7 +511,7 @@ async fn pipelining_ok_then_ok() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -543,7 +548,7 @@ async fn pipelining_ok_then_ok() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn early_response_with_payload_lingers_before_closing() {
     lazy(|cx| {
         let buf = TestSeqBuffer::new(http_msg(
@@ -578,7 +583,7 @@ async fn early_response_with_payload_lingers_before_closing() {
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => {}
-            Poll::Ready(res) => panic!("should still be lingering: {:?}", res),
+            Poll::Ready(res) => panic!("Should still be lingering: {:?}", res),
         }
 
         // polls: initial
@@ -614,7 +619,7 @@ async fn early_response_with_payload_lingers_before_closing() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
     lazy(|cx| {
         let buf = TestSeqBuffer::new(http_msg(
@@ -651,7 +656,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => {}
-            Poll::Ready(res) => panic!("closed connection early: {:?}", res),
+            Poll::Ready(res) => panic!("Closed connection early: {:?}", res),
         }
 
         let mut res = BytesMut::from(buf.take_write_buf().as_ref());
@@ -687,7 +692,7 @@ async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn lingering_timeout_uses_graceful_shutdown() {
     let buf = TestSeqBuffer::new(
         "\
@@ -745,7 +750,7 @@ async fn lingering_timeout_uses_graceful_shutdown() {
     );
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
@@ -779,7 +784,7 @@ async fn pipelining_ok_then_bad() {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_err()),
         }
 
@@ -815,7 +820,7 @@ async fn pipelining_ok_then_bad() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -893,7 +898,7 @@ async fn expect_handling() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -960,7 +965,7 @@ async fn expect_eager() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn upgrade_handling() {
     struct TestUpgrade;
 
@@ -1020,7 +1025,7 @@ async fn upgrade_handling() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn upgrade_response_does_not_close_unfinished_payload() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1080,7 +1085,7 @@ async fn upgrade_response_does_not_close_unfinished_payload() {
 }
 
 #[cfg(feature = "ws")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn unsupported_websocket_version_closes_connection() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1133,7 +1138,7 @@ async fn unsupported_websocket_version_closes_connection() {
 // fix in #2624 reverted temporarily
 // complete fix tracked in #2745
 #[ignore]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn handler_drop_payload() {
     let _ = env_logger::try_init();
 
@@ -1142,7 +1147,7 @@ async fn handler_drop_payload() {
         POST /drop-payload HTTP/1.1
         Host: localhost
         Content-Length: 3
-        
+
         abc
         ",
     ));
@@ -1205,7 +1210,7 @@ async fn handler_drop_payload() {
             POST /drop-payload HTTP/1.1
             Host: localhost
             Content-Length: 200
-            
+
             abc
             ",
         ));
@@ -1280,7 +1285,7 @@ async fn handler_drop_payload() {
 // rest of the request body so clients that do not read the response until they've finished
 // writing the request (like `requests` in Python) do not deadlock.
 // ref. https://github.com/actix/actix-web/issues/2972
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn handler_drop_payload_drains_body() {
     let _ = env_logger::try_init();
 
@@ -1289,7 +1294,7 @@ async fn handler_drop_payload_drains_body() {
         POST /drop-payload HTTP/1.1
         Host: localhost
         Transfer-Encoding: chunked
-        
+
         ",
     ));
 
@@ -1404,7 +1409,7 @@ async fn handler_drop_payload_drains_body() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn allow_half_closed() {
     let buf = TestSeqBuffer::new(http_msg(
         r"
@@ -1457,7 +1462,7 @@ async fn allow_half_closed() {
     assert!(inner.state.is_none());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn disallow_half_closed() {
     use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
 
@@ -1499,7 +1504,7 @@ async fn disallow_half_closed() {
     assert!(matches!(inner.state, State::ServiceCall { .. }))
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_write_buffer_size_limits_buffering() {
     let request = "GET /stream HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
 
@@ -1545,10 +1550,203 @@ async fn h1_write_buffer_size_limits_buffering() {
     assert_eq!(custom_polls.get(), 1);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 #[should_panic(expected = "HTTP/1 write buffer size must be greater than zero")]
 async fn h1_write_buffer_size_rejects_zero() {
     let _ = crate::config::ServiceConfigBuilder::new().h1_write_buffer_size(0);
+}
+
+const SIZED_BODY_LEN: usize = 64 * 1024;
+
+fn sized_body() -> Bytes {
+    (0..SIZED_BODY_LEN).map(|i| i as u8).collect()
+}
+
+fn sized_body_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok().set_body(sized_body()))))
+}
+
+/// A connection that writes at most `limit` bytes per call, can refuse its first write and counts
+/// the writes it accepts.
+struct TrickleIo {
+    io: TestBuffer,
+    limit: usize,
+    vectored: bool,
+    block_next_write: bool,
+    writes: Rc<Cell<usize>>,
+}
+
+impl AsyncRead for TrickleIo {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for TrickleIo {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self.poll_write_vectored(cx, &[io::IoSlice::new(buf)])
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        if self.block_next_write {
+            self.block_next_write = false;
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        self.writes.set(self.writes.get() + 1);
+        let bufs = if self.vectored { bufs } else { &bufs[..1] };
+        let mut taken = Vec::new();
+        for buf in bufs {
+            let len = buf.len().min(self.limit - taken.len());
+            taken.extend_from_slice(&buf[..len]);
+        }
+        Pin::new(&mut self.io).poll_write(cx, &taken)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.vectored
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_does_not_grow_write_buf() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: Rc::default(),
+    };
+    let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+    let h1 = Dispatcher::new(
+        io,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        assert!(res.ends_with(&sized_body()));
+
+        let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project() else {
+            panic!("dispatcher state should be Normal");
+        };
+        assert!(inner.write_buf.capacity() < SIZED_BODY_LEN);
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_survives_partial_writes() {
+    for vectored in [true, false] {
+        let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let io = TrickleIo {
+            io: buf.clone(),
+            limit: 1000,
+            vectored,
+            block_next_write: true,
+            writes: Rc::default(),
+        };
+        let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+        let h1 = Dispatcher::new(
+            io,
+            services,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+        );
+        let mut h1 = pin!(h1);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+
+            // without vectored writes the chunk is copied into the write buffer, as before
+            let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project()
+            else {
+                panic!("dispatcher state should be Normal");
+            };
+            assert_eq!(inner.write_body.is_some(), vectored);
+
+            assert!(h1.as_mut().poll(cx).is_pending());
+
+            let res = buf.take_write_buf();
+            let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+            assert!(str::from_utf8(&res[..head_end])
+                .unwrap()
+                .contains(&format!("content-length: {SIZED_BODY_LEN}")));
+            assert_eq!(res[head_end..], sized_body(), "vectored: {vectored}");
+        })
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_batches_small_chunks() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let writes = Rc::new(Cell::new(0));
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: writes.clone(),
+    };
+    let services = HttpFlow::new(
+        fn_service(|_req: Request| {
+            // Four 8 KiB chunks fill the default 32 KiB write buffer.
+            let body = sized_body();
+            let chunks =
+                (0..4).map(move |i| Ok::<_, io::Error>(body.slice(i * 8192..(i + 1) * 8192)));
+            let body = SizedStream::new(32 * 1024, futures_util::stream::iter(chunks));
+            ready(Ok::<_, Error>(Response::ok().set_body(body)))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let h1 = Dispatcher::new(
+        io,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+        assert_eq!(res[head_end..], sized_body()[..32 * 1024]);
+        assert_eq!(writes.get(), 1);
+    })
+    .await;
 }
 
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {
@@ -1579,7 +1777,7 @@ fn http_msg_creates_msg() {
             r"
             POST / HTTP/1.1
             Content-Length: 3
-            
+
             abc
             "
         ),
@@ -1591,9 +1789,94 @@ fn http_msg_creates_msg() {
             r"
             GET / HTTP/1.1
             Content-Length: 3
-            
+
             "
         ),
         "GET / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"
+    );
+}
+
+#[tokio::test(flavor = "local")]
+async fn rejects_crlf_in_open_chunk_extension_value() {
+    let request_count = Rc::new(Cell::new(0));
+
+    let buf = TestBuffer::new(
+        b"POST /legit HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\
+          \r\n\
+          0;x=\"\r\n\
+          \r\n\
+          GET /admin HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          \r\n"
+            .as_slice(),
+    );
+
+    let services = HttpFlow::new(
+        fn_service({
+            let request_count = Rc::clone(&request_count);
+
+            move |mut req: Request| {
+                request_count.set(request_count.get() + 1);
+
+                async move {
+                    let path = req.uri().path().to_owned();
+                    let mut payload = req.take_payload();
+
+                    while let Some(item) = payload.next().await {
+                        if item.is_err() {
+                            return Ok::<_, Error>(Response::bad_request());
+                        }
+                    }
+
+                    Ok(Response::ok().set_body(path).map_into_boxed_body())
+                }
+            }
+        }),
+        ExpectHandler,
+        None,
+    );
+
+    let mut h1 = pin!(Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    ));
+
+    lazy(|cx| {
+        let result = h1.as_mut().poll(cx);
+
+        assert!(
+            result.is_ready(),
+            "Dispatcher should finish after the parse error: {result:?}"
+        );
+    })
+    .await;
+
+    let response = buf.write_buf_slice();
+
+    assert_eq!(
+        request_count.get(),
+        1,
+        "Dispatcher should not dispatch a second request"
+    );
+    assert_eq!(
+        memmem::find_iter(&response, b"HTTP/1.1").count(),
+        1,
+        "Dispatcher should write one response: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"),
+        "Response should be 400 Bad Request: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        memmem::find(&response, b"/admin").is_none(),
+        "Dispatcher should not dispatch the admin request: {:?}",
+        String::from_utf8_lossy(&response)
     );
 }

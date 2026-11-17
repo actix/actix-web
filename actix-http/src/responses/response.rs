@@ -366,7 +366,7 @@ mod tests {
         assert!(dbg.contains("Response"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_into_response() {
         let res = Response::from("test");
         assert_eq!(res.status(), StatusCode::OK);

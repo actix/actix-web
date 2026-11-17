@@ -8,7 +8,7 @@ use actix_web::{
 use filetime::{set_file_mtime, FileTime};
 use tempfile::tempdir;
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn serves_file_with_pre_epoch_mtime() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("pre_epoch.txt");

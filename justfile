@@ -119,6 +119,10 @@ check-feature-combinations partition="1/1":
         --partition={{ partition }} \
         check
 
+# Check security advisories.
+check-advisories:
+    cargo deny --log-level warn --workspace --all-features check advisories
+
 # Check for unintentional external type exposure on all crates in workspace.
 check-external-types-all toolchain="+nightly":
     #!/usr/bin/env bash

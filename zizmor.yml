@@ -6,3 +6,6 @@ rules:
   dependabot-cooldown:
     config:
       days: 3
+  unpinned-uses:
+    # Action commits are pinned in actions.lock and verified in CI.
+    disable: true

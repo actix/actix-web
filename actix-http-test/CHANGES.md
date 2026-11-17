@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 3.4.0
+
+- Add `TestServer::{query, squery}()` methods for constructing HTTP `QUERY` requests.
 - Minimum supported Rust version (MSRV) is now 1.89.
 
 ## 3.3.0

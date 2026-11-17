@@ -24,7 +24,7 @@ pub struct ParseRangeErr(#[error(not(source))] HttpRangeParseError);
 
 impl fmt::Display for ParseRangeErr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("invalid Range header: ")?;
+        f.write_str("Invalid Range header: ")?;
         f.write_str(match self.0 {
             HttpRangeParseError::InvalidRange => "invalid syntax",
             HttpRangeParseError::NoOverlap => "range starts after end of content",

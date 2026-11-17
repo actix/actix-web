@@ -123,7 +123,7 @@ pub fn get_negotiated_alpn_protocol(
     sess.alpn_protocol().map(|proto| proto.to_vec())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -138,7 +138,7 @@ async fn h1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -153,7 +153,7 @@ async fn h2() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_1() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -172,7 +172,7 @@ async fn h1_1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_1() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -194,7 +194,26 @@ async fn h2_1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn h2_squery() -> io::Result<()> {
+    let mut srv = test_server(move || {
+        HttpService::build()
+            .h2(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                assert_eq!(req.version(), Version::HTTP_2);
+                ready(Ok::<_, Error>(Response::ok()))
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.squery("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    srv.stop().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "local")]
 async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -216,7 +235,7 @@ async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -238,7 +257,7 @@ async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body1() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let mut srv = test_server(move || {
@@ -260,7 +279,7 @@ async fn h2_body1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_content_length() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -289,7 +308,7 @@ async fn h2_content_length() {
                 .send();
             actix_rt::time::timeout(Duration::from_secs(15), req)
                 .await
-                .expect("request future stalled on recv 1xx frame")
+                .expect("Request future stalled on recv 1xx frame")
                 .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
 
@@ -298,7 +317,7 @@ async fn h2_content_length() {
                 .send();
             actix_rt::time::timeout(Duration::from_secs(15), req)
                 .await
-                .expect("request future stalled on recv 1xx frame")
+                .expect("Request future stalled on recv 1xx frame")
                 .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
         }
@@ -324,7 +343,7 @@ async fn h2_content_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
@@ -389,7 +408,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -407,7 +426,7 @@ async fn h2_body2() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -434,7 +453,7 @@ async fn h2_head_empty() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -460,7 +479,7 @@ async fn h2_head_binary() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary2() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -483,7 +502,7 @@ async fn h2_head_binary2() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -506,7 +525,7 @@ async fn h2_body_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_chunked_explicit() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -534,7 +553,7 @@ async fn h2_body_chunked_explicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -559,7 +578,7 @@ async fn h2_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
     srv.stop().await;
 }
@@ -574,7 +593,7 @@ impl From<BadRequest> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -592,7 +611,7 @@ async fn h2_service_error() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
@@ -614,7 +633,7 @@ const H2_ALPN_PROTOCOL: &[u8] = b"h2";
 const HTTP1_1_ALPN_PROTOCOL: &[u8] = b"http/1.1";
 const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h1() -> io::Result<()> {
     let mut srv = test_server(move || {
         let mut config = tls_config_h1();
@@ -637,7 +656,7 @@ async fn alpn_h1() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h2() -> io::Result<()> {
     let mut srv = test_server(move || {
         let mut config = tls_config_h2();
@@ -664,7 +683,7 @@ async fn alpn_h2() -> io::Result<()> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h2_1() -> io::Result<()> {
     let mut srv = test_server(move || {
         let mut config = tls_config();

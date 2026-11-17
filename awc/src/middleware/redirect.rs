@@ -10,6 +10,7 @@ use actix_http::{header, Method, RequestHead, RequestHeadType, StatusCode, Uri};
 use actix_service::Service;
 use bytes::Bytes;
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use super::Transform;
 use crate::{
@@ -113,7 +114,7 @@ where
     }
 }
 
-pin_project_lite::pin_project! {
+pin_project! {
     #[project = RedirectServiceProj]
     pub enum RedirectServiceFuture<S>
     where
@@ -305,7 +306,7 @@ mod tests {
     use super::*;
     use crate::{http::header::HeaderValue, ClientBuilder};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn basic_redirect() {
         let client = ClientBuilder::new()
             .disable_redirects()
@@ -331,7 +332,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 400);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn redirect_relative_without_leading_slash() {
         let client = ClientBuilder::new().finish();
 
@@ -352,7 +353,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::ACCEPTED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn redirect_without_location() {
         let client = ClientBuilder::new()
             .disable_redirects()
@@ -369,7 +370,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_limit() {
         let client = ClientBuilder::new()
             .disable_redirects()
@@ -410,7 +411,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_status_kind_307_308() {
         let srv = actix_test::start(|| {
             async fn root() -> HttpResponse {
@@ -436,7 +437,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 200);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_status_kind_301_302_303() {
         let srv = actix_test::start(|| {
             async fn root() -> HttpResponse {
@@ -466,7 +467,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 200);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_headers() {
         let srv = actix_test::start(|| {
             async fn root(req: HttpRequest) -> HttpResponse {
@@ -525,7 +526,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 200);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_redirect_cross_origin_headers() {
         // defining two services to have two different origins
         let srv2 = actix_test::start(|| {
@@ -590,7 +591,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 200);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_double_slash_redirect() {
         let client = ClientBuilder::new()
             .disable_redirects()
@@ -625,7 +626,7 @@ mod tests {
         assert_eq!(res.status().as_u16(), 400);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_remove_sensitive_headers() {
         fn gen_headers() -> header::HeaderMap {
             let mut headers = header::HeaderMap::new();

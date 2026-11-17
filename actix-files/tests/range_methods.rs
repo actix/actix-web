@@ -24,22 +24,22 @@ async fn assert_range_ignored(method: Method, range: &str) {
     assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"0123456789"[..]);
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn head_ignores_valid_range() {
     assert_range_ignored(Method::HEAD, "bytes=2-4").await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn head_ignores_unsatisfiable_range() {
     assert_range_ignored(Method::HEAD, "bytes=100-200").await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn post_ignores_valid_range() {
     assert_range_ignored(Method::POST, "bytes=2-4").await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn post_ignores_unsatisfiable_range() {
     assert_range_ignored(Method::POST, "bytes=100-200").await;
 }

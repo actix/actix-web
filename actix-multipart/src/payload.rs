@@ -229,7 +229,7 @@ mod tests {
 
     use super::*;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn basic() {
         let (_sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(None, payload.read_max(1).unwrap());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn eof() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -257,7 +257,7 @@ mod tests {
         assert!(payload.eof);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn err() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -266,7 +266,7 @@ mod tests {
         lazy(|cx| payload.poll_stream(cx)).await.err().unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_max() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(payload.buf.len(), 0);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_exactly() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -303,7 +303,7 @@ mod tests {
         assert_eq!(payload.buf.len(), 4);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_until() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new_with_limit(payload, DEFAULT_BUFFER_LIMIT);
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(payload.buf.len(), 0);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn poll_stream_does_not_exceed_buffer_limit() {
         let stream = futures_util::stream::iter([
             Ok(Bytes::from_static(b"12345678")),
@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(payload.buf.len(), 16);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn oversized_chunk_can_be_consumed_incrementally() {
         let stream = futures_util::stream::once(async { Ok(Bytes::from_static(b"12345678")) });
         let mut payload = PayloadBuffer::new_with_limit(stream, 4);

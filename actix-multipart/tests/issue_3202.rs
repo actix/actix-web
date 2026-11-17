@@ -50,37 +50,37 @@ async fn check_local(tail: &str, valid: bool) {
     );
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn missing_boundary_returns_error() {
     check_local("Hello World\r\n", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn malformed_empty_file_returns_error() {
     check_local("--xxx--\r\n", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn partial_boundary_returns_error() {
     check_local("\r\n--x", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn valid_empty_file_succeeds() {
     check_local("\r\n--xxx--\r\n", true).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn live_missing_boundary_returns_bad_request() {
     check_live("Hello World\r\n", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn live_malformed_empty_file_returns_bad_request() {
     check_live("--xxx--\r\n", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn live_valid_empty_file_succeeds() {
     check_live("\r\n--xxx--\r\n", true).await;
 }
@@ -93,17 +93,17 @@ async fn check_live(tail: &str, valid: bool) {
         .timeout(Duration::from_secs(1))
         .send_body(body(tail))
         .await
-        .expect("live upload did not return a response");
+        .expect("Live upload did not return a response");
 
     assert_eq!(response.status().as_u16(), if valid { 200 } else { 400 });
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn missing_boundary_without_trailing_crlf_returns_error() {
     check_local("Hello World", false).await;
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn raw_field_with_trailing_crlf_returns_error() {
     let (req, mut payload) = TestRequest::post()
         .insert_header(("content-type", "multipart/form-data; boundary=xxx"))
@@ -115,7 +115,7 @@ async fn raw_field_with_trailing_crlf_returns_error() {
 
     let result = timeout(Duration::from_secs(1), field.next())
         .await
-        .expect("raw Field stream did not finish at EOF");
+        .expect("Raw Field stream did not finish at EOF");
     assert!(matches!(
         result,
         Some(Err(actix_multipart::MultipartError::Incomplete))

@@ -322,6 +322,9 @@ pub struct ContentDisposition {
 impl ContentDisposition {
     /// Constructs a Content-Disposition header suitable for downloads.
     ///
+    /// Includes a `filename` parameter and adds a UTF-8 encoded `filename*` parameter if the
+    /// filename contains non-ASCII characters.
+    ///
     /// # Examples
     /// ```
     /// use actix_web::http::header::{ContentDisposition, TryIntoHeaderValue as _};
@@ -332,9 +335,25 @@ impl ContentDisposition {
     /// assert_eq!(cd_val, "attachment; filename=\"files.zip\"");
     /// ```
     pub fn attachment(filename: impl Into<String>) -> Self {
+        let filename = filename.into();
+        let is_ascii = filename.is_ascii();
+
+        let mut parameters = Vec::new();
+
+        if is_ascii {
+            parameters.push(DispositionParam::Filename(filename));
+        } else {
+            parameters.push(DispositionParam::Filename(filename.clone()));
+            parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+                charset: header::Charset::Ext(String::from("UTF-8")),
+                language_tag: None,
+                value: filename.into_bytes(),
+            }));
+        }
+
         Self {
             disposition: DispositionType::Attachment,
-            parameters: vec![DispositionParam::Filename(filename.into())],
+            parameters,
         }
     }
 
@@ -591,7 +610,28 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::http::header::{Charset, ExtendedValue, HeaderValue};
+    use crate::http::header::{Charset, ExtendedValue, HeaderValue, TryIntoHeaderValue as _};
+
+    #[test]
+    fn test_attachment_ascii() {
+        let header = ContentDisposition::attachment("file name.zip")
+            .try_into_value()
+            .unwrap();
+
+        assert_eq!(header, "attachment; filename=\"file name.zip\"");
+    }
+
+    #[test]
+    fn test_attachment_non_ascii() {
+        let header = ContentDisposition::attachment("café.pdf")
+            .try_into_value()
+            .unwrap();
+
+        assert_eq!(
+            header.as_bytes(),
+            "attachment; filename=\"café.pdf\"; filename*=UTF-8''caf%C3%A9.pdf".as_bytes()
+        );
+    }
 
     #[test]
     fn test_from_raw_basic() {
@@ -896,9 +936,9 @@ mod tests {
 
         let a = HeaderValue::from_static("inline; filename=\"\"");
         assert!(ContentDisposition::from_raw(&a)
-            .expect("parse cd")
+            .expect("Parse cd")
             .get_filename()
-            .expect("filename")
+            .expect("Filename")
             .is_empty());
     }
 

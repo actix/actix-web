@@ -182,7 +182,7 @@ mod tests {
     use super::*;
     use crate::{dev::Service, test, App};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn absolute_redirects() {
         let redirector = Redirect::new("/one", "/two").permanent();
 
@@ -195,7 +195,7 @@ mod tests {
         assert_eq!(hdr.to_str().unwrap(), "/two");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn relative_redirects() {
         let redirector = Redirect::new("/one", "two").permanent();
 
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(hdr.to_str().unwrap(), "two");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn temporary_redirects() {
         let external_service = Redirect::new("/external", "https://duck.com");
 
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(hdr.to_str().unwrap(), "https://duck.com");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn as_responder() {
         let responder = Redirect::to("https://duck.com");
 

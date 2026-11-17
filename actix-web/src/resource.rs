@@ -401,6 +401,7 @@ where
     route_shortcut!(put, "PUT");
     route_shortcut!(patch, "PATCH");
     route_shortcut!(delete, "DELETE");
+    route_shortcut!(query, "QUERY");
     route_shortcut!(head, "HEAD");
     route_shortcut!(trace, "TRACE");
 }
@@ -641,7 +642,7 @@ mod tests {
             .service(my_resource_3());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware() {
         let srv = init_service(
             App::new().service(
@@ -664,7 +665,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_fn() {
         let srv = init_service(
             App::new().service(
@@ -692,7 +693,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_to() {
         let srv = init_service(App::new().service(web::resource("/test").to(|| async {
             sleep(Duration::from_millis(100)).await;
@@ -704,7 +705,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pattern() {
         let srv = init_service(App::new().service(
             web::resource(["/test", "/test2"]).to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
@@ -718,7 +719,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv = init_service(
             App::new()
@@ -768,7 +769,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_resource_guards() {
         let srv = init_service(
             App::new()
@@ -809,9 +810,35 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
+    #[tokio::test(flavor = "local")]
+    async fn test_query_method() {
+        let srv = init_service(
+            App::new().service(web::resource("/test").route(web::query().to(HttpResponse::Ok))),
+        )
+        .await;
+
+        // a QUERY request is routed to the `web::query()` handler
+        let req = TestRequest::with_uri("/test")
+            .method(Method::from_bytes(b"QUERY").unwrap())
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // any other method is rejected with `405 Method Not Allowed`
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.headers().get(header::ALLOW).unwrap().as_bytes(),
+            b"QUERY"
+        );
+    }
+
     // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data() {
         let srv = init_service(
             App::new()
@@ -845,7 +872,7 @@ mod tests {
 
     // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_default_service() {
         let srv =
             init_service(
@@ -865,7 +892,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_app_data() {
         let srv = init_service(
             App::new().service(
@@ -900,7 +927,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_body_type() {
         let srv = init_service(
             App::new().service(

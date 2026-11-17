@@ -172,7 +172,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_content_type_validation() {
         let srv = actix_test::start(|| {
             App::new()

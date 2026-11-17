@@ -23,7 +23,7 @@ use tokio::time::{sleep, Sleep};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
-    config::ServiceConfig,
+    config::{GracefulShutdownFuture, ServiceConfig},
     header::{
         HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
     },
@@ -42,6 +42,7 @@ pin_project! {
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
         ping_pong: Option<H2PingPong>,
+        graceful_shutdown: Option<GracefulShutdownFuture>,
         _phantom: PhantomData<B>
     }
 }
@@ -70,6 +71,8 @@ where
             ping_pong: conn.ping_pong().unwrap(),
         });
 
+        let graceful_shutdown = config.graceful_shutdown();
+
         Self {
             flow,
             config,
@@ -77,7 +80,25 @@ where
             connection: conn,
             conn_data: conn_data.0.map(Rc::new),
             ping_pong,
+            graceful_shutdown,
             _phantom: PhantomData,
+        }
+    }
+
+    /// Starts a graceful shutdown when the server shutdown signal is ready.
+    fn poll_shutdown(&mut self, cx: &mut Context<'_>) {
+        let shutdown = self
+            .graceful_shutdown
+            .as_mut()
+            .is_some_and(|signal| signal.as_mut().poll(cx).is_ready());
+
+        if shutdown {
+            self.graceful_shutdown = None;
+
+            // Sends GOAWAY, then a second GOAWAY with the last processed stream ID after a PING
+            // round trip. `poll_accept` keeps driving in-flight streams and returns `None` once
+            // they have all finished.
+            self.connection.graceful_shutdown();
         }
     }
 }
@@ -109,6 +130,8 @@ where
     #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
+
+        this.poll_shutdown(cx);
 
         loop {
             match Pin::new(&mut this.connection).poll_accept(cx)? {

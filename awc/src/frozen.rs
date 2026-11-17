@@ -69,7 +69,7 @@ impl FrozenClientRequest {
         )
     }
 
-    /// Send an urlencoded body.
+    /// Send a URL-encoded body.
     pub fn send_form<T: Serialize>(&self, value: &T) -> SendClientRequest {
         RequestSender::Rc(Rc::clone(&self.head), None).send_form(
             self.addr,
@@ -175,7 +175,7 @@ impl FrozenSendBuilder {
         )
     }
 
-    /// Complete request construction and send an urlencoded body.
+    /// Complete request construction and send a URL-encoded body.
     pub fn send_form(self, value: impl Serialize) -> SendClientRequest {
         if let Some(err) = self.err {
             return err.into();

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.7.4
+
+- Fix hidden-file protection bypass through Windows short filename aliases. [GHSA-8hcm-m7r7-frwc](https://github.com/actix/actix-web/security/advisories/GHSA-8hcm-m7r7-frwc)
+
+## 0.7.3
+
+- Fix stored XSS vulnerability when `Files::show_files_listing()` is explicitly enabled. [GHSA-5rrw-whjq-pmhh](https://github.com/actix/actix-web/security/advisories/GHSA-5rrw-whjq-pmhh)
+
 ## 0.7.2
 
 - Evaluate request preconditions before processing `Range` headers when serving a `NamedFile`.

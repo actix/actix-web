@@ -126,7 +126,7 @@ pub fn itoa_fmt<W: fmt::Write, V: itoa::Integer>(mut wr: W, value: V) -> fmt::Re
 }
 
 #[derive(Debug, Clone, Display, Error)]
-#[display("quality out of bounds")]
+#[display("Quality out of bounds")]
 #[non_exhaustive]
 pub struct QualityOutOfBounds;
 
@@ -176,7 +176,7 @@ where
     T: TryInto<Quality>,
     T::Error: fmt::Debug,
 {
-    quality.try_into().expect("quality value was out of bounds")
+    quality.try_into().expect("Quality value was out of bounds")
 }
 
 #[cfg(test)]

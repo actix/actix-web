@@ -65,12 +65,12 @@ mod tests {
 
         assert_eq!(body.size(), crate::body::BodySize::Stream);
         let chunk = assert_ready!(Pin::new(&mut body).poll_next(&mut cx))
-            .expect("ready chunk body should yield a chunk");
+            .expect("Ready chunk body should yield a chunk");
         let chunk = assert_ok!(chunk, "expected a successful chunk");
         assert_eq!(chunk, Bytes::from_static(b"xxx"));
 
         let chunk = assert_ready!(Pin::new(&mut body).poll_next(&mut cx))
-            .expect("ready chunk body should yield a chunk");
+            .expect("Ready chunk body should yield a chunk");
         let chunk = assert_ok!(chunk, "expected a successful chunk");
         assert_eq!(chunk, Bytes::from_static(b"xxx"));
 

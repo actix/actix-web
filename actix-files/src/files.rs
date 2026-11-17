@@ -578,7 +578,7 @@ mod tests {
 
     use super::*;
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn custom_files_listing_renderer() {
         let srv = test::init_service(
             App::new().service(

@@ -6,6 +6,12 @@ use super::HeaderValue;
 use crate::{error::ParseError, header::HTTP_VALUE};
 
 /// Reads a comma-delimited raw header into a Vec.
+///
+/// A comma inside a quoted string does not delimit list elements. See [RFC 9110 §5.6.1] and
+/// [RFC 9110 §5.6.4].
+///
+/// [RFC 9110 §5.6.1]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1
+/// [RFC 9110 §5.6.4]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.4
 #[inline]
 pub fn from_comma_delimited<'a, I, T>(all: I) -> Result<Vec<T>, ParseError>
 where
@@ -19,7 +25,7 @@ where
         let s = h.to_str().map_err(|_| ParseError::Header)?;
 
         result.extend(
-            s.split(',')
+            split_list_elements(s)
                 .filter_map(|x| match x.trim() {
                     "" => None,
                     y => Some(y),
@@ -29,6 +35,40 @@ where
     }
 
     Ok(result)
+}
+
+/// Splits a field value on the commas that are outside quoted strings.
+///
+/// A backslash inside a quoted string escapes the next character (a quoted-pair), so an
+/// escaped double quote does not end the quoted string.
+fn split_list_elements(value: &str) -> impl Iterator<Item = &str> {
+    let mut rest = Some(value);
+
+    std::iter::from_fn(move || {
+        let value = rest?;
+        let mut in_quoted_string = false;
+        let mut escaped = false;
+
+        for (idx, byte) in value.bytes().enumerate() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+
+            match byte {
+                b'\\' if in_quoted_string => escaped = true,
+                b'"' => in_quoted_string = !in_quoted_string,
+                b',' if !in_quoted_string => {
+                    rest = Some(&value[idx + 1..]);
+                    return Some(&value[..idx]);
+                }
+                _ => {}
+            }
+        }
+
+        rest = None;
+        Some(value)
+    })
 }
 
 /// Reads a single string when parsing a header.
@@ -100,5 +140,22 @@ mod tests {
         ];
         let res: Vec<usize> = from_comma_delimited(headers.iter()).unwrap();
         assert_eq!(res, vec![1]);
+    }
+
+    #[test]
+    fn comma_delimited_parsing_keeps_commas_in_quoted_strings() {
+        let headers = [
+            HeaderValue::from_static(r#""a,b", "c""#),
+            HeaderValue::from_static(r#"private="x, y", no-store"#),
+        ];
+        let res: Vec<String> = from_comma_delimited(headers.iter()).unwrap();
+        assert_eq!(res, [r#""a,b""#, r#""c""#, r#"private="x, y""#, "no-store"]);
+    }
+
+    #[test]
+    fn comma_delimited_parsing_skips_quoted_pairs() {
+        let headers = [HeaderValue::from_static(r#"a="x\", y", b"#)];
+        let res: Vec<String> = from_comma_delimited(headers.iter()).unwrap();
+        assert_eq!(res, [r#"a="x\", y""#, "b"]);
     }
 }

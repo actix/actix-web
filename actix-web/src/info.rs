@@ -444,7 +444,7 @@ mod tests {
         assert_eq!(info.host(), "actix.rs");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn conn_info_extract() {
         let req = TestRequest::default()
             .uri("https://actix.rs/test")
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(conn_info.host(), "actix.rs");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn peer_addr_extract() {
         let req = TestRequest::default().to_http_request();
         let res = PeerAddr::extract(&req).await;
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(peer_addr, PeerAddr(addr));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn remote_address() {
         let req = TestRequest::default().to_http_request();
         let res = ConnectionInfo::extract(&req).await.unwrap();
@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(conn_info.peer_addr().unwrap(), "127.0.0.1");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn real_ip_from_socket_addr() {
         let req = TestRequest::default().to_http_request();
         let res = ConnectionInfo::extract(&req).await.unwrap();

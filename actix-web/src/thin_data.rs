@@ -88,7 +88,7 @@ mod tests {
 
     type TestT = Arc<Mutex<u32>>;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn thin_data() {
         let test_data = TestT::default();
 
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(*test_data.lock().unwrap(), 3);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn thin_data_missing() {
         let app = init_service(
             App::new().service(web::resource("/").to(|_: ThinData<u32>| HttpResponse::Ok())),
