@@ -87,8 +87,22 @@ where
                     RequestHeadType::Owned(ref head) => {
                         (head.uri.clone(), head.method.clone(), head.headers.clone())
                     }
-                    RequestHeadType::Rc(ref head, ..) => {
-                        (head.uri.clone(), head.method.clone(), head.headers.clone())
+                    RequestHeadType::Rc(ref head, ref extra_headers) => {
+                        let mut headers = head.headers.clone();
+
+                        // extra headers replace head headers of the same name, as they do when
+                        // the request is sent
+                        if let Some(extra_headers) = extra_headers {
+                            for name in extra_headers.keys() {
+                                headers.remove(name);
+                            }
+
+                            for (name, value) in extra_headers.iter() {
+                                headers.append(name.clone(), value.clone());
+                            }
+                        }
+
+                        (head.uri.clone(), head.method.clone(), headers)
                     }
                 };
 
@@ -734,5 +748,59 @@ mod tests {
         let mut headers = gen_headers();
         remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
         assert_eq!(headers.len(), 1);
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_redirect_keeps_frozen_request_extra_headers() {
+        let srv = actix_test::start(|| {
+            async fn root() -> HttpResponse {
+                HttpResponse::TemporaryRedirect()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn test(req: HttpRequest, body: Bytes) -> HttpResponse {
+                let header = |name| {
+                    req.headers()
+                        .get(name)
+                        .map(|val| val.to_str().unwrap().to_owned())
+                        .unwrap_or_default()
+                };
+
+                HttpResponse::Ok().body(format!(
+                    "{} {} {}",
+                    header(header::CONTENT_TYPE),
+                    header(header::HeaderName::from_static("x-extra")),
+                    String::from_utf8_lossy(&body),
+                ))
+            }
+
+            App::new()
+                .service(web::resource("/").route(web::to(root)))
+                .service(web::resource("/test").route(web::to(test)))
+        });
+
+        let req = srv.post("/").freeze().unwrap();
+
+        let mut res = req
+            .extra_header(("x-extra", "1"))
+            .send_json("Hello")
+            .await
+            .unwrap();
+        assert_eq!(res.body().await.unwrap(), "application/json 1 \"Hello\"");
+
+        // an extra header replaces a head header of the same name
+        let req = srv
+            .post("/")
+            .insert_header((header::CONTENT_TYPE, "text/plain"))
+            .freeze()
+            .unwrap();
+
+        let mut res = req
+            .extra_header((header::CONTENT_TYPE, "application/json"))
+            .send_body("{}")
+            .await
+            .unwrap();
+        assert_eq!(res.body().await.unwrap(), "application/json  {}");
     }
 }
