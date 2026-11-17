@@ -60,7 +60,9 @@ impl HttpRange {
                 }
 
                 range.split_once('-').is_some_and(|(start, end)| {
-                    !(start.is_empty() && end.is_empty())
+                    let both_positions_empty = start.is_empty() && end.is_empty();
+
+                    !both_positions_empty
                         && start.bytes().chain(end.bytes()).all(|b| b.is_ascii_digit())
                 })
             });
