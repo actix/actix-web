@@ -274,16 +274,27 @@ impl Logger {
     /// immediately before it is written to the log output.
     ///
     /// # Examples
+    /// Redact sensitive query parameters (e.g. token, secret, api_key):
     /// ```
-    /// use std::borrow::Cow;
     /// use actix_web::middleware::Logger;
+    /// use regex::Regex;
     ///
-    /// let logger = Logger::default().format_log(|line| {
-    ///     if line.contains("secret") {
-    ///         Cow::Owned(line.replace("secret", "*****"))
-    ///     } else {
-    ///         Cow::Borrowed(line)
-    ///     }
+    /// let re = Regex::new(r"([?&](?:token|api_key)=)[^&\s]+").unwrap();
+    ///
+    /// let logger = Logger::default().format_log(move |line| {
+    ///     re.replace_all(line, "$1*****")
+    /// });
+    /// ```
+    ///
+    /// Redact sensitive request headers (e.g. Bearer authorization tokens):
+    /// ```
+    /// use actix_web::middleware::Logger;
+    /// use regex::Regex;
+    ///
+    /// let re = Regex::new(r"(?i)(bearer\s+)[a-zA-Z0-9_\-\.]+").unwrap();
+    ///
+    /// let logger = Logger::new(r#"%a "%r" %s "%{Authorization}i""#).format_log(move |line| {
+    ///     re.replace_all(line, "$1*****")
     /// });
     /// ```
     pub fn format_log(mut self, f: impl for<'a> Fn(&'a str) -> Cow<'a, str> + 'static) -> Self {
