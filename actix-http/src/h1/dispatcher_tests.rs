@@ -751,6 +751,52 @@ async fn lingering_timeout_uses_graceful_shutdown() {
 }
 
 #[tokio::test(flavor = "local")]
+async fn lingering_timeout_already_elapsed_closes_connection() {
+    let buf = TestSeqBuffer::new(
+        "\
+            POST / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Content-Length: 8\r\n\
+            \r\n\
+            ab\
+            ",
+    );
+
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::ZERO,
+        Duration::from_millis(1),
+        false,
+        None,
+    );
+
+    // let the cached date service clock fall behind the lingering deadline
+    std::thread::sleep(Duration::from_millis(10));
+
+    let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+
+    // a timeout would poll the dispatcher once more when it fires, hiding a missed wake-up
+    let res = tokio::select! {
+        biased;
+        _ = sleep(Duration::from_millis(100)) => None,
+        res = h1 => Some(res),
+    };
+
+    assert!(
+        matches!(res, Some(Ok(()))),
+        "dispatcher should close once its lingering timeout elapses"
+    );
+}
+
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
