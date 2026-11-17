@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject malformed byte positions in `Range` headers, including internal whitespace.
+
 ## 0.7.4
 
 - Fix hidden-file protection bypass through Windows short filename aliases. [GHSA-8hcm-m7r7-frwc](https://github.com/actix/actix-web/security/advisories/GHSA-8hcm-m7r7-frwc)
