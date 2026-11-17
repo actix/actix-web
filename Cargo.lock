@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "actix-multipart"
-version = "0.8.8"
+version = "0.8.9"
 dependencies = [
  "actix-http",
  "actix-multipart-derive",

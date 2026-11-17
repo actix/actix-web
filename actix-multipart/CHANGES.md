@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Map `MultipartError::Payload(PayloadError::Overflow)` to `413 Payload Too Large`, matching `PayloadError`.
+## 0.8.9
+
+- Respond with `413 Payload Too Large` for `MultipartError::Payload(PayloadError::Overflow)` errors.
 
 ## 0.8.8
 
