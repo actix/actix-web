@@ -63,7 +63,8 @@ impl HttpRange {
                     let both_positions_empty = start.is_empty() && end.is_empty();
 
                     !both_positions_empty
-                        && start.bytes().chain(end.bytes()).all(|b| b.is_ascii_digit())
+                        && start.bytes().all(|b| b.is_ascii_digit())
+                        && end.bytes().all(|b| b.is_ascii_digit())
                 })
             });
 
