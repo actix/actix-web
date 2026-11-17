@@ -107,10 +107,8 @@ mod tests {
             "bytes=0-\u{a0}1",
             "bytes=\u{660}-\u{661}",
         ] {
-            assert!(
-                HttpRange::parse(header, 10).is_err(),
-                "Range {header:?} should be rejected"
-            );
+            HttpRange::parse(header, 10)
+                .expect_err(&format!("Range {header:?} should be rejected"));
         }
     }
 
