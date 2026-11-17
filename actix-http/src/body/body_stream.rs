@@ -41,7 +41,7 @@ where
     #[inline]
     #[must_use]
     pub fn from_infallible(stream: S) -> Self {
-        BodyStream::new(InfallibleStream { stream })
+        BodyStream::new(InfallibleStream::new(stream))
     }
 }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `InfallibleStream::new()` constructor.
+
 ## 2.22.0
 
 - Allow `InfallibleStream` to wrap streams with any item type.
