@@ -10,12 +10,34 @@ use pin_project_lite::pin_project;
 pin_project! {
     /// Adapts a stream into a stream of results with an [`Infallible`] error.
     ///
-    /// Created by [`BodyStream::from_infallible`](super::BodyStream::from_infallible) or
+    /// Created by [`InfallibleStream::new`],
+    /// [`BodyStream::from_infallible`](super::BodyStream::from_infallible), or
     /// [`SizedStream::from_infallible`](super::SizedStream::from_infallible).
     #[must_use]
     pub struct InfallibleStream<S> {
         #[pin]
         pub(super) stream: S,
+    }
+}
+
+impl<S: Stream> InfallibleStream<S> {
+    /// Creates a stream that wraps each item from `stream` in `Ok`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_http::body::InfallibleStream;
+    /// use futures_util::{stream, StreamExt as _};
+    ///
+    /// # actix_rt::System::new().block_on(async {
+    /// let stream = InfallibleStream::new(stream::iter([1, 2]));
+    ///
+    /// assert_eq!(stream.collect::<Vec<_>>().await, vec![Ok(1), Ok(2)]);
+    /// # });
+    /// ```
+    #[inline]
+    pub fn new(stream: S) -> Self {
+        Self { stream }
     }
 }
 
@@ -44,7 +66,7 @@ mod tests {
             tokio::task::yield_now().await;
             yield Item(2);
         };
-        let stream = InfallibleStream { stream };
+        let stream = InfallibleStream::new(stream);
 
         assert_eq!(
             stream.collect::<Vec<_>>().await,
