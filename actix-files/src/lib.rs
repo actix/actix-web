@@ -592,59 +592,15 @@ mod tests {
     }
 
     #[tokio::test(flavor = "local")]
-    async fn test_named_file_range_rejects_plus_signs() {
+    async fn test_named_file_malformed_ranges_return_416() {
         let file = tempfile::NamedTempFile::new().unwrap();
         fs::write(file.path(), b"0123456789").unwrap();
 
         for range in [
             "bytes=+0-+1",
-            "bytes=+0-1",
-            "bytes=0-+1",
-            "bytes=+0-",
-            "bytes=-+1",
-            "bytes=0-1, +2-3",
-            "bytes=20-+30, 0-1",
-        ] {
-            let req = TestRequest::get()
-                .insert_header((header::RANGE, range))
-                .to_http_request();
-            let response = NamedFile::open(file.path()).unwrap().into_response(&req);
-
-            assert_eq!(
-                response.status(),
-                StatusCode::RANGE_NOT_SATISFIABLE,
-                "Range {range:?} should return 416"
-            );
-            assert_eq!(
-                response.headers().get(header::CONTENT_RANGE).unwrap(),
-                "bytes */10",
-                "Range {range:?} should return Content-Range: bytes */10"
-            );
-            assert!(
-                body::to_bytes(response.into_body())
-                    .await
-                    .unwrap()
-                    .is_empty(),
-                "Range {range:?} should have an empty response body"
-            );
-        }
-    }
-
-    #[tokio::test(flavor = "local")]
-    async fn test_named_file_range_rejects_internal_whitespace() {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        fs::write(file.path(), b"0123456789").unwrap();
-
-        for range in [
             "bytes=0 - 1",
-            "bytes=0 -1",
-            "bytes=0- 1",
-            "bytes=0\t-\t1",
-            "bytes=0 -",
-            "bytes=- 1",
-            "bytes=-\t1",
             "bytes=0-1, 2 -3",
-            "bytes=20 -30, 0-1",
+            "bytes=20-+30, 0-1",
         ] {
             let req = TestRequest::get()
                 .insert_header((header::RANGE, range))

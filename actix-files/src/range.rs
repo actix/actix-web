@@ -96,12 +96,18 @@ mod tests {
     fn test_parse_rejects_malformed_positions() {
         for header in [
             "bytes=+0-+1",
+            "bytes=+0-1",
+            "bytes=0-+1",
             "bytes=+0-",
             "bytes=-+1",
             "bytes=0 - 1",
+            "bytes=0 -1",
+            "bytes=0- 1",
             "bytes=0 -",
             "bytes=- 1",
+            "bytes=-\t1",
             "bytes=0\t-\t1",
+            "bytes=0-1, +2-3",
             "bytes=0-1, 2 -3",
             "bytes=20 -30, 0-1",
             "bytes=20-+30, 0-1",
