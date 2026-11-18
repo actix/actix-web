@@ -30,7 +30,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
 
       - name: release-plz
-        uses: release-plz/action@v0.5.140
+        uses: release-plz/action@v0.5.148
         id: release-plz
         with:
           command: release
