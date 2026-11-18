@@ -38,7 +38,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'nicknovitski/nix-develop@v1.2.1'
         - 'nixbuild/nix-quick-install-action@v35'
-        - 'release-plz/action@v0.5.140'
+        - 'release-plz/action@v0.5.148'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
         - 'taiki-e/install-action@v2.90.4'
@@ -71,9 +71,9 @@ dependencies:
         commit: 'sha1-2b21a77928be8d5168c2b9581a67f2adbebacc52'
         owner_id: 44036562
         repo_id: 1220171870
-    'cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72':
-        ref: 'v1.25.2'
-        commit: 'sha1-c06f6a0003f7c6165a00c89d1697731c9e8a5c72'
+    'cargo-bins/cargo-binstall@851112458b5f28a29e5bc14a690c3f283d9dcc6f':
+        ref: 'v1.26.2'
+        commit: 'sha1-851112458b5f28a29e5bc14a690c3f283d9dcc6f'
         owner_id: 110581826
         repo_id: 321270638
     'embarkstudios/cargo-deny-action@v2.1.1':
@@ -106,15 +106,15 @@ dependencies:
         commit: 'sha1-9f63be77f412a248c9d9a65a4c82cf066cdf8f0c'
         owner_id: 60610456
         repo_id: 296639338
-    'release-plz/action@v0.5.140':
-        ref: 'v0.5.140'
-        commit: 'sha1-18641b6c63063cc5ff8786ebf69cd57e8541bae1'
+    'release-plz/action@v0.5.148':
+        ref: 'v0.5.148'
+        commit: 'sha1-66b324fd6c72d05d2a08568492ecdd62bfb8a62b'
         owner_id: 188756284
         repo_id: 476470908
         uses:
-            - 'cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72'
+            - 'cargo-bins/cargo-binstall@851112458b5f28a29e5bc14a690c3f283d9dcc6f'
             - 'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4'
-            - 'taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad'
+            - 'taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b'
     'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4':
         ref: 'v0.1.2'
         commit: 'sha1-59144859caf016f8b817a2ac9b051578729173c4'
@@ -137,9 +137,9 @@ dependencies:
         repo_id: 588643148
         uses:
             - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-    'taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad':
-        ref: 'v2.87.26'
-        commit: 'sha1-f7e5d7c961414b23f5b25b2da9294395d08513ad'
+    'taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b':
+        ref: 'v2.89.0'
+        commit: 'sha1-1919c4a95903d2c33e4a221102edca87309fc14b'
         owner_id: 43724913
         repo_id: 442947557
     'taiki-e/install-action@v2.90.4':
