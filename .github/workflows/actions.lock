@@ -9,18 +9,18 @@ workflows:
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
-        - 'taiki-e/install-action@v2.90.3'
+        - 'taiki-e/install-action@v2.90.4'
         - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/ci.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
         - 'ilammy/setup-nasm@v1.5.2'
         - 'rui314/setup-mold@v1'
-        - 'taiki-e/install-action@v2.90.3'
+        - 'taiki-e/install-action@v2.90.4'
         - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/coverage.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
         - 'actions/upload-code-coverage@v1.4.4'
-        - 'taiki-e/install-action@v2.90.3'
+        - 'taiki-e/install-action@v2.90.4'
         - 'useblacksmith/checkout@v1.8.2'
     '.github/workflows/labeler.yml':
         - 'actions/labeler@v7.0.0'
@@ -30,7 +30,7 @@ workflows:
         - 'embarkstudios/cargo-deny-action@v2.1.1'
         - 'giraffate/clippy-action@v1.0.1'
         - 'taiki-e/cache-cargo-install-action@v3.0.8'
-        - 'taiki-e/install-action@v2.90.3'
+        - 'taiki-e/install-action@v2.90.4'
         - 'useblacksmith/checkout@v1.8.2'
         - 'zizmorcore/zizmor-action@v0.8.1'
     '.github/workflows/release.yml':
@@ -41,7 +41,7 @@ workflows:
         - 'release-plz/action@v0.5.140'
     '.github/workflows/semver-checks.yml':
         - 'actions-rust-lang/setup-rust-toolchain@v2.0.1'
-        - 'taiki-e/install-action@v2.90.3'
+        - 'taiki-e/install-action@v2.90.4'
         - 'useblacksmith/checkout@v1.8.2'
 dependencies:
     'actions-rust-lang/setup-rust-toolchain@v2.0.1':
@@ -142,9 +142,9 @@ dependencies:
         commit: 'sha1-f7e5d7c961414b23f5b25b2da9294395d08513ad'
         owner_id: 43724913
         repo_id: 442947557
-    'taiki-e/install-action@v2.90.3':
-        ref: 'v2.90.3'
-        commit: 'sha1-cfdb7ed4ccc7c7dce37759eae89dc5674b469b39'
+    'taiki-e/install-action@v2.90.4':
+        ref: 'v2.90.4'
+        commit: 'sha1-4a76afe23f9e08d2d9550fb56e556444e8611d21'
         owner_id: 43724913
         repo_id: 442947557
     'useblacksmith/checkout@v1.8.2':
