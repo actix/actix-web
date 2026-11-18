@@ -125,9 +125,9 @@ impl Redirect {
 
     /// Allows the use of custom status codes for less common redirect types.
     ///
-    /// In most cases, the default status ("308 Permanent Redirect") or using the `temporary`
-    /// method, which uses the "307 Temporary Redirect" status have more consistent behavior than
-    /// 301 and 302 codes, respectively.
+    /// In most cases, the default status ("307 Temporary Redirect") or using the `permanent`
+    /// method, which uses the "308 Permanent Redirect" status have more consistent behavior than
+    /// 302 and 301 codes, respectively.
     ///
     /// ```
     /// # use actix_web::{http::StatusCode, web::Redirect};
