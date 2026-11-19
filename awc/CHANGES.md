@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep the extra headers of a `FrozenClientRequest`, including the `Content-Type` set by `send_json()` and `send_form()`, when following a redirect.
+
 ## 3.11.0
 
 - Add `Client::query()` method for constructing HTTP `QUERY` requests.
