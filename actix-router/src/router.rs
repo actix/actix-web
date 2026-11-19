@@ -42,9 +42,9 @@ impl<T, U> Router<T, U> {
     /// Finds the value in the router that matches a given [routing resource](Resource) and passes
     /// an additional predicate check using context data.
     ///
-    /// Similar to [`recognize`](Self::recognize). However, before accepting the route as matched,
-    /// the `check` closure is executed, passing the resource and each route's context data. If the
-    /// closure returns true then the match result is stored into `resource` and a reference to
+    /// The `check` closure is executed first for each candidate route, passing the resource and
+    /// the route's context data. If the closure returns true and the resource path matches the
+    /// route definition, dynamic match segments are stored into `resource` and a reference to
     /// the matched _value_ is returned.
     pub fn recognize_fn<R, F>(&self, resource: &mut R, mut check: F) -> Option<(&T, ResourceId)>
     where
@@ -52,7 +52,11 @@ impl<T, U> Router<T, U> {
         F: FnMut(&R, &U) -> bool,
     {
         for (rdef, val, ctx) in self.routes.iter() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
+            if !check(resource, ctx) {
+                continue;
+            }
+
+            if rdef.capture_match_info(resource) {
                 return Some((val, ResourceId(rdef.id())));
             }
         }
@@ -72,7 +76,11 @@ impl<T, U> Router<T, U> {
         F: FnMut(&R, &U) -> bool,
     {
         for (rdef, val, ctx) in self.routes.iter_mut() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
+            if !check(resource, ctx) {
+                continue;
+            }
+
+            if rdef.capture_match_info(resource) {
                 return Some((val, ResourceId(rdef.id())));
             }
         }
@@ -330,6 +338,40 @@ mod tests {
             .recognize_fn(&mut path, |_, allowed| *allowed)
             .is_none());
         assert_eq!(path.unprocessed(), "/exact");
+    }
+
+    #[test]
+    fn recognize_fn_routes_by_context_guard() {
+        // Simulates Method / Virtual Host dispatch on identical paths
+        let mut builder = Router::<&'static str, &'static str>::build();
+        *builder.path("/users/{id}", "get_handler").2 = "GET";
+        *builder.path("/users/{id}", "post_handler").2 = "POST";
+        let router = builder.finish();
+
+        let mut path = Path::new("/users/42");
+        let (val, _) = router
+            .recognize_fn(&mut path, |_, method| *method == "POST")
+            .unwrap();
+
+        assert_eq!(*val, "post_handler");
+        assert_eq!(path.get("id").unwrap(), "42");
+    }
+
+    #[test]
+    fn recognize_fn_rejects_malformed_request_path() {
+        let mut builder = Router::<&'static str, &'static str>::build();
+        *builder.path("/users/{id:[0-9]+}", "get_user").2 = "GET";
+        let router = builder.finish();
+
+        let mut malformed_path = Path::new("/users/not-a-number");
+        assert!(router
+            .recognize_fn(&mut malformed_path, |_, method| *method == "GET")
+            .is_none());
+
+        let mut malformed_path2 = Path::new("/users/42/extra/garbage");
+        assert!(router
+            .recognize_fn(&mut malformed_path2, |_, method| *method == "GET")
+            .is_none());
     }
 
     #[test]
