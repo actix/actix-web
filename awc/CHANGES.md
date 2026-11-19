@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Resolve a relative `Location` header against the URI of the request being redirected instead of the root. For example, `Location: c` from `/a/b` now goes to `/a/c` instead of `/c`, and `Location: ?x=1` goes to `/a/b?x=1` instead of `/?x=1`.
+
 ## 3.11.0
 
 - Add `Client::query()` method for constructing HTTP `QUERY` requests.
