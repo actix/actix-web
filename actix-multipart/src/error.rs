@@ -103,7 +103,7 @@ pub enum Error {
 impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
-            Error::Field { source, .. } => source.as_response_error().status_code(),
+            Error::Field { source, .. } => source.error_response().status(),
             Error::Payload(err) => err.status_code(),
             Error::ContentTypeIncompatible => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::BAD_REQUEST,

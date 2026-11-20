@@ -265,11 +265,7 @@ mod tests {
 
         assert!(query.is_err());
         assert_eq!(
-            query
-                .unwrap_err()
-                .as_response_error()
-                .error_response()
-                .status(),
+            query.unwrap_err().error_response().status(),
             StatusCode::UNPROCESSABLE_ENTITY
         );
     }
