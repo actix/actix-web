@@ -118,7 +118,7 @@ mod tests {
 
     assert_impl_all!(ResponseBody<()>: Unpin);
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_body() {
         let mut req = TestResponse::with_header((header::CONTENT_LENGTH, "xxxx")).finish();
         match req.body().await.err().unwrap() {
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[cfg(feature = "compress-gzip")]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn decode_limit() {
         use futures_util::StreamExt as _;
 

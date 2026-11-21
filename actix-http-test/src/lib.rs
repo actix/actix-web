@@ -34,7 +34,7 @@ use tokio::sync::mpsc;
 /// use actix_http_test::test_server;
 /// use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 ///
-/// #[actix_rt::test]
+/// #[tokio::test(flavor = "local")]
 /// # async fn hidden_test() {}
 /// async fn test_example() {
 ///     let srv = test_server(|| {
@@ -77,7 +77,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
                 .disable_signals()
                 .system_exit()
                 .listen("test", tcp, factory)
-                .expect("test server could not be created");
+                .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx

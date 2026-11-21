@@ -62,7 +62,7 @@ macro_rules! assert_body_eq {
         assert_eq!(
             ::actix_http::body::to_bytes($res.into_body())
                 .await
-                .expect("error reading test response body"),
+                .expect("Error reading test response body"),
             ::bytes::Bytes::from_static($expected),
         )
     };
@@ -76,7 +76,7 @@ mod tests {
     use super::*;
     use crate::{http::StatusCode, service::ServiceResponse, HttpResponse};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn assert_body_works_for_service_and_regular_response() {
         let res = HttpResponse::with_body(StatusCode::OK, "http response");
         assert_body_eq!(res, b"http response");

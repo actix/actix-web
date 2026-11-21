@@ -65,7 +65,7 @@ impl DefaultHeaders {
 
         match header.try_into_pair() {
             Ok((key, value)) => Rc::get_mut(&mut self.inner)
-                .expect("All default headers must be added before cloning.")
+                .expect("All default headers must be added before cloning")
                 .headers
                 .append(key, value),
             Err(err) => panic!("Invalid header: {}", err.into()),
@@ -197,7 +197,7 @@ mod tests {
         HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn adding_default_headers() {
         let mw = DefaultHeaders::new()
             .add(("X-TEST", "0001"))
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(res.headers().get("x-test-two").unwrap(), "123");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn no_override_existing() {
         let req = TestRequest::default().to_srv_request();
         let srv = |req: ServiceRequest| {
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn adding_content_type() {
         let mw = DefaultHeaders::new()
             .add_content_type()

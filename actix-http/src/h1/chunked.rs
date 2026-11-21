@@ -5,12 +5,12 @@ use tracing::{debug, trace};
 
 macro_rules! byte (
     ($rdr:ident) => ({
-        if $rdr.len() > 0 {
-            let b = $rdr[0];
-            $rdr.advance(1);
-            b
-        } else {
-            return Poll::Pending
+        match &$rdr[..] {
+            &[b, ..] => {
+                $rdr.advance(1);
+                b
+            }
+            [] => return Poll::Pending,
         }
     })
 );
@@ -21,6 +21,8 @@ pub(super) enum ChunkedState {
     SizeRest,
     SizeLws,
     Extension,
+    ExtensionQuoted,
+    ExtensionQuotedPair,
     SizeLf,
     Body,
     BodyCr,
@@ -46,6 +48,8 @@ impl ChunkedState {
             SizeRest => ChunkedState::read_size_rest(body, size),
             SizeLws => ChunkedState::read_size_lws(body),
             Extension => ChunkedState::read_extension(body),
+            ExtensionQuoted => ChunkedState::read_extension_quoted(body),
+            ExtensionQuotedPair => ChunkedState::read_extension_quoted_pair(body),
             SizeLf => ChunkedState::read_size_lf(body, *size),
             Body => ChunkedState::read_body(body, size, buf),
             BodyCr => ChunkedState::read_body_cr(body),
@@ -126,10 +130,11 @@ impl ChunkedState {
             ))),
         }
     }
+
     fn read_extension(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
-            // strictly 0x20 (space) should be disallowed but we don't parse quoted strings here
+            b'"' => Poll::Ready(Ok(ChunkedState::ExtensionQuoted)),
             0x00..=0x08 | 0x0a..=0x1f | 0x7f => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid character in chunk extension",
@@ -137,6 +142,54 @@ impl ChunkedState {
             _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
+
+    fn read_extension_quoted(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        // RFC 9110 §5.6.4 relevant BNFs:
+        // quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE.
+        // qdtext        = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
+        // obs-text      = %x80-FF
+
+        match byte!(rdr) {
+            // End of quoted-string; go back to outer extension parser.
+            b'"' => Poll::Ready(Ok(ChunkedState::Extension)),
+
+            // Next char is escaped.
+            b'\\' => Poll::Ready(Ok(ChunkedState::ExtensionQuotedPair)),
+
+            // Content of quoted-string.
+            b'\t' // HTAB (0x09)
+            | b' '..=b'~' // other visible ASCII
+            | 0x80..=0xff // obs-text
+            => Poll::Ready(Ok(ChunkedState::ExtensionQuoted)),
+
+            // Anything else is invalid inside a quoted-string.
+            _ => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid character in chunk extension quoted string",
+            ))),
+        }
+    }
+
+    fn read_extension_quoted_pair(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
+        // RFC 9110 §5.6.4 relevant BNFs:
+        // quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
+        // obs-text      = %x80-FF
+
+        match byte!(rdr) {
+            // Escape-able byte; go back to quoted-string parser.
+            b'\t' // HTAB
+            | b' '..=b'~' // visible ASCII
+            | 0x80..=0xff // obs-test
+            => Poll::Ready(Ok(ChunkedState::ExtensionQuoted)),
+
+            // Anything else is invalid as the second byte of a quoted-pair.
+            _ => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid character in chunk extension quoted-pair",
+            ))),
+        }
+    }
+
     fn read_size_lf(rdr: &mut BytesMut, size: u64) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\n' if size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
@@ -198,7 +251,29 @@ impl ChunkedState {
     fn read_trailer(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         loop {
             match byte!(rdr) {
+                // End of trailer signal. Must read LF next.
                 b'\r' => return Poll::Ready(Ok(ChunkedState::TrailerLf)),
+
+                // Trailer field lines must end with CRLF, not a bare LF.
+                b'\n' => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid chunk trailer CR",
+                    )))
+                }
+
+                // Allow horizontal tab, which is a control char but allowed by RFC 9110 §5.5.
+                0x09 => continue,
+
+                // Reject other control bytes that cannot appear within a trailer field line.
+                b if b.is_ascii_control() => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid character in chunk trailer",
+                    )))
+                }
+
+                // Continue reading this trailer's bytes.
                 _ => continue,
             }
         }
@@ -217,7 +292,7 @@ impl ChunkedState {
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            b'\n' => Poll::Ready(Err(io::Error::new(
+            0x00..=0x08 | 0x0a..=0x1f | 0x7f => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Invalid chunk end CR",
             ))),
@@ -238,7 +313,7 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
-    use std::io;
+    use std::{io, iter};
 
     use actix_codec::Decoder as _;
     use bytes::{Bytes, BytesMut};
@@ -246,7 +321,7 @@ mod tests {
 
     use crate::{
         error::ParseError,
-        h1::decoder::{MessageDecoder, PayloadItem},
+        h1::decoder::{MessageDecoder, PayloadDecoder, PayloadItem},
         HttpMessage as _, Request,
     };
 
@@ -472,6 +547,152 @@ mod tests {
     }
 
     #[test]
+    fn chunk_extension_quoted_text() {
+        let mut pl = PayloadDecoder::chunked();
+        let mut buf = BytesMut::from(b"1;ext=\"".as_slice());
+
+        // For all valid chars inside a quoted-string.
+        for byte in iter::once(b'\t').chain(0x20..=0x7e).chain(0x80..=0xff) {
+            // But skip the ones which need escaping.
+            if !matches!(byte, b'"' | b'\\') {
+                buf.extend_from_slice(&[byte]);
+            }
+        }
+
+        buf.extend_from_slice(b"\"\r\nx\r\n0\r\n\r\n");
+
+        assert_decode_chunk_eq!(pl, buf, b"x");
+        assert_decode_chunked_eof!(pl, buf);
+        assert!(buf.is_empty(), "Decoder should consume the chunked payload");
+    }
+
+    #[test]
+    fn chunk_extension_quoted_pairs() {
+        // For all valid chars inside a quoted-string.
+        for byte in iter::once(b'\t').chain(0x20..=0x7e).chain(0x80..=0xff) {
+            let mut input = BytesMut::from(b"1;ext=\"\\".as_slice());
+            input.extend_from_slice(&[byte]);
+            input.extend_from_slice(b"\";next=\"end\\\\\"\r\nx\r\n0;ext=\"\\\"\\\\\"\r\n\r\n");
+
+            // Test that one-byte-at-a-time and single-chunk cases yield same parsing result.
+            for read_size in [1, input.len()] {
+                let mut pl = PayloadDecoder::chunked();
+                let mut buf = BytesMut::new();
+                let mut body = BytesMut::new();
+                let mut eof = false;
+
+                for chunk in input.chunks(read_size) {
+                    buf.extend_from_slice(chunk);
+
+                    while let Some(item) = pl
+                        .decode(&mut buf)
+                        .expect("Valid quoted-pair bytes should decode")
+                    {
+                        match item {
+                            PayloadItem::Chunk(chunk) => body.extend_from_slice(&chunk),
+                            PayloadItem::Eof => {
+                                eof = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    assert!(buf.is_empty(), "Decoder should consume the available input");
+                }
+
+                assert_eq!(body.as_ref(), b"x", "Quoted-pairs should preserve the body");
+                assert!(
+                    eof,
+                    "Decoder should reach EOF for quoted-pair byte {byte:#04x} with read size {read_size}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn chunk_extension_quoted_rejects_control_bytes() {
+        // For all control chars inside a quoted-string or quoted-pair.
+        for byte in (0x00..=0x1f).chain([0x7f]) {
+            // But skip HTAB, which is valid in both cases.
+            if byte == b'\t' {
+                continue;
+            }
+
+            // Test each char both without escaping and after an escape backslash.
+            for prefix in [b"1;ext=\"".as_slice(), b"1;ext=\"\\"] {
+                let mut pl = PayloadDecoder::chunked();
+                let mut buf = BytesMut::from(prefix);
+                assert!(
+                    pl.decode(&mut buf)
+                        .expect("An incomplete quoted extension should remain valid")
+                        .is_none(),
+                    "Decoder should wait for the rest of the quoted extension"
+                );
+                assert!(
+                    buf.is_empty(),
+                    "Decoder should consume the extension prefix"
+                );
+
+                buf.extend_from_slice(&[byte]);
+
+                // Reject the byte without waiting for more input or connection EOF.
+                let err = pl.decode(&mut buf).expect_err(
+                    "Control bytes in a quoted extension should be rejected immediately",
+                );
+                assert_eq!(
+                    err.kind(),
+                    io::ErrorKind::InvalidData,
+                    "Invalid byte {byte:#04x} should produce InvalidData"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn chunk_extension_quoted_pair_keeps_next_request_intact() {
+        let next_request = b"GET /next HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let mut remaining = BytesMut::from(b"\nx\r\n0\r\n\r\n".as_slice());
+        remaining.extend_from_slice(next_request);
+
+        // An escaped quote cannot close the string, and a backslash cannot escape CR.
+        for prefix in [b"1;ext=\"\\\"".as_slice(), b"1;ext=\"\\"] {
+            // Test every split point so quote and escape state must survive partial reads.
+            for split in 0..=prefix.len() {
+                let mut pl = PayloadDecoder::chunked();
+                let mut buf = BytesMut::from(&prefix[..split]);
+                assert!(
+                    pl.decode(&mut buf)
+                        .expect("An incomplete quoted extension should remain valid")
+                        .is_none(),
+                    "Decoder should wait for the rest of the quoted extension"
+                );
+                assert!(
+                    buf.is_empty(),
+                    "Decoder should consume the extension prefix"
+                );
+
+                // Put the invalid CR, the rest of the body, and the next request in one read.
+                buf.extend_from_slice(&prefix[split..]);
+                buf.extend_from_slice(b"\r");
+                buf.extend_from_slice(&remaining);
+
+                let err = pl
+                    .decode(&mut buf)
+                    .expect_err("CR inside a quoted extension should be rejected");
+                assert_eq!(
+                    err.kind(),
+                    io::ErrorKind::InvalidData,
+                    "CR should produce InvalidData"
+                );
+                assert_eq!(
+                    buf, remaining,
+                    "Decoder should leave the bytes after the invalid CR unread"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn hrs_chunk_extension_invalid() {
         let mut buf = BytesMut::from(
             "GET / HTTP/1.1\r\n\
@@ -546,6 +767,92 @@ mod tests {
 
         assert_decode_chunk_eq!(pl, buf, b"data");
         assert_decode_chunked_eof!(pl, buf);
+    }
+
+    #[test]
+    fn test_chunked_bare_lf_in_trailer_without_follow_up() {
+        // Read the last chunk and partial trailer both byte by byte and in one read.
+        for chunk_size in [1, 4] {
+            let mut pl = PayloadDecoder::chunked();
+            let mut buf = BytesMut::new();
+
+            for chunk in b"0\r\nX".chunks(chunk_size) {
+                buf.extend_from_slice(chunk);
+                assert!(pl.decode(&mut buf).unwrap().is_none());
+                assert!(buf.is_empty());
+            }
+
+            buf.extend_from_slice(b"\n");
+
+            // Reject LF immediately, without waiting for a later CR or connection EOF.
+            let err = pl.decode(&mut buf).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+            assert!(buf.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_chunked_trailer_rejects_control_bytes() {
+        for byte in (0x00..=0x1f).chain([0x7f]) {
+            // HT is valid field whitespace, and CR starts the line terminator.
+            if matches!(byte, b'\t' | b'\r') {
+                continue;
+            }
+
+            // Check both the first trailer byte and a byte inside the field value.
+            for prefix in [b"0\r\n".as_slice(), b"0\r\nX: "] {
+                let mut pl = PayloadDecoder::chunked();
+                let mut buf = BytesMut::from(prefix);
+                buf.extend_from_slice(&[byte]);
+
+                let err = pl.decode(&mut buf).unwrap_err();
+                assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+            }
+        }
+    }
+
+    #[test]
+    fn test_chunked_trailers_partial_reads() {
+        let mut pl = PayloadDecoder::chunked();
+        let mut buf = BytesMut::new();
+
+        // Split both trailer lines and each CRLF across reads. HT and obs-text remain valid.
+        for byte in b"0\r\nX: 1\t\x80\xff\r\nY: 2\r\n\r" {
+            buf.extend_from_slice(&[*byte]);
+            assert!(pl.decode(&mut buf).unwrap().is_none());
+            assert!(buf.is_empty());
+        }
+
+        // Only the final LF completes the empty line after the trailers.
+        buf.extend_from_slice(b"\n");
+        assert_decode_chunked_eof!(pl, buf);
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn test_chunked_bare_lf_in_trailer_keeps_next_request_intact() {
+        let mut buf = BytesMut::from(
+            "POST /first HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             Transfer-Encoding: chunked\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let mut pl = reader.decode(&mut buf).unwrap().unwrap().1.unwrap();
+
+        let next_request = b"POST /second HTTP/1.1\r\n\
+                             Host: localhost\r\n\
+                             Content-Length: 2\r\n\r\nab";
+
+        // End the trailer with bare LF, then append a complete request in the same buffer.
+        buf.extend_from_slice(b"5\r\nhello\r\n0\r\nX\n");
+        buf.extend_from_slice(next_request);
+
+        assert_decode_chunk_eq!(pl, buf, b"hello");
+
+        // Stop at the invalid LF and leave the entire next request, including its body, unread.
+        let err = pl.decode(&mut buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(buf.as_ref(), next_request);
     }
 
     #[test]

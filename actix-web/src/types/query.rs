@@ -200,7 +200,7 @@ mod tests {
         id: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service_request_extract() {
         let req = TestRequest::with_uri("/name/user1/").to_srv_request();
         assert!(Query::<Id>::from_query(req.query_string()).is_err());
@@ -219,7 +219,7 @@ mod tests {
         assert_eq!(s.id, "test1");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_extract() {
         let req = TestRequest::with_uri("/name/user1/").to_srv_request();
         let (req, mut pl) = req.into_parts();
@@ -240,7 +240,7 @@ mod tests {
         assert_eq!(s.id, "test1");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[should_panic]
     async fn test_tuple_panic() {
         let req = TestRequest::with_uri("/?one=1&two=2").to_srv_request();
@@ -251,7 +251,7 @@ mod tests {
             .unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_error_responder() {
         let req = TestRequest::with_uri("/name/user1/")
             .app_data(QueryConfig::default().error_handler(|e, _| {

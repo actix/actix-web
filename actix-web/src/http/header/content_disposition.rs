@@ -936,9 +936,9 @@ mod tests {
 
         let a = HeaderValue::from_static("inline; filename=\"\"");
         assert!(ContentDisposition::from_raw(&a)
-            .expect("parse cd")
+            .expect("Parse cd")
             .get_filename()
-            .expect("filename")
+            .expect("Filename")
             .is_empty());
     }
 

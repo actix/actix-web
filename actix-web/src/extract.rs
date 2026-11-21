@@ -443,7 +443,7 @@ mod tests {
         hello: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_option() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -483,7 +483,7 @@ mod tests {
         assert_eq!(r, None);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_result() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -521,21 +521,21 @@ mod tests {
         assert!(r.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_uri() {
         let req = TestRequest::default().uri("/foo/bar").to_http_request();
         let uri = Uri::extract(&req).await.unwrap();
         assert_eq!(uri.path(), "/foo/bar");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let method = Method::extract(&req).await.unwrap();
         assert_eq!(method, Method::GET);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_concurrent() {
         let (req, mut pl) = TestRequest::default()
             .uri("/foo/bar")

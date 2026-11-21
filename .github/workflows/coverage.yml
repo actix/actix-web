@@ -21,18 +21,18 @@ jobs:
   coverage:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: useblacksmith/checkout@v1.8.2
+      - uses: useblacksmith/checkout@v1.8.3
         with:
           persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: nightly
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@v2.89.0
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 

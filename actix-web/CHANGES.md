@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 4.20.0
+
+- Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
+
+## 4.19.0
+
+- Enable `TCP_NODELAY` by default.
+- Enable automatic cleartext HTTP/2 detection for `HttpServer::bind()` and `listen()` when the `http2` feature is enabled.
+- Deprecate `HttpServer::bind_auto_h2c()` and `listen_auto_h2c()` methods.
+- Add `HttpServer::auto_h2c(bool)` method.
+
 ## 4.18.2
 
 - Increase the default form payload limit to 32 KiB.

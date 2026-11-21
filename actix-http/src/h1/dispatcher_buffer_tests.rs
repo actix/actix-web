@@ -1,10 +1,11 @@
-use std::{cell::Cell, pin::pin};
+use std::{cell::Cell, convert::Infallible, pin::pin};
 
 use actix_service::fn_service;
 use tokio::io::ReadBuf;
 
 use super::*;
 use crate::{
+    body::BodyStream,
     config::ServiceConfigBuilder,
     h1::{ExpectHandler, UpgradeHandler},
     test::TestBuffer,
@@ -46,6 +47,12 @@ impl AsyncWrite for LimitedWriter {
         Poll::Ready(Ok(written))
     }
 
+    // as a TCP stream does, so large sized bodies are written without the copy; the default
+    // `poll_write_vectored` writes one buffer per call
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_flush(cx)
     }
@@ -75,8 +82,13 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     }));
     let services = HttpFlow::new(
         fn_service(move |_: Request| async move {
-            // A single body chunk forces the output buffer to hold the large response.
-            Ok::<_, Error>(Response::ok().set_body(bytes::Bytes::from(vec![b'x'; body_len])))
+            // A single chunk of a chunked body goes into the output buffer whole, which forces it
+            // to hold the large response. A sized body this large skips the buffer.
+            let chunk = bytes::Bytes::from(vec![b'x'; body_len]);
+            let body = BodyStream::new(futures_util::stream::once(async move {
+                Ok::<_, Infallible>(chunk)
+            }));
+            Ok::<_, Error>(Response::ok().set_body(body))
         }),
         ExpectHandler,
         None::<UpgradeHandler>,
@@ -149,7 +161,10 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
         .position(|window| window == b"\r\n\r\n")
         .unwrap()
         + 4;
-    assert_eq!(&response[body_start..], vec![b'x'; body_len]);
+    let mut body = format!("{body_len:X}\r\n").into_bytes();
+    body.extend(vec![b'x'; body_len]);
+    body.extend_from_slice(b"\r\n0\r\n\r\n");
+    assert_eq!(&response[body_start..], body);
 
     // The connection must remain usable, including after a partial write.
     io.extend_read_buf("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
@@ -178,35 +193,116 @@ async fn check_buffer_retention(body_len: usize, threshold: usize, partial: bool
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oversized_write_buffer_released_after_flush() {
     check_buffer_retention(1024 * 1024, 32 * 1024, false, true).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oversized_write_buffer_released_after_partial_write() {
     check_buffer_retention(1024 * 1024, 32 * 1024, true, true).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn normal_write_buffer_reused_after_flush() {
     check_buffer_retention(1024, 32 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn configured_write_buffer_reused_after_flush() {
     // A custom watermark above 128 KiB also raises the retention limit.
     check_buffer_retention(256 * 1024, 1024 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn small_write_watermark_preserves_normal_buffer() {
     // A small watermark must not lower the 128 KiB retention limit.
     check_buffer_retention(64 * 1024, 8 * 1024, false, false).await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn buffer_above_configured_write_watermark_released() {
     // A larger watermark sets the limit directly; it is not multiplied by four.
     check_buffer_retention(512 * 1024, 256 * 1024, false, true).await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn blocked_sized_body_retains_write_buffer() {
+    const BODY_LEN: usize = 64 * 1024;
+
+    for spare in [false, true] {
+        let io = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        // Accept the head and part of the body, then block.
+        let allowance = Rc::new(Cell::new(1024));
+        let services = HttpFlow::new(
+            fn_service(move |_: Request| {
+                // With `spare`, the body has room to spare, as the `String` behind `.json()` does.
+                let mut body = Vec::with_capacity(if spare { 2 * BODY_LEN } else { BODY_LEN });
+                body.resize(BODY_LEN, b'x');
+                let res = Response::ok().set_body(bytes::Bytes::from(body));
+                async move { Ok::<_, Error>(res) }
+            }),
+            ExpectHandler,
+            None::<UpgradeHandler>,
+        );
+        let dispatcher = Dispatcher::new(
+            LimitedWriter {
+                io: io.clone(),
+                allowance: allowance.clone(),
+            },
+            services,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+        );
+        let mut dispatcher = pin!(dispatcher);
+        let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+
+        assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
+
+        let DispatcherState::Normal { inner } = &dispatcher.inner else {
+            panic!()
+        };
+        if spare {
+            // holding it would keep the spare room, so it was copied into the buffer instead
+            assert!(inner.write_body.is_none(), "body with spare capacity held");
+        } else {
+            // The head is out, but the normal write buffer remains available for reuse.
+            assert!(inner.write_body.is_some());
+            assert!(
+                inner.write_buf.capacity() > LW_BUFFER_SIZE
+                    && inner.write_buf.capacity() <= HW_BUFFER_SIZE,
+                "write buffer should retain its allocation while the body waits"
+            );
+            assert!(!inner.write_buf_needs_reset);
+        }
+
+        let retained_capacity = inner.write_buf.capacity();
+
+        allowance.set(usize::MAX);
+        assert!(dispatcher.as_mut().poll(&mut cx).is_pending());
+
+        let response = io.take_write_buf();
+        let body_start = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap()
+            + 4;
+        assert_eq!(
+            &response[body_start..],
+            vec![b'x'; BODY_LEN],
+            "spare: {spare}"
+        );
+
+        // The write buffer remains available for the next response.
+        let DispatcherState::Normal { inner } = &dispatcher.inner else {
+            panic!()
+        };
+
+        if spare {
+            assert!(inner.write_buf.capacity() >= HW_BUFFER_SIZE);
+        } else {
+            assert_eq!(inner.write_buf.capacity(), retained_capacity);
+        }
+    }
 }

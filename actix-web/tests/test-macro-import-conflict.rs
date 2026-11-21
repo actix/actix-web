@@ -8,7 +8,7 @@
 
 use actix_web::test;
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_macro_naming_conflict() {
     let _req = test::TestRequest::default();
     assert_eq!(async { 1 }.await, 1);

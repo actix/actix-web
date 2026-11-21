@@ -1,0 +1,15 @@
+error[E0593]: function is expected to take 1 argument, but it takes 0 arguments
+ --> tests/trybuild/route-guard-obj-constructor-fail.rs:3:24
+  |
+3 | #[get("/", guard_obj = actix_web::guard::Get)]
+  | -----------------------^^^^^^^^^^^^^^^^^^^^^--
+  | |                      |
+  | |                      expected function that takes 1 argument
+  | required by a bound introduced by this call
+  |
+  = note: required for `fn() -> impl Guard {Get}` to implement `Guard`
+note: required by a bound in `Resource::<T>::guard`
+ --> $WORKSPACE/actix-web/src/resource.rs
+  |
+  |     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+  |                     ^^^^^ required by this bound in `Resource::<T>::guard`

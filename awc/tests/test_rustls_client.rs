@@ -79,7 +79,7 @@ mod danger {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_connection_reuse_h2() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();

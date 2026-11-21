@@ -458,7 +458,7 @@ mod tests {
         App, Responder,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn payload_to_bytes() {
         async fn payload_handler(pl: Payload) -> crate::Result<impl Responder> {
             pl.to_bytes().await
@@ -501,7 +501,7 @@ mod tests {
         assert_eq!(body, "12345");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_payload_config() {
         let req = TestRequest::default().to_http_request();
         let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
@@ -520,7 +520,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {
             "payload is probably json bytes"
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_bytes() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "11"))
@@ -607,7 +607,7 @@ mod tests {
         assert_eq!(s, Bytes::from_static(b"hello=world"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_string() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "11"))
@@ -618,7 +618,7 @@ mod tests {
         assert_eq!(s, "hello=world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_message_body() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "xxxx"))

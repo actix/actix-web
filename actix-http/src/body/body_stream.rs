@@ -8,7 +8,7 @@ use bytes::Bytes;
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
 
-use super::{BodySize, MessageBody};
+use super::{BodySize, InfallibleStream, MessageBody};
 
 pin_project! {
     /// Streaming response wrapper.
@@ -20,7 +20,30 @@ pin_project! {
     }
 }
 
-// TODO: from_infallible method
+impl<S> BodyStream<InfallibleStream<S>>
+where
+    S: Stream<Item = Bytes>,
+{
+    /// Creates a body from a stream of bytes that cannot yield errors.
+    ///
+    /// Empty chunks are skipped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use actix_http::body::{BodyStream, InfallibleStream};
+    /// # use bytes::Bytes;
+    /// use futures_util::stream;
+    ///
+    /// let stream = stream::iter([Bytes::from_static(b"hello")]);
+    /// let body = BodyStream::from_infallible(stream);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn from_infallible(stream: S) -> Self {
+        BodyStream::new(InfallibleStream::new(stream))
+    }
+}
 
 impl<S, E> BodyStream<S>
 where
@@ -28,6 +51,7 @@ where
     E: Into<Box<dyn StdError>> + 'static,
 {
     #[inline]
+    #[must_use]
     pub fn new(stream: S) -> Self {
         BodyStream { stream }
     }
@@ -92,7 +116,33 @@ mod tests {
     // crate::Error is not Clone
     assert_not_impl_any!(BodyStream<stream::Repeat<Result<Bytes, crate::Error>>>: MessageBody);
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn infallible_stream() {
+        let stream = async_stream::stream! {
+            yield Bytes::new();
+            yield Bytes::from_static(b"1");
+            tokio::task::yield_now().await;
+            yield Bytes::new();
+            yield Bytes::from_static(b"2");
+            yield Bytes::new();
+        };
+        let body = BodyStream::from_infallible(stream);
+
+        assert_eq!(body.size(), BodySize::Stream);
+        assert_eq!(
+            to_bytes(body).await,
+            Ok::<_, Infallible>(Bytes::from_static(b"12"))
+        );
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn infallible_empty_stream() {
+        let body = BodyStream::from_infallible(stream::empty::<Bytes>());
+
+        assert_eq!(to_bytes(body).await, Ok::<_, Infallible>(Bytes::new()));
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn skips_empty_chunks() {
         let body = BodyStream::new(stream::iter(
             ["1", "", "2"]
@@ -117,7 +167,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_to_bytes() {
         let body = BodyStream::new(stream::iter(
             ["1", "", "2"]
@@ -128,16 +178,16 @@ mod tests {
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));
     }
     #[derive(Debug, Display, Error)]
-    #[display("stream error")]
+    #[display("Stream error")]
     struct StreamErr;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn stream_immediate_error() {
         let body = BodyStream::new(stream::once(async { Err(StreamErr) }));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn stream_string_error() {
         // `&'static str` does not impl `Error`
         // but it does impl `Into<Box<dyn Error>>`
@@ -146,7 +196,7 @@ mod tests {
         assert!(matches!(to_bytes(body).await, Err("stringy error")));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn stream_boxed_error() {
         // `Box<dyn Error>` does not impl `Error`
         // but it does impl `Into<Box<dyn Error>>`
@@ -161,7 +211,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn stream_delayed_error() {
         let body = BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));

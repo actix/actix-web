@@ -417,7 +417,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));
 
@@ -454,7 +454,7 @@ mod tests {
             HttpResponse::Created().finish()
         }
 
-        #[actix_rt::test]
+        #[tokio::test(flavor = "local")]
         async fn macro_routes_allow_methods_in_any_order() {
             for reverse_registration in [false, true] {
                 for scoped in [false, true] {
@@ -521,7 +521,7 @@ mod tests {
             }
         }
 
-        #[actix_rt::test]
+        #[tokio::test(flavor = "local")]
         async fn macro_routes_preserve_custom_default() {
             let app = init_service(
                 App::new()

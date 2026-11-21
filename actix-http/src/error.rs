@@ -80,28 +80,28 @@ impl From<Error> for Response<BoxBody> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 pub(crate) enum Kind {
-    #[display("error processing HTTP")]
+    #[display("Error processing HTTP")]
     Http,
 
-    #[display("error parsing HTTP message")]
+    #[display("Error parsing HTTP message")]
     Parse,
 
-    #[display("request payload read error")]
+    #[display("Request payload read error")]
     Payload,
 
-    #[display("response body write error")]
+    #[display("Response body write error")]
     Body,
 
-    #[display("send response error")]
+    #[display("Send response error")]
     SendResponse,
 
-    #[display("error in WebSocket process")]
+    #[display("Error in WebSocket process")]
     Ws,
 
-    #[display("connection error")]
+    #[display("Connection error")]
     Io,
 
-    #[display("encoder error")]
+    #[display("Encoder error")]
     Encoder,
 }
 
@@ -160,7 +160,7 @@ impl From<crate::ws::ProtocolError> for Error {
 #[non_exhaustive]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
-    #[display("invalid method specified")]
+    #[display("Invalid method specified")]
     Method,
 
     /// An invalid `Uri`, such as `exam ple.domain`.
@@ -168,28 +168,28 @@ pub enum ParseError {
     Uri(InvalidUri),
 
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    #[display("invalid HTTP version specified")]
+    #[display("Invalid HTTP version specified")]
     Version,
 
     /// An invalid `Header`.
-    #[display("invalid Header provided")]
+    #[display("Invalid Header provided")]
     Header,
 
     /// A message head is too large to be reasonable.
-    #[display("message head is too large")]
+    #[display("Message head is too large")]
     TooLarge,
 
     /// A message reached EOF, but is not complete.
-    #[display("message is incomplete")]
+    #[display("Message is incomplete")]
     Incomplete,
 
     /// An invalid `Status`, such as `1337 ELITE`.
-    #[display("invalid status provided")]
+    #[display("Invalid status provided")]
     Status,
 
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
-    #[display("timeout")]
+    #[display("Timeout")]
     Timeout,
 
     /// An I/O error that occurred while trying to read or write to a network stream.
@@ -256,19 +256,19 @@ impl From<ParseError> for Response<BoxBody> {
 #[non_exhaustive]
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[display("payload reached EOF before completing: {:?}", _0)]
+    #[display("Payload reached EOF before completing: {:?}", _0)]
     Incomplete(Option<io::Error>),
 
     /// Content encoding stream corruption.
-    #[display("can not decode content-encoding")]
+    #[display("Can not decode content-encoding")]
     EncodingCorrupted,
 
     /// Payload reached size limit.
-    #[display("payload reached size limit")]
+    #[display("Payload reached size limit")]
     Overflow,
 
     /// Payload length is unknown.
-    #[display("payload length is unknown")]
+    #[display("Payload length is unknown")]
     UnknownLength,
 
     /// HTTP/2 payload error.
@@ -326,15 +326,15 @@ impl From<PayloadError> for Error {
 #[non_exhaustive]
 pub enum DispatchError {
     /// Service error.
-    #[display("service error")]
+    #[display("Service error")]
     Service(Response<BoxBody>),
 
     /// Body streaming error.
-    #[display("body error: {}", _0)]
+    #[display("Body error: {}", _0)]
     Body(Box<dyn StdError>),
 
     /// Upgrade service error.
-    #[display("upgrade error")]
+    #[display("Upgrade error")]
     Upgrade,
 
     /// An `io::Error` that occurred while trying to read or write to a network stream.
@@ -342,7 +342,7 @@ pub enum DispatchError {
     Io(io::Error),
 
     /// Request parse error.
-    #[display("request parse error: {}", _0)]
+    #[display("Request parse error: {}", _0)]
     Parse(ParseError),
 
     /// HTTP/2 error.
@@ -351,19 +351,19 @@ pub enum DispatchError {
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
-    #[display("request did not complete within the specified timeout")]
+    #[display("Request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
     /// Disconnect timeout. Makes sense for TLS streams.
-    #[display("connection shutdown timeout")]
+    #[display("Connection shutdown timeout")]
     DisconnectTimeout,
 
     /// Handler dropped payload before reading EOF.
-    #[display("handler dropped payload before reading EOF")]
+    #[display("Handler dropped payload before reading EOF")]
     HandlerDroppedPayload,
 
     /// Internal error.
-    #[display("internal error")]
+    #[display("Internal error")]
     InternalError,
 }
 
@@ -389,11 +389,11 @@ impl StdError for DispatchError {
 #[non_exhaustive]
 pub enum ContentTypeError {
     /// Can not parse content type.
-    #[display("could not parse content type")]
+    #[display("Could not parse content type")]
     ParseError,
 
     /// Unknown content encoding.
-    #[display("unknown content encoding")]
+    #[display("Unknown content encoding")]
     UnknownEncoding,
 }
 
@@ -419,7 +419,7 @@ mod tests {
         let err: Error = ParseError::Io(orig).into();
         assert_eq!(
             format!("{}", err),
-            "error parsing HTTP message: I/O error: other"
+            "Error parsing HTTP message: I/O error: other"
         );
     }
 
@@ -427,7 +427,7 @@ mod tests {
     fn test_error_display() {
         let orig = io::Error::other("other");
         let err = Error::new_io().with_cause(orig);
-        assert_eq!("connection error: other", err.to_string());
+        assert_eq!("Connection error: other", err.to_string());
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod tests {
         let err = PayloadError::Incomplete(None);
         assert_eq!(
             err.to_string(),
-            "payload reached EOF before completing: None"
+            "Payload reached EOF before completing: None"
         );
     }
 

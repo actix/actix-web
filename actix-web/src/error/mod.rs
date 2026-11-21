@@ -60,12 +60,12 @@ impl ResponseError for UrlGenerationError {}
 #[non_exhaustive]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding.
-    #[display("Can not decode chunked transfer encoding.")]
+    #[display("Can not decode chunked transfer encoding")]
     Chunked,
 
     /// Payload size is larger than allowed. (default limit: 256kB).
     #[display(
-        "URL-encoded payload is larger ({} bytes) than allowed (limit: {} bytes).",
+        "URL-encoded payload is larger ({} bytes) than allowed (limit: {} bytes)",
         size,
         limit
     )]
@@ -76,27 +76,27 @@ pub enum UrlencodedError {
     OverflowUnknownLength { limit: usize },
 
     /// Payload size is now known.
-    #[display("Payload size is now known.")]
+    #[display("Payload size is now known")]
     UnknownLength,
 
     /// Content type error.
-    #[display("Content type error.")]
+    #[display("Content type error")]
     ContentType,
 
     /// Parse error.
-    #[display("Parse error: {}.", _0)]
+    #[display("Parse error: {}", _0)]
     Parse(FormDeError),
 
     /// Encoding error.
-    #[display("Encoding error.")]
+    #[display("Encoding error")]
     Encoding,
 
     /// Serialize error.
-    #[display("Serialize error: {}.", _0)]
+    #[display("Serialize error: {}", _0)]
     Serialize(FormError),
 
     /// Payload error.
-    #[display("Error that occur during reading payload: {}.", _0)]
+    #[display("Error that occur during reading payload: {}", _0)]
     Payload(PayloadError),
 }
 
@@ -120,14 +120,14 @@ impl ResponseError for UrlencodedError {
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed & content length header set. (default: 2MB)
     #[display(
-        "JSON payload ({} bytes) is larger than allowed (limit: {} bytes).",
+        "JSON payload ({} bytes) is larger than allowed (limit: {} bytes)",
         length,
         limit
     )]
     OverflowKnownLength { length: usize, limit: usize },
 
     /// Payload size is bigger than allowed but no content length header set. (default: 2MB)
-    #[display("JSON payload has exceeded limit ({} bytes).", limit)]
+    #[display("JSON payload has exceeded limit ({} bytes)", limit)]
     Overflow { limit: usize },
 
     /// Content type error

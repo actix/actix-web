@@ -438,7 +438,14 @@ impl MessageType for ResponseHead {
         }
 
         // message payload
-        let decoder = if let PayloadLength::Payload(pl) = length {
+        let decoder = if (status.is_informational() && status != StatusCode::SWITCHING_PROTOCOLS)
+            || status == StatusCode::NO_CONTENT
+            || status == StatusCode::NOT_MODIFIED
+        {
+            // RFC 9112 §6.3: these responses end after the headers, regardless of framing.
+            // Reading a body would consume bytes from the next response.
+            PayloadType::None
+        } else if let PayloadLength::Payload(pl) = length {
             pl
         } else if status == StatusCode::SWITCHING_PROTOCOLS {
             // switching protocol or connect
@@ -636,7 +643,7 @@ mod tests {
         pub(crate) fn chunk(self) -> Bytes {
             match self {
                 PayloadItem::Chunk(chunk) => chunk,
-                _ => panic!("error"),
+                _ => panic!("Error"),
             }
         }
 
@@ -1185,6 +1192,36 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"test data")));
+    }
+
+    #[test]
+    fn test_response_bodiless_status_ignores_framing_headers() {
+        for version in ["HTTP/1.0", "HTTP/1.1"] {
+            for status in [100, 102, 103, 199, 204, 304] {
+                for framing in [
+                    "",
+                    "Content-Length: 5\r\n",
+                    "Transfer-Encoding: chunked\r\n",
+                ] {
+                    let head = format!("{version} {status} Response\r\n{framing}\r\n");
+                    let next = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+                    let mut buf = BytesMut::from(format!("{head}{next}").as_str());
+                    let mut reader = MessageDecoder::<ResponseHead>::default();
+
+                    let (_, payload) = reader.decode(&mut buf).unwrap().unwrap();
+                    assert!(
+                        matches!(payload, PayloadType::None),
+                        "Request should not be decoded as having a body: {head:?}",
+                    );
+                    assert_eq!(&buf[..], next.as_bytes());
+
+                    // Check second request is decoded separately.
+                    let (msg, _) = reader.decode(&mut buf).unwrap().unwrap();
+                    assert_eq!(msg.status, StatusCode::OK);
+                    assert_eq!(&buf[..], b"ok");
+                }
+            }
+        }
     }
 
     #[test]

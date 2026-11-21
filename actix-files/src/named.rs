@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[cfg(any(unix, windows))]
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn if_none_match_does_not_match_a_different_file_with_same_size_and_mtime() {
         use std::fs;
 

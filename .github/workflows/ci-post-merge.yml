@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: useblacksmith/checkout@v1.8.2
+      - uses: useblacksmith/checkout@v1.8.3
         with:
           persist-credentials: false
 
@@ -52,12 +52,12 @@ jobs:
           echo 'RUSTFLAGS=-C target-feature=+crt-static' >> "$GITHUB_ENV"
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.89.0
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -84,7 +84,7 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
-      - uses: useblacksmith/checkout@v1.8.2
+      - uses: useblacksmith/checkout@v1.8.3
         with:
           persist-credentials: false
 
@@ -92,12 +92,12 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           cache-key: feature-powerset-${{ matrix.partition }}
 
       - name: Install just, cargo-hack
-        uses: taiki-e/install-action@v2.89.0
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just,cargo-hack
 

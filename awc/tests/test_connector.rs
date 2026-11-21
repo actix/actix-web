@@ -38,7 +38,7 @@ fn tls_config() -> SslAcceptor {
     builder.build()
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_connection_window_size() {
     let srv = test_server(|| {
         HttpService::build()

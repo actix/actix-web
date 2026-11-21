@@ -27,7 +27,7 @@ mod utils;
 const S: &str = "Hello World ";
 const STR: &str = const_str::repeat!(S, 100);
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn simple() {
     let srv = actix_test::start(|| {
         App::new()
@@ -78,7 +78,7 @@ async fn tokio_local_runtime() {
         .unwrap();
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn json() {
     let srv = actix_test::start(|| {
         App::new()
@@ -93,7 +93,7 @@ async fn json() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn form() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(
@@ -112,7 +112,7 @@ async fn form() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn timeout() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
@@ -137,7 +137,7 @@ async fn timeout() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn timeout_override() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
@@ -159,7 +159,7 @@ async fn timeout_override() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn response_timeout() {
     use futures_util::{stream::once, StreamExt as _};
 
@@ -232,7 +232,7 @@ async fn response_timeout() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_reuse() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -269,7 +269,7 @@ async fn connection_reuse() {
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -306,7 +306,7 @@ async fn connection_force_close() {
     assert_eq!(num.load(Ordering::Relaxed), 2);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_server_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -345,7 +345,7 @@ async fn connection_server_close() {
     assert_eq!(num.load(Ordering::Relaxed), 2);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_wait_queue() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -393,7 +393,7 @@ async fn connection_wait_queue() {
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn connection_wait_queue_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
@@ -441,7 +441,7 @@ async fn connection_wait_queue_force_close() {
     assert_eq!(num.load(Ordering::Relaxed), 2);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn with_query_parameter() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(|req: HttpRequest| {
@@ -462,7 +462,7 @@ async fn with_query_parameter() {
 }
 
 #[cfg(feature = "compress-gzip")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn no_decompress() {
     let srv = actix_test::start(|| {
         App::new()
@@ -498,7 +498,7 @@ async fn no_decompress() {
 }
 
 #[cfg(feature = "compress-gzip")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_gzip_encoding() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
@@ -518,7 +518,7 @@ async fn client_gzip_encoding() {
 }
 
 #[cfg(feature = "compress-gzip")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_gzip_encoding_large() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
@@ -538,7 +538,7 @@ async fn client_gzip_encoding_large() {
 }
 
 #[cfg(feature = "compress-gzip")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_gzip_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 100_000);
 
@@ -560,7 +560,7 @@ async fn client_gzip_encoding_large_random() {
 }
 
 #[cfg(feature = "compress-brotli")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_brotli_encoding() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
@@ -580,7 +580,7 @@ async fn client_brotli_encoding() {
 }
 
 #[cfg(feature = "compress-brotli")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_brotli_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
 
@@ -606,7 +606,7 @@ async fn client_brotli_encoding_large_random() {
     feature = "compress-gzip",
     feature = "compress-zstd"
 ))]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_decoded_body_limit() {
     // 4 MiB of zeros compresses to a few KiB, well under the 2 MiB default limit
     let data = vec![0; 4 * 1024 * 1024];
@@ -660,7 +660,7 @@ async fn client_decoded_body_limit() {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_deflate_encoding() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| async {
@@ -680,7 +680,7 @@ async fn client_deflate_encoding() {
     assert_eq!(bytes, STR);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_deflate_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
 
@@ -702,7 +702,7 @@ async fn client_deflate_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_streaming_explicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: web::Payload| async {
@@ -724,7 +724,7 @@ async fn client_streaming_explicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn body_streaming_implicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|| async {
@@ -746,7 +746,7 @@ async fn body_streaming_implicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_cookie_handling() {
     use std::io::{Error as IoError, ErrorKind};
 
@@ -808,7 +808,7 @@ async fn client_cookie_handling() {
     assert_eq!(c2, cookie2);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_unread_response() {
     let addr = actix_test::unused_addr();
     let lst = std::net::TcpListener::bind(addr).unwrap();
@@ -835,7 +835,7 @@ async fn client_unread_response() {
     assert_eq!(bytes, Bytes::from_static(b""));
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_basic_auth() {
     let srv = actix_test::start(|| {
         App::new().route(
@@ -863,7 +863,7 @@ async fn client_basic_auth() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn client_bearer_auth() {
     let srv = actix_test::start(|| {
         App::new().route(
@@ -891,7 +891,7 @@ async fn client_bearer_auth() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn local_address() {
     let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 

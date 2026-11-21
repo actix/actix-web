@@ -94,7 +94,7 @@ impl futures_core::stream::Stream for TestBody {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body() {
     let srv = actix_test::start(|| {
         App::new()
@@ -111,7 +111,7 @@ async fn test_body() {
 }
 
 // enforcing an encoding per-response is removed
-// #[actix_rt::test]
+// #[tokio::test(flavor = "local")]
 // async fn test_body_encoding_override() {
 //     let srv = actix_test::start_with(actix_test::config().h1(), || {
 //         App::new()
@@ -157,7 +157,7 @@ async fn test_body() {
 //     srv.stop().await;
 // }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
@@ -188,7 +188,7 @@ async fn body_gzip_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_gzip_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
     let srv_data = data.clone();
@@ -218,7 +218,7 @@ async fn test_body_gzip_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_chunked_implicit() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -247,7 +247,7 @@ async fn test_body_chunked_implicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_br_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -272,7 +272,7 @@ async fn test_body_br_streaming() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_head_binary() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -293,7 +293,7 @@ async fn test_head_binary() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_query_method() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -311,7 +311,7 @@ async fn test_query_method() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_no_chunking() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || async {
@@ -331,7 +331,7 @@ async fn test_no_chunking() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_deflate() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -354,7 +354,7 @@ async fn test_body_deflate() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_brotli() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -377,7 +377,7 @@ async fn test_body_brotli() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_zstd() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -400,7 +400,7 @@ async fn test_body_zstd() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_zstd_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -425,7 +425,7 @@ async fn test_body_zstd_streaming() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_zstd_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -446,7 +446,7 @@ async fn test_zstd_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_zstd_encoding_large() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
@@ -473,7 +473,7 @@ async fn test_zstd_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -496,7 +496,7 @@ async fn test_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_gzip_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -517,7 +517,7 @@ async fn test_gzip_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let srv = actix_test::start_with(actix_test::config().h1(), || {
@@ -539,7 +539,7 @@ async fn test_gzip_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_gzip_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 60_000);
 
@@ -562,7 +562,7 @@ async fn test_reading_gzip_encoding_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -583,7 +583,7 @@ async fn test_reading_deflate_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let srv = actix_test::start_with(actix_test::config().h1(), || {
@@ -605,7 +605,7 @@ async fn test_reading_deflate_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
@@ -629,7 +629,7 @@ async fn test_reading_deflate_encoding_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -650,7 +650,7 @@ async fn test_brotli_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding_large() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
@@ -678,7 +678,7 @@ async fn test_brotli_encoding_large() {
 }
 
 #[cfg(feature = "openssl")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding_large_openssl() {
     use actix_web::http::header;
 
@@ -725,7 +725,7 @@ mod plus_rustls {
             .unwrap()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_reading_deflate_encoding_large_random_rustls() {
         let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
@@ -757,7 +757,7 @@ mod plus_rustls {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_server_cookies() {
     use actix_web::http;
 
@@ -814,7 +814,7 @@ async fn test_server_cookies() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_slow_request() {
     use std::net;
 
@@ -837,7 +837,7 @@ async fn test_slow_request() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_normalize() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -853,7 +853,7 @@ async fn test_normalize() {
 
 // allow deprecated App::data
 #[allow(deprecated)]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_data_drop() {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -901,7 +901,7 @@ async fn test_data_drop() {
     assert_eq!(num.load(Ordering::SeqCst), 0);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_accept_encoding_no_match() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -927,7 +927,7 @@ async fn test_accept_encoding_no_match() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn zstd_decoding_over_limit_is_early_rejected() {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},

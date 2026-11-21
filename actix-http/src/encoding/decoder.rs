@@ -408,7 +408,7 @@ mod tests {
     ];
 
     #[cfg(feature = "compress-brotli")]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn brotli_large_window_is_rejected() {
         let data = vec![b'a'; 4096];
         let params = brotli::enc::BrotliEncoderParams {
@@ -467,7 +467,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn decoded_output_is_bounded() {
         let data = vec![b'a'; 1024 * 1024];
 
@@ -487,7 +487,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn blocking_decode_reports_overflow() {
         let data_that_compresses_poorly = rand::rng()
             .sample_iter(rand::distr::StandardUniform)
@@ -516,7 +516,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn decoded_output_at_limit_is_complete() {
         let data = vec![b'a'; 1024];
 
@@ -543,7 +543,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn decoded_limit_applies_across_chunks() {
         let data = vec![b'a'; 1024 * 1024];
 
@@ -578,7 +578,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn zero_decoded_limit_rejects_nonempty_body() {
         for &encoding in ENCODINGS {
             let compressed = encode(b"a", encoding);

@@ -280,7 +280,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv = init_service(App::new().service(web::resource("/test").to(|| async {
             HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))

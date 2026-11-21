@@ -487,7 +487,7 @@ mod tests {
         web, HttpRequest, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv =
             init_service(App::new().service(web::resource("/test").to(HttpResponse::Ok))).await;
@@ -532,7 +532,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_factory() {
         let srv = init_service(
             App::new()
@@ -557,7 +557,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_factory_errors() {
         let srv = try_init_service(
             App::new()
@@ -569,7 +569,7 @@ mod tests {
         assert!(srv.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extension() {
         let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
             |req: HttpRequest| {
@@ -583,7 +583,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap() {
         let srv = init_service(
             App::new()
@@ -603,7 +603,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_router_wrap() {
         let srv = init_service(
             App::new()
@@ -623,7 +623,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap_fn() {
         let srv = init_service(
             App::new()
@@ -648,7 +648,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_router_wrap_fn() {
         let srv = init_service(
             App::new()
@@ -673,7 +673,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_external_resource() {
         let srv = init_service(
             App::new()

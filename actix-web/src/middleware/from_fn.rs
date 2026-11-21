@@ -312,13 +312,13 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn compat_compat() {
         let _ = App::new().wrap(Compat::new(from_fn(noop)));
         let _ = App::new().wrap(Compat::new(from_fn(mutate_body_type)));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn permits_different_in_and_out_body_types() {
         let app = test::init_service(
             App::new()
@@ -335,7 +335,7 @@ mod tests {
         assert!(res.headers().contains_key(header::WARNING));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn closure_capture_and_return_from_fn() {
         let app = test::init_service(
             App::new()

@@ -1,14 +1,15 @@
 [package]
 name = "actix-files"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "Static file serving for Actix Web"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 categories = ["asynchronous", "web-programming::http-server"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = ["actix_http::*", "actix_service::*", "actix_web::*", "http::*", "mime::*"]
@@ -35,12 +36,12 @@ v_htmlescape = "0.17"
 winapi-util = "0.1"
 
 [dev-dependencies]
-actix-rt = "2.7"
 actix-test = "0.1"
 actix-web = "4"
 env_logger = "0.11"
 filetime = "0.2"
 tempfile = "3.2"
+tokio = { version = "1.51", features = ["macros", "rt"] }
 
 [lints]
 workspace = true

@@ -92,7 +92,7 @@ impl ServiceConfigBuilder {
         self
     }
 
-    /// Sets the timeout for the client to finish sending the head of its first request
+    /// Sets the timeout for the client to finish sending a request head.
     pub fn client_request_timeout(mut self, timeout: Duration) -> Self {
         self.inner.client_request_timeout = timeout;
         self
@@ -106,6 +106,8 @@ impl ServiceConfigBuilder {
     }
 
     /// Sets `TCP_NODELAY` preference for accepted TCP connections.
+    ///
+    /// Defaults to `Some(true)`. Use `None` to keep the socket setting unchanged.
     pub fn tcp_nodelay(mut self, nodelay: Option<bool>) -> Self {
         self.inner.tcp_nodelay = nodelay;
         self
@@ -204,7 +206,7 @@ impl Default for Inner {
             client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
-            tcp_nodelay: None,
+            tcp_nodelay: Some(true),
             date_service: DateService::new(),
             h1_allow_half_closed: true,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
@@ -230,7 +232,7 @@ impl ServiceConfig {
             client_disconnect_timeout,
             secure,
             local_addr,
-            tcp_nodelay: None,
+            tcp_nodelay: Some(true),
             date_service: DateService::new(),
             h1_allow_half_closed: true,
             h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
@@ -272,8 +274,8 @@ impl ServiceConfig {
         }
     }
 
-    /// Creates a time object representing the deadline for the client to finish sending the head of
-    /// its first request.
+    /// Creates a time object representing the deadline for the client to finish sending a request
+    /// head.
     ///
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     pub fn client_request_deadline(&self) -> Option<Instant> {
@@ -368,7 +370,7 @@ mod tests {
     use super::*;
     use crate::{date::DATE_VALUE_LENGTH, notify_on_drop};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_update() {
         let settings =
             ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
@@ -401,7 +403,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_drop() {
         let service = Rc::new(DateService::new());
 
@@ -435,7 +437,7 @@ mod tests {
         assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date() {
         let settings = ServiceConfig::default();
 
@@ -448,7 +450,7 @@ mod tests {
         assert_eq!(buf1, buf2);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_camel_case() {
         let settings = ServiceConfig::default();
 

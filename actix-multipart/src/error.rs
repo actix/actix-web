@@ -57,6 +57,10 @@ pub enum Error {
     #[display("Nested multipart is not supported")]
     Nested,
 
+    /// The form contains more parts than the configured limit.
+    #[display("Multipart form has too many parts")]
+    TooManyParts,
+
     /// Multipart stream is incomplete.
     #[display("Multipart stream is incomplete")]
     Incomplete,
@@ -100,6 +104,7 @@ impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
             Error::Field { source, .. } => source.as_response_error().status_code(),
+            Error::Payload(err) => err.status_code(),
             Error::ContentTypeIncompatible => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::BAD_REQUEST,
         }
@@ -120,13 +125,15 @@ mod tests {
         let err = Error::Payload(PayloadError::Overflow);
         assert_eq!(
             Report::new(&err).to_string(),
-            "Payload error: payload reached size limit",
+            "Payload error: Payload reached size limit",
         );
+        assert_eq!(err.status_code(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(err.error_response().status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         let err = Error::Parse(ParseError::Incomplete);
         assert_eq!(
             Report::new(&err).to_string(),
-            "Error during field parsing: message is incomplete"
+            "Error during field parsing: Message is incomplete"
         );
 
         let err = Error::ContentDispositionNameMissing;

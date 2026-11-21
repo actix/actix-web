@@ -82,7 +82,7 @@ mod tests {
         test::TestRequest,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_header_extract() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))

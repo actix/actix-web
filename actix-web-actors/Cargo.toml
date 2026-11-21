@@ -34,7 +34,6 @@ tokio = { version = "1.38.2", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
-actix-rt = "2.2"
 actix-test = "0.1"
 actix-web = { version = "4", features = ["macros"] }
 awc = { version = "3", default-features = false }
@@ -42,6 +41,7 @@ awc = { version = "3", default-features = false }
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 mime = "0.3"
+tokio = { version = "1.51", features = ["macros", "rt"] }
 
 [lints]
 workspace = true
