@@ -53,7 +53,7 @@ pub struct HeaderMap {
 /// A bespoke non-empty list for HeaderMap values.
 #[derive(Debug, Clone)]
 pub(crate) struct Value {
-    inner: SmallVec<[HeaderValue; 4]>,
+    inner: SmallVec<[HeaderValue; 2]>,
 }
 
 impl Value {
@@ -77,7 +77,7 @@ impl Value {
 }
 
 impl ops::Deref for Value {
-    type Target = SmallVec<[HeaderValue; 4]>;
+    type Target = SmallVec<[HeaderValue; 2]>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -691,7 +691,7 @@ impl From<&HeaderMap> for http::HeaderMap {
 /// and [`HeaderMap::remove`].
 #[derive(Debug)]
 pub struct Removed {
-    inner: Option<smallvec::IntoIter<[HeaderValue; 4]>>,
+    inner: Option<smallvec::IntoIter<[HeaderValue; 2]>>,
 }
 
 impl Removed {
@@ -760,7 +760,7 @@ impl iter::FusedIterator for Keys<'_> {}
 #[derive(Debug)]
 pub struct Iter<'a> {
     inner: hash_map::Iter<'a, HeaderName, Value>,
-    multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 4]>)>,
+    multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 2]>)>,
     multi_idx: usize,
     remaining: usize,
 }
@@ -819,7 +819,7 @@ impl iter::FusedIterator for Iter<'_> {}
 #[derive(Debug)]
 pub struct Drain<'a> {
     inner: hash_map::Drain<'a, HeaderName, Value>,
-    multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 4]>)>,
+    multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 2]>)>,
     multi_idx: usize,
     remaining: usize,
 }
@@ -875,7 +875,7 @@ impl iter::FusedIterator for Drain<'_> {}
 #[derive(Debug)]
 pub struct IntoIter {
     inner: hash_map::IntoIter<HeaderName, Value>,
-    multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 4]>)>,
+    multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 2]>)>,
     remaining: usize,
 }
 
@@ -1226,6 +1226,33 @@ mod tests {
         let mut drained = map.clone();
         assert_eq!(map.drain().count(), 3);
         assert_eq!(drained.drain().len(), 3);
+    }
+
+    #[test]
+    fn values_beyond_inline_capacity_keep_order() {
+        let vals = ["a=1", "b=2", "c=3", "d=4", "e=5"].map(HeaderValue::from_static);
+
+        let mut map = HeaderMap::new();
+        for val in &vals {
+            map.append(header::SET_COOKIE, val.clone());
+        }
+
+        assert_eq!(map.len(), 5);
+        assert_eq!(
+            map.get_all(header::SET_COOKIE).collect::<Vec<_>>(),
+            vals.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(map.clone().get_all(header::SET_COOKIE).count(), 5);
+
+        let mut drained = map.clone();
+        assert_eq!(
+            map.remove(header::SET_COOKIE).collect::<Vec<_>>(),
+            vals.to_vec()
+        );
+        assert!(map.is_empty());
+
+        let drained = drained.drain().map(|(_, val)| val).collect::<Vec<_>>();
+        assert_eq!(drained, vals.to_vec());
     }
 
     fn owned_pair<'a>((name, val): (&'a HeaderName, &'a HeaderValue)) -> (HeaderName, HeaderValue) {
