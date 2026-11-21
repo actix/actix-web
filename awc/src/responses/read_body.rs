@@ -1,5 +1,6 @@
 use std::{
     future::Future,
+    mem,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -9,21 +10,44 @@ use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
 
+use super::response::DecodeLimitFn;
+
 pin_project! {
     pub(crate) struct ReadBody<S> {
         #[pin]
         pub(crate) stream: Payload<S>,
         pub(crate) buf: BytesMut,
         pub(crate) limit: usize,
+        decode_limit: Option<DecodeLimitFn<S>>,
     }
 }
 
 impl<S> ReadBody<S> {
-    pub(crate) fn new(stream: Payload<S>, limit: usize) -> Self {
-        Self {
+    pub(crate) fn new(
+        stream: Payload<S>,
+        limit: usize,
+        decode_limit: Option<DecodeLimitFn<S>>,
+    ) -> Self {
+        let mut body = Self {
             stream,
             buf: BytesMut::new(),
             limit,
+            decode_limit,
+        };
+
+        body.set_limit(limit);
+        body
+    }
+
+    /// Sets the size limit, also stopping decompression once decoded output exceeds it.
+    ///
+    /// Must be called before the body is first polled.
+    pub(crate) fn set_limit(&mut self, limit: usize) {
+        self.limit = limit;
+
+        if let Some(decode_limit) = self.decode_limit {
+            let stream = mem::replace(&mut self.stream, Payload::None);
+            self.stream = decode_limit(stream, limit);
         }
     }
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bound decompressed response payloads read with `ResponseBody` and `JsonBody` using the same configured size limits, so decompression stops once the limit is exceeded.
+- Minimum `actix-http` version is now 3.20.3.
+
 ## 3.11.0
 
 - Add `Client::query()` method for constructing HTTP `QUERY` requests.
