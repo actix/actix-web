@@ -45,7 +45,7 @@ impl HttpResponse<BoxBody> {
     #[inline]
     pub fn from_error(error: impl Into<Error>) -> Self {
         let error = error.into();
-        let mut response = error.as_response_error().error_response();
+        let mut response = error.error_response();
         response.error = Some(error);
         response
     }
@@ -414,6 +414,18 @@ mod tests {
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("HttpResponse"));
+    }
+
+    #[test]
+    fn from_error_applies_response_mappers() {
+        let mut err = crate::error::ErrorBadRequest("bad request");
+        err.add_response_mapper(|mut res| {
+            *res.status_mut() = StatusCode::IM_A_TEAPOT;
+            res
+        });
+
+        let res = HttpResponse::from_error(err);
+        assert_eq!(res.status(), StatusCode::IM_A_TEAPOT);
     }
 }
 
