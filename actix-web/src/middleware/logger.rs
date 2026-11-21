@@ -87,6 +87,25 @@ use crate::{
 #[derive(Debug)]
 pub struct Logger(Rc<Inner>);
 
+type FormatLogFn = dyn for<'a> Fn(&'a str) -> Cow<'a, str>;
+
+#[derive(Clone)]
+pub(crate) struct FormatFn {
+    inner_fn: Rc<FormatLogFn>,
+}
+
+impl FormatFn {
+    pub(crate) fn call<'a>(&self, line: &'a str) -> Cow<'a, str> {
+        (self.inner_fn)(line)
+    }
+}
+
+impl fmt::Debug for FormatFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("format_fn")
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Inner {
     format: Format,
@@ -94,6 +113,7 @@ struct Inner {
     exclude_regex: Vec<Regex>,
     log_target: Cow<'static, str>,
     log_level: Level,
+    format_fn: Option<FormatFn>,
 }
 
 impl Logger {
@@ -105,6 +125,7 @@ impl Logger {
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
             log_level: Level::Info,
+            format_fn: None,
         }))
     }
 
@@ -248,6 +269,41 @@ impl Logger {
 
         self
     }
+
+    /// Register a function that transforms or sanitizes the formatted log line
+    /// immediately before it is written to the log output.
+    ///
+    /// # Examples
+    /// Redact sensitive query parameters (e.g. token, secret, api_key):
+    /// ```
+    /// use actix_web::middleware::Logger;
+    /// use regex::Regex;
+    ///
+    /// let re = Regex::new(r"([?&](?:token|api_key)=)[^&\s]+").unwrap();
+    ///
+    /// let logger = Logger::default().format_log(move |line| {
+    ///     re.replace_all(line, "$1*****")
+    /// });
+    /// ```
+    ///
+    /// Redact sensitive request headers (e.g. Bearer authorization tokens):
+    /// ```
+    /// use actix_web::middleware::Logger;
+    /// use regex::Regex;
+    ///
+    /// let re = Regex::new(r"(?i)(bearer\s+)[a-zA-Z0-9_\-\.]+").unwrap();
+    ///
+    /// let logger = Logger::new(r#"%a "%r" %s "%{Authorization}i""#).format_log(move |line| {
+    ///     re.replace_all(line, "$1*****")
+    /// });
+    /// ```
+    pub fn format_log(mut self, f: impl for<'a> Fn(&'a str) -> Cow<'a, str> + 'static) -> Self {
+        let inner = Rc::get_mut(&mut self.0).expect("logger cannot be modified after being cloned");
+        inner.format_fn = Some(FormatFn {
+            inner_fn: Rc::new(f),
+        });
+        self
+    }
 }
 
 impl Default for Logger {
@@ -263,6 +319,7 @@ impl Default for Logger {
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
             log_level: Level::Info,
+            format_fn: None,
         }))
     }
 }
@@ -335,6 +392,7 @@ where
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
                 log_level: self.inner.log_level,
+                format_fn: None,
                 _phantom: PhantomData,
             }
         } else {
@@ -351,6 +409,7 @@ where
                 time: now,
                 log_target: self.inner.log_target.clone(),
                 log_level: self.inner.log_level,
+                format_fn: self.inner.format_fn.clone(),
                 _phantom: PhantomData,
             }
         }
@@ -369,6 +428,7 @@ pin_project! {
         format: Option<Format>,
         log_target: Cow<'static, str>,
         log_level: Level,
+        format_fn: Option<FormatFn>,
         _phantom: PhantomData<B>,
     }
 }
@@ -416,6 +476,7 @@ where
         let format = this.format.take();
         let log_target = this.log_target.clone();
         let log_level = *this.log_level;
+        let format_fn = this.format_fn.take();
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
@@ -424,6 +485,7 @@ where
             size: 0,
             log_target,
             log_level,
+            format_fn,
         })))
     }
 }
@@ -436,7 +498,8 @@ pin_project! {
         size: usize,
         time: OffsetDateTime,
         log_target: Cow<'static, str>,
-        log_level: Level
+        log_level: Level,
+        format_fn: Option<FormatFn>,
     }
 
     impl<B> PinnedDrop for StreamLog<B> {
@@ -449,11 +512,22 @@ pin_project! {
                     Ok(())
                 };
 
-                log::log!(
-                    target: this.log_target.as_ref(),
-                    this.log_level,
-                    "{}", FormatDisplay(&render)
-                );
+                if let Some(ref format_fn) = this.format_fn {
+                    let raw_line = FormatDisplay(&render).to_string();
+                    let formatted_line = format_fn.call(&raw_line);
+
+                    log::log!(
+                        target: this.log_target.as_ref(),
+                        this.log_level,
+                        "{}", formatted_line
+                    );
+                } else {
+                    log::log!(
+                        target: this.log_target.as_ref(),
+                        this.log_level,
+                        "{}", FormatDisplay(&render)
+                    );
+                }
             }
         }
     }
@@ -1029,5 +1103,51 @@ mod tests {
 
         let req = TestRequest::default().to_srv_request();
         srv.call(req).await.unwrap();
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_format_log_multiple_formats() {
+        use regex::Regex;
+
+        fn sanitize(line: &str) -> Cow<'_, str> {
+            let re = Regex::new(r"token=[^&\s]+").expect("regex compilation failed");
+            if re.is_match(line) {
+                re.replace_all(line, "token=*****")
+            } else {
+                Cow::Borrowed(line)
+            }
+        }
+
+        // Case 1: Default format with sensitive data
+        let mut logger_default = Logger::default().format_log(sanitize);
+        let fn_default = Rc::get_mut(&mut logger_default.0)
+            .expect("sole logger ownership")
+            .format_fn
+            .take()
+            .expect("format_fn must be present");
+        let res = fn_default.call(r#"127.0.0.1 "GET /login?token=secret123 HTTP/1.1" 200 42"#);
+        assert_eq!(res, r#"127.0.0.1 "GET /login?token=***** HTTP/1.1" 200 42"#);
+
+        // Case 2: Custom format string
+        let mut logger_custom = Logger::new("%s %{token}xi").format_log(sanitize);
+        let fn_custom = Rc::get_mut(&mut logger_custom.0)
+            .expect("sole logger ownership")
+            .format_fn
+            .take()
+            .expect("format_fn must be present");
+        let res = fn_custom.call("200 token=supersecret");
+        assert_eq!(res, "200 token=*****");
+
+        // Case 3: No sensitive data (returns Cow::Borrowed, zero allocations)
+        let mut logger_clean = Logger::default().format_log(sanitize);
+        let fn_clean = Rc::get_mut(&mut logger_clean.0)
+            .expect("sole logger ownership")
+            .format_fn
+            .take()
+            .expect("format_fn must be present");
+        let clean_line = r#"127.0.0.1 "GET /public HTTP/1.1" 200 12"#;
+        let res = fn_clean.call(clean_line);
+        assert!(matches!(res, Cow::Borrowed(_)));
+        assert_eq!(res, clean_line);
     }
 }

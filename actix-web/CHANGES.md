@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `Logger::format_log()` method. [#3634]
+
 ## 4.20.0
 
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
