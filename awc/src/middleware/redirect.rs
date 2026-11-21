@@ -164,8 +164,17 @@ where
                         if *max_redirect_times > 0
                             && res.headers().contains_key(header::LOCATION) =>
                     {
-                        let reuse_body = res.head().status == StatusCode::TEMPORARY_REDIRECT
-                            || res.head().status == StatusCode::PERMANENT_REDIRECT;
+                        // 307 and 308 repeat the request as it was sent. 301 and 302 may only
+                        // change POST to GET (RFC 9110 §15.4.2 and §15.4.3), so other methods are
+                        // repeated as sent too.
+                        let reuse_body = match res.head().status {
+                            StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => true,
+                            StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND => !matches!(
+                                method.as_ref(),
+                                Some(&Method::GET | &Method::HEAD | &Method::POST)
+                            ),
+                            _ => false,
+                        };
 
                         let prev_uri = uri.take().unwrap();
 
@@ -465,6 +474,54 @@ mod tests {
 
         let res = srv.post("/").send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_redirect_301_302_keep_methods_other_than_post() {
+        let srv = actix_test::start(|| {
+            async fn moved() -> HttpResponse {
+                HttpResponse::MovedPermanently()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn found() -> HttpResponse {
+                HttpResponse::Found()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn see_other() -> HttpResponse {
+                HttpResponse::SeeOther()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn test(req: HttpRequest, body: Bytes) -> HttpResponse {
+                HttpResponse::Ok().body(format!("{} {}", req.method(), body.len()))
+            }
+
+            App::new()
+                .service(web::resource("/moved").route(web::to(moved)))
+                .service(web::resource("/found").route(web::to(found)))
+                .service(web::resource("/see-other").route(web::to(see_other)))
+                .service(web::resource("/test").route(web::to(test)))
+        });
+
+        for path in ["/moved", "/found"] {
+            let mut res = srv.put(path).send_body("Hello").await.unwrap();
+            assert_eq!(res.body().await.unwrap(), "PUT 5");
+
+            let mut res = srv.delete(path).send().await.unwrap();
+            assert_eq!(res.body().await.unwrap(), "DELETE 0");
+
+            let mut res = srv.post(path).send_body("Hello").await.unwrap();
+            assert_eq!(res.body().await.unwrap(), "GET 0");
+        }
+
+        // 303 still changes every method other than GET and HEAD to GET
+        let mut res = srv.put("/see-other").send_body("Hello").await.unwrap();
+        assert_eq!(res.body().await.unwrap(), "GET 0");
     }
 
     #[tokio::test(flavor = "local")]
