@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compile each distinct route pattern once per process instead of once per worker.
+
 ## 0.5.5
 
 - Add support for extracting multi-component path params into a sequence (Vec, tuple, ...).
