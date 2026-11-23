@@ -118,14 +118,16 @@ impl AcceptEncoding {
         // specifically excluded by the Accept-Encoding field stating either "identity;q=0" or
         // "*;q=0" without a more specific entry for "identity".
 
-        let acceptable_items = self.ranked_items().collect::<Vec<_>>();
-
-        let identity_acceptable = is_identity_acceptable(&acceptable_items);
+        let identity_acceptable = is_identity_acceptable(&self.0);
         let identity_supported = supported_set.contains(&Encoding::identity());
 
-        if identity_acceptable && identity_supported && supported_set.len() == 1 {
-            return Some(Encoding::identity());
-        }
+        // A wildcard entry matches every content-coding that is not explicitly listed.
+        let wildcard_quality = self
+            .0
+            .iter()
+            .filter(|q| q.item.is_any())
+            .map(|q| q.quality)
+            .max();
 
         // 3. If the representation's content-coding is one of the content-codings listed in the
         // Accept-Encoding field, then it is acceptable unless it is accompanied by a qvalue of 0.
@@ -133,20 +135,31 @@ impl AcceptEncoding {
         // 4. If multiple content-codings are acceptable, then the acceptable content-coding with
         // the highest non-zero qvalue is preferred.
 
-        let matched = acceptable_items
-            .into_iter()
-            .filter(|q| q.quality > Quality::ZERO)
-            // search relies on item list being in descending order of quality
-            .find(|q| {
-                let enc = &q.item;
-                matches!(enc, Preference::Specific(enc) if supported_set.contains(enc))
+        // Quality of each acceptable encoding. "identity" is only ranked against the others when
+        // it is explicitly listed; otherwise it remains the implicit fallback below.
+        let acceptable = supported_set
+            .iter()
+            .filter_map(|enc| {
+                let quality = if **enc == Encoding::identity() {
+                    self.identity_quality()?
+                } else {
+                    self.listed_quality(enc).or(wildcard_quality)?
+                };
+
+                (quality > Quality::ZERO).then_some((
+                    quality,
+                    specific_encoding_rank(enc),
+                    (*enc).clone(),
+                ))
             })
-            .map(|q| q.item);
+            // same tie-break as `ranked_items`: higher q, then server preference ranking
+            .max_by_key(|(quality, rank, _)| (*quality, *rank));
 
-        match matched {
-            Some(Preference::Specific(enc)) => Some(enc),
+        match acceptable {
+            Some((_, _, enc)) => Some(enc),
 
-            _ if identity_acceptable => Some(Encoding::identity()),
+            // implicit identity, only when nothing listed was acceptable
+            _ if identity_acceptable && identity_supported => Some(Encoding::identity()),
 
             _ => None,
         }
@@ -238,6 +251,37 @@ impl AcceptEncoding {
 
         types.into_iter()
     }
+
+    /// Returns the highest q-value this header assigns to an explicitly listed encoding.
+    fn listed_quality(&self, enc: &Encoding) -> Option<Quality> {
+        self.0
+            .iter()
+            .filter(|q| q.item.item() == Some(enc))
+            .map(|q| q.quality)
+            .max()
+    }
+
+    /// Returns the q-value this header assigns to "identity" when it is explicitly listed.
+    ///
+    /// `None` means identity was not listed, so rule 2 of [`Self::negotiate`] decides whether it
+    /// is acceptable.
+    fn identity_quality(&self) -> Option<Quality> {
+        self.listed_quality(&Encoding::identity())
+    }
+}
+
+/// Returns server-defined ranking for a single encoding.
+///
+/// Mirrors [`encoding_rank`], which operates on whole list items.
+fn specific_encoding_rank(enc: &Encoding) -> u8 {
+    match enc {
+        Encoding::Known(ContentEncoding::Brotli) => 5,
+        Encoding::Known(ContentEncoding::Zstd) => 4,
+        Encoding::Known(ContentEncoding::Gzip) => 3,
+        Encoding::Known(ContentEncoding::Deflate) => 2,
+        Encoding::Known(ContentEncoding::Identity) => 0,
+        _ => 1,
+    }
 }
 
 /// Returns server-defined encoding ranking.
@@ -262,30 +306,21 @@ fn encoding_rank(qv: &QualityItem<Preference<Encoding>>) -> u8 {
 
 /// Returns true if "identity" is an acceptable encoding.
 ///
-/// Internal algorithm relies on item list being in descending order of quality.
-fn is_identity_acceptable(items: &'_ [QualityItem<Preference<Encoding>>]) -> bool {
-    if items.is_empty() {
-        return true;
-    }
-
-    // Loop algorithm depends on items being sorted in descending order of quality. As such, it
-    // is sufficient to return (q > 0) when reaching either an "identity" or "*" item.
-    for q in items {
-        match (q.quality, &q.item) {
-            // occurrence of "identity;q=n"; return true if quality is non-zero
-            (q, Preference::Specific(Encoding::Known(ContentEncoding::Identity))) => {
-                return q > Quality::ZERO
-            }
-
-            // occurrence of "*;q=n"; return true if quality is non-zero
-            (q, Preference::Any) => return q > Quality::ZERO,
-
-            _ => {}
-        }
-    }
+/// An explicit `identity` entry takes precedence over `*` regardless of their relative q-values,
+/// since `*` only matches content codings that are not listed explicitly.
+fn is_identity_acceptable(items: &[QualityItem<Preference<Encoding>>]) -> bool {
+    let quality = items
+        .iter()
+        .find(|q| {
+            matches!(
+                q.item,
+                Preference::Specific(Encoding::Known(ContentEncoding::Identity))
+            )
+        })
+        .or_else(|| items.iter().find(|q| q.item.is_any()));
 
     // implicit acceptable identity
-    true
+    quality.is_none_or(|q| q.quality > Quality::ZERO)
 }
 
 #[cfg(test)]
@@ -418,6 +453,47 @@ mod tests {
             test.negotiate([Encoding::brotli(), Encoding::gzip(), Encoding::identity()].iter()),
             Some(Encoding::brotli())
         );
+    }
+
+    #[test]
+    fn wildcard_covers_codings_not_listed_explicitly() {
+        // RFC 9110 §12.5.3: "*" matches any available content coding not explicitly listed.
+        let supported = [Encoding::identity(), Encoding::brotli(), Encoding::gzip()];
+
+        let test = accept_encoding!("*");
+        assert_eq!(test.negotiate(supported.iter()), Some(Encoding::brotli()));
+
+        // An explicit entry for a coding overrides the wildcard for that coding only.
+        let test = accept_encoding!("*;q=0.5", "gzip;q=1.0");
+        assert_eq!(test.negotiate(supported.iter()), Some(Encoding::gzip()));
+    }
+
+    #[test]
+    fn wildcard_quality_outranks_lower_explicit_listing() {
+        // "br;q=0.1" only lowers brotli's own q-value; "*;q=0.9" still covers the rest.
+        let supported = [
+            Encoding::identity(),
+            Encoding::brotli(),
+            Encoding::gzip(),
+            Encoding::deflate(),
+            Encoding::zstd(),
+        ];
+
+        let test = accept_encoding!("br;q=0.1", "*;q=0.9");
+        assert_eq!(test.negotiate(supported.iter()), Some(Encoding::zstd()));
+    }
+
+    #[test]
+    fn explicit_identity_refusal_beats_wildcard() {
+        let supported = [Encoding::identity(), Encoding::brotli(), Encoding::gzip()];
+
+        // identity is refused even though "*" would otherwise cover it.
+        let test = accept_encoding!("*;q=0.5", "identity;q=0");
+        assert_eq!(test.negotiate(supported.iter()), Some(Encoding::brotli()));
+
+        // and the refusal is independent of the order entries appear in.
+        let test = accept_encoding!("identity;q=0", "*;q=0.5");
+        assert_eq!(test.negotiate(supported.iter()), Some(Encoding::brotli()));
     }
 
     #[test]
