@@ -290,6 +290,32 @@ impl ServiceRequest {
         self.req.conn_data()
     }
 
+    /// Returns request cookies with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_0_18(&self) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.req.cookies_0_18()
+    }
+
+    /// Returns request cookies with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_raw_0_18(
+        &self,
+    ) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.req.cookies_raw_0_18()
+    }
+
+    /// Returns the named request cookie with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.req.cookie_0_18(name)
+    }
+
+    /// Returns the named request cookie with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_raw_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.req.cookie_raw_0_18(name)
+    }
+
     /// Return request cookies.
     #[cfg(feature = "cookies")]
     #[inline]

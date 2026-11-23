@@ -58,7 +58,9 @@
 //! - Runs on stable Rust 1.89+
 //!
 //! # Crate Features
-//! - `cookies` - cookies support (enabled by default)
+//! - `cookies` - cookie (v0.16) support (enabled by default)
+//! - `cookies-0_18` - cookie (v0.18) support through `cookie_0_18` and methods ending in `_0_18`.
+//!   Both cookie features can be enabled together.
 //! - `macros` - routing and runtime macros (enabled by default)
 //! - `compress-brotli` - brotli content encoding compression support (enabled by default)
 //! - `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
@@ -90,6 +92,9 @@ pub use actix_http::{body, HttpMessage};
 #[cfg(feature = "cookies")]
 #[doc(inline)]
 pub use cookie;
+#[cfg(feature = "cookies-0_18")]
+#[doc(inline)]
+pub use cookie_0_18;
 pub use mime;
 mod app;
 mod app_service;

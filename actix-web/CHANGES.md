@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add the `cookies-0_18` crate feature and re-export cookie (v0.18) as `actix_web::cookie_0_18`. This feature can be enabled alongside `cookies`.
+- Add `HttpRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` and `ServiceRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` for reading request cookies.
+- Add `HttpResponse::{cookies_0_18,add_cookie_0_18,add_removal_cookie_0_18}` for reading and appending response cookies.
+- Add `HttpResponseBuilder::cookie_0_18()` and `CustomizeResponder::add_cookie_0_18()` for appending response cookies.
+- Add `TestRequest::cookie_0_18()` for setting a cookie on a test request.
+- Make `HttpResponse::del_cookie()` available with either cookie feature.
+- Enable signed and private cookies for cookie (v0.18) when both `cookies-0_18` and `secure-cookies` are enabled.
+
 ## 4.20.0
 
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.

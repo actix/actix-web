@@ -264,6 +264,12 @@ impl HttpResponseBuilder {
         }
     }
 
+    /// Appends a cookie (v0.18) Set-Cookie header.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(&mut self, cookie: cookie_0_18::Cookie<'_>) -> &mut Self {
+        self.append_header((header::SET_COOKIE, cookie.to_string()))
+    }
+
     /// Returns a reference to the response-local data/extensions container.
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {

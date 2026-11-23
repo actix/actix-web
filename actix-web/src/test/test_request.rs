@@ -4,7 +4,7 @@ use actix_http::{test::TestRequest as HttpTestRequest, Request};
 use serde::Serialize;
 
 #[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
+use crate::cookie::Cookie;
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -65,8 +65,37 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    cookies: Vec<RequestCookie>,
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+enum RequestCookie {
     #[cfg(feature = "cookies")]
-    cookies: CookieJar,
+    V0_16(Cookie<'static>),
+    #[cfg(feature = "cookies-0_18")]
+    V0_18(cookie_0_18::Cookie<'static>),
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+impl RequestCookie {
+    fn name(&self) -> &str {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.name(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.name(),
+        }
+    }
+
+    fn encoded_pair(&self) -> String {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.stripped().encoded().to_string(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.stripped().encoded().to_string(),
+        }
+    }
 }
 
 impl Default for TestRequest {
@@ -78,8 +107,8 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
-            #[cfg(feature = "cookies")]
-            cookies: CookieJar::new(),
+            #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+            cookies: Vec::new(),
         }
     }
 }
@@ -152,11 +181,37 @@ impl TestRequest {
         self
     }
 
-    /// Sets cookie for this request.
+    /// Sets a cookie for this request.
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.cookies.add(cookie.into_owned());
+        self.set_cookie(RequestCookie::V0_16(cookie.into_owned()));
         self
+    }
+
+    /// Sets a cookie for this request using cookie (v0.18).
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(mut self, cookie: cookie_0_18::Cookie<'_>) -> Self {
+        self.set_cookie(RequestCookie::V0_18(cookie.into_owned()));
+        self
+    }
+
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    fn set_cookie(&mut self, cookie: RequestCookie) {
+        if let Some(existing) = self
+            .cookies
+            .iter_mut()
+            .find(|item| item.name() == cookie.name())
+        {
+            *existing = cookie;
+        } else {
+            self.cookies.push(cookie);
+        }
     }
 
     /// Sets request path pattern parameter.
@@ -243,15 +298,14 @@ impl TestRequest {
         #[allow(unused_mut)]
         let mut req = self.req.finish();
 
-        #[cfg(feature = "cookies")]
+        #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
         {
             use actix_http::header::{HeaderValue, COOKIE};
 
-            let cookie: String = self
+            let cookie = self
                 .cookies
-                .delta()
-                // ensure only name=value is written to cookie header
-                .map(|c| c.stripped().encoded().to_string())
+                .iter()
+                .map(RequestCookie::encoded_pair)
                 .collect::<Vec<_>>()
                 .join("; ");
 
@@ -360,6 +414,21 @@ mod tests {
 
     use super::*;
     use crate::{http::header, test::init_service, web, App, Error, Responder};
+
+    #[cfg(feature = "cookies")]
+    #[tokio::test(flavor = "local")]
+    async fn request_cookie_omits_attributes() {
+        let cookie = Cookie::build("session", "hello world")
+            .path("/app")
+            .http_only(true)
+            .finish();
+        let req = TestRequest::default().cookie(cookie).to_http_request();
+
+        assert_eq!(
+            req.headers().get(header::COOKIE).unwrap(),
+            "session=hello%20world"
+        );
+    }
 
     #[tokio::test(flavor = "local")]
     async fn test_request_app_data_is_dropped() {
