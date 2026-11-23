@@ -1,5 +1,3 @@
-#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
-use std::collections::HashMap;
 use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 use actix_http::{test::TestRequest as HttpTestRequest, Request};
@@ -68,7 +66,36 @@ pub struct TestRequest {
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
     #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
-    cookies: HashMap<String, String>,
+    cookies: Vec<RequestCookie>,
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+enum RequestCookie {
+    #[cfg(feature = "cookies")]
+    V0_16(Cookie<'static>),
+    #[cfg(feature = "cookies-0_18")]
+    V0_18(cookie_0_18::Cookie<'static>),
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+impl RequestCookie {
+    fn name(&self) -> &str {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.name(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.name(),
+        }
+    }
+
+    fn encoded_pair(&self) -> String {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.stripped().encoded().to_string(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.stripped().encoded().to_string(),
+        }
+    }
 }
 
 impl Default for TestRequest {
@@ -81,7 +108,7 @@ impl Default for TestRequest {
             peer_addr: None,
             app_data: Extensions::new(),
             #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
-            cookies: HashMap::default(),
+            cookies: Vec::new(),
         }
     }
 }
@@ -154,24 +181,37 @@ impl TestRequest {
         self
     }
 
-    /// Sets cookie for this request.
+    /// Sets a cookie for this request.
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.cookies.insert(
-            cookie.name().to_owned(),
-            cookie.stripped().encoded().to_string(),
-        );
+        self.set_cookie(RequestCookie::V0_16(cookie.into_owned()));
         self
     }
 
     /// Sets a cookie for this request using cookie (v0.18).
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
     #[cfg(feature = "cookies-0_18")]
     pub fn cookie_0_18(mut self, cookie: cookie_0_18::Cookie<'_>) -> Self {
-        self.cookies.insert(
-            cookie.name().to_owned(),
-            cookie.stripped().encoded().to_string(),
-        );
+        self.set_cookie(RequestCookie::V0_18(cookie.into_owned()));
         self
+    }
+
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    fn set_cookie(&mut self, cookie: RequestCookie) {
+        if let Some(existing) = self
+            .cookies
+            .iter_mut()
+            .find(|item| item.name() == cookie.name())
+        {
+            *existing = cookie;
+        } else {
+            self.cookies.push(cookie);
+        }
     }
 
     /// Sets request path pattern parameter.
@@ -264,8 +304,8 @@ impl TestRequest {
 
             let cookie = self
                 .cookies
-                .values()
-                .map(String::as_str)
+                .iter()
+                .map(RequestCookie::encoded_pair)
                 .collect::<Vec<_>>()
                 .join("; ");
 

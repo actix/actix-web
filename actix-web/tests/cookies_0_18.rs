@@ -52,14 +52,21 @@ fn both_cookie_versions_share_headers() {
 
     let req = TestRequest::default()
         .cookie(LegacyCookie::new("first", "legacy"))
+        .cookie_0_18(Cookie::new("second", "current"))
+        .cookie(LegacyCookie::new("third", "other"))
         .cookie_0_18(Cookie::new("first", "replacement"))
-        .cookie(LegacyCookie::new("second", "other"))
+        .cookie(LegacyCookie::new("second", "replacement"))
         .to_http_request();
 
+    assert_eq!(
+        req.headers().get(actix_web::http::header::COOKIE).unwrap(),
+        "first=replacement; second=replacement; third=other"
+    );
+
     let legacy = req.cookies().unwrap();
-    assert_eq!(legacy.len(), 2);
+    assert_eq!(legacy.len(), 3);
     assert_eq!(req.cookie_0_18("first").unwrap().value(), "replacement");
-    assert_eq!(req.cookie_0_18("second").unwrap().value(), "other");
+    assert_eq!(req.cookie_0_18("second").unwrap().value(), "replacement");
 
     let res = HttpResponse::Ok()
         .cookie(LegacyCookie::new("legacy", "a"))
