@@ -2,7 +2,7 @@ use super::{EntityTag, IF_NONE_MATCH};
 
 crate::http::header::common_header! {
     /// `If-None-Match` header, defined
-    /// in [RFC 7232 §3.2](https://datatracker.ietf.org/doc/html/rfc7232#section-3.2)
+    /// in [RFC 7232 §3.2](https://www.rfc-editor.org/info/rfc7232/#section-3.2)
     ///
     /// The `If-None-Match` header field makes the request method conditional
     /// on a recipient cache or origin server either not having any current

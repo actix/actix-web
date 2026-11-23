@@ -48,7 +48,7 @@ fn check_slice_validity(slice: &str) -> bool {
 /// | `W/"1"` | `"1"`   | no match          | match           |
 /// | `"1"`   | `"1"`   | match             | match           |
 ///
-/// [RFC 7232 §2.3](https://datatracker.ietf.org/doc/html/rfc7232#section-2.3)
+/// [RFC 7232 §2.3](https://www.rfc-editor.org/info/rfc7232/#section-2.3)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityTag {
     /// Weakness indicator for the tag

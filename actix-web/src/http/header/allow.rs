@@ -4,7 +4,7 @@ use crate::http::header;
 
 crate::http::header::common_header! {
     /// `Allow` header, defined
-    /// in [RFC 7231 §7.4.1](https://datatracker.ietf.org/doc/html/rfc7231#section-7.4.1)
+    /// in [RFC 7231 §7.4.1](https://www.rfc-editor.org/info/rfc7231/#section-7.4.1)
     ///
     /// The `Allow` header field lists the set of methods advertised as
     /// supported by the target resource. The purpose of this field is

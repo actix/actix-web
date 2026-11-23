@@ -10,8 +10,8 @@ use crate::{error::ParseError, header::HTTP_VALUE};
 /// A comma inside a quoted string does not delimit list elements. See [RFC 9110 §5.6.1] and
 /// [RFC 9110 §5.6.4].
 ///
-/// [RFC 9110 §5.6.1]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1
-/// [RFC 9110 §5.6.4]: https://www.rfc-editor.org/rfc/rfc9110#section-5.6.4
+/// [RFC 9110 §5.6.1]: https://www.rfc-editor.org/info/rfc9110/#section-5.6.1
+/// [RFC 9110 §5.6.4]: https://www.rfc-editor.org/info/rfc9110/#section-5.6.4
 #[inline]
 pub fn from_comma_delimited<'a, I, T>(all: I) -> Result<Vec<T>, ParseError>
 where
@@ -107,7 +107,7 @@ where
 
 /// Percent encode a sequence of bytes with a character set defined in [RFC 5987 §3.2].
 ///
-/// [RFC 5987 §3.2]: https://datatracker.ietf.org/doc/html/rfc5987#section-3.2
+/// [RFC 5987 §3.2]: https://www.rfc-editor.org/info/rfc5987/#section-3.2
 #[inline]
 pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
     let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);

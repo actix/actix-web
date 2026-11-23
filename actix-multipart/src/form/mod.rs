@@ -364,7 +364,7 @@ pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), 
 /// You can also use [`Vec<T>`](Vec) and [`Option<T>`](Option) provided that `T: FieldReader`.
 ///
 /// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
-/// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
+/// name](https://www.rfc-editor.org/info/rfc7578/#section-4.3).
 ///
 /// ```rust
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};

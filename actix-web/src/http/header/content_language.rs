@@ -4,7 +4,7 @@ use super::{common_header, QualityItem, CONTENT_LANGUAGE};
 
 common_header! {
     /// `Content-Language` header, defined
-    /// in [RFC 7231 §3.1.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.3.2)
+    /// in [RFC 7231 §3.1.3.2](https://www.rfc-editor.org/info/rfc7231/#section-3.1.3.2)
     ///
     /// The `Content-Language` header field describes the natural language(s)
     /// of the intended audience for the representation.  Note that this

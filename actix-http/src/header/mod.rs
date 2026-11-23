@@ -66,7 +66,7 @@ pub trait Header: TryIntoHeaderValue {
 }
 
 /// This encode set is used for HTTP header values and is defined at
-/// <https://datatracker.ietf.org/doc/html/rfc5987#section-3.2>.
+/// <https://www.rfc-editor.org/info/rfc5987/#section-3.2>.
 pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS
     .add(b' ')
     .add(b'"')

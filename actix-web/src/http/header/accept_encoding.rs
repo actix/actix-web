@@ -5,7 +5,7 @@ use crate::http::header;
 
 common_header! {
     /// `Accept-Encoding` header, defined
-    /// in [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.4)
+    /// in [RFC 7231](https://www.rfc-editor.org/info/rfc7231/#section-5.3.4)
     ///
     /// The `Accept-Encoding` header field can be used by user agents to indicate what response
     /// content-codings are acceptable in the response. An `identity` token is used as a synonym
@@ -163,7 +163,7 @@ impl AcceptEncoding {
     /// If `None` is returned, it means that the client has signalled that no representations
     /// are acceptable. This should never occur for a well behaved user-agent.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn preference(&self) -> Option<Preference<Encoding>> {
         // empty header indicates no preference
         if self.0.is_empty() {
@@ -215,7 +215,7 @@ impl AcceptEncoding {
     ///
     /// If no q-factors are provided, we prefer brotli > zstd > gzip.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn ranked(&self) -> Vec<Preference<Encoding>> {
         self.ranked_items().map(|q| q.item).collect()
     }

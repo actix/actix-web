@@ -71,9 +71,9 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 /// If the older, related headers are also present (eg. `X-Forwarded-For`), then `Forwarded`
 /// is preferred.
 ///
-/// [rfc7239]: https://datatracker.ietf.org/doc/html/rfc7239
-/// [rfc7239-62]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.2
-/// [rfc7239-63]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.3
+/// [rfc7239]: https://www.rfc-editor.org/info/rfc7239
+/// [rfc7239-62]: https://www.rfc-editor.org/info/rfc7239/#section-6.2
+/// [rfc7239-63]: https://www.rfc-editor.org/info/rfc7239/#section-6.3
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
     host: String,
@@ -112,14 +112,14 @@ impl ConnectionInfo {
             // > In a chain of proxy servers where this is fully utilized, the first
             // > "for" parameter will disclose the client where the request was first
             // > made, followed by any subsequent proxy identifiers.
-            // --- https://datatracker.ietf.org/doc/html/rfc7239#section-5.2
+            // --- https://www.rfc-editor.org/info/rfc7239/#section-5.2
 
             match name.trim().to_lowercase().as_str() {
                 "for" => realip_remote_addr.get_or_insert_with(|| bare_address(unquote(val))),
                 "proto" => scheme.get_or_insert_with(|| unquote(val)),
                 "host" => host.get_or_insert_with(|| unquote(val)),
                 "by" => {
-                    // TODO: implement https://datatracker.ietf.org/doc/html/rfc7239#section-5.1
+                    // TODO: implement https://www.rfc-editor.org/info/rfc7239/#section-5.1
                     continue;
                 }
                 _ => continue,

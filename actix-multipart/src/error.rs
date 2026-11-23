@@ -38,7 +38,7 @@ pub enum Error {
     /// As per [RFC 7578 §4.2], a "multipart/form-data" field's Content-Disposition header must
     /// always be present and have a disposition type of "form-data".
     ///
-    /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
+    /// [RFC 7578 §4.2]: https://www.rfc-editor.org/info/rfc7578/#section-4.2
     #[display("Content-Disposition header was not found when parsing a \"form-data\" field")]
     ContentDispositionMissing,
 
@@ -47,7 +47,7 @@ pub enum Error {
     /// As per [RFC 7578 §4.2], a "multipart/form-data" field's Content-Disposition header must
     /// always include a "name" parameter.
     ///
-    /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
+    /// [RFC 7578 §4.2]: https://www.rfc-editor.org/info/rfc7578/#section-4.2
     #[display(
         "Content-Disposition 'name' parameter was not found when parsing a \"form-data\" field"
     )]

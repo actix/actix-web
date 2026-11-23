@@ -48,7 +48,7 @@ impl HttpRange {
     /// `header` is HTTP Range header (e.g. `bytes=0-9`).
     /// `size` is full size of response (file).
     ///
-    /// [RFC 9110 §14.1.1]: https://datatracker.ietf.org/doc/html/rfc9110#section-14.1.1
+    /// [RFC 9110 §14.1.1]: https://www.rfc-editor.org/info/rfc9110/#section-14.1.1
     pub fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ParseRangeErr> {
         // Check syntax before http-range trims positions or skips ranges beyond the file.
         if let Some((_, ranges)) = header.split_once('=') {

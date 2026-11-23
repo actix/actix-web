@@ -79,7 +79,7 @@ impl Field {
 
     /// Returns a reference to the field's content (mime) type, if it is supplied by the client.
     ///
-    /// According to [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578#section-4.4), if it is not
+    /// According to [RFC 7578](https://www.rfc-editor.org/info/rfc7578/#section-4.4), if it is not
     /// present, it should default to "text/plain". Note it is the responsibility of the client to
     /// provide the appropriate content type, there is no attempt to validate this by the server.
     pub fn content_type(&self) -> Option<&Mime> {
@@ -101,7 +101,7 @@ impl Field {
     /// The [`name()`](Self::name) method is also provided as a convenience for obtaining the
     /// aforementioned name parameter.
     ///
-    /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
+    /// [RFC 7578 §4.2]: https://www.rfc-editor.org/info/rfc7578/#section-4.2
     pub fn content_disposition(&self) -> Option<&ContentDisposition> {
         self.content_disposition.as_ref()
     }

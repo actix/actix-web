@@ -37,7 +37,7 @@ use crate::{
 ///     .insert_header(ContentLength(3_495));
 /// ```
 ///
-/// [RFC 9110 §8.6]: https://www.rfc-editor.org/rfc/rfc9110#name-content-length
+/// [RFC 9110 §8.6]: https://www.rfc-editor.org/info/rfc9110/#section-8.6
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut)]
 pub struct ContentLength(pub usize);
 

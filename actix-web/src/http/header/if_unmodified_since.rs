@@ -2,7 +2,7 @@ use super::{HttpDate, IF_UNMODIFIED_SINCE};
 
 crate::http::header::common_header! {
     /// `If-Unmodified-Since` header, defined
-    /// in [RFC 7232 §3.4](https://datatracker.ietf.org/doc/html/rfc7232#section-3.4)
+    /// in [RFC 7232 §3.4](https://www.rfc-editor.org/info/rfc7232/#section-3.4)
     ///
     /// The `If-Unmodified-Since` header field makes the request method
     /// conditional on the selected representation's last modification date

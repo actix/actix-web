@@ -8,7 +8,7 @@ use crate::error::ParseError;
 
 crate::http::header::common_header! {
     /// `Content-Range` header, defined
-    /// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
+    /// in [RFC 7233 §4.2](https://www.rfc-editor.org/info/rfc7233/#section-4.2)
     (ContentRange, CONTENT_RANGE) => [ContentRangeSpec]
 
     test_parse_and_format {
@@ -71,7 +71,7 @@ crate::http::header::common_header! {
 }
 
 /// Content-Range header, defined
-/// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
+/// in [RFC 7233 §4.2](https://www.rfc-editor.org/info/rfc7233/#section-4.2)
 ///
 /// # ABNF
 /// ```plain

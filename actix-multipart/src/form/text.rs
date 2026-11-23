@@ -41,7 +41,7 @@ where
                 let valid = if let Some(mime) = field.content_type() {
                     mime.subtype() == mime::PLAIN || mime.suffix() == Some(mime::PLAIN)
                 } else {
-                    // https://datatracker.ietf.org/doc/html/rfc7578#section-4.4
+                    // https://www.rfc-editor.org/info/rfc7578/#section-4.4
                     // content type defaults to text/plain, so None should be considered valid
                     true
                 };

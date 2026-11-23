@@ -53,7 +53,7 @@ common_header! {
     /// # let _ = req;
     /// ```
     ///
-    /// [RFC 7231 §5.3.3]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.3
+    /// [RFC 7231 §5.3.3]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.3
     (AcceptCharset, ACCEPT_CHARSET) => (QualityItem<Charset>)*
 
     test_parse_and_format {
