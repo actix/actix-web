@@ -61,4 +61,5 @@ ignore = [
     "RUSTSEC-2026-0349",
     { id = "RUSTSEC-2026-0381", reason = "Legacy rustls 0.20 and 0.21 require webpki-roots 0.22 and 0.25, which have no patched releases." },
     { id = "RUSTSEC-2026-0382", reason = "Legacy rustls 0.21 and 0.22 require rustls-webpki 0.101 and 0.102, which have no patched releases." },
+    { id = "RUSTSEC-2026-0594", reason = "Actix Web and awc retain cookie 0.16 for API compatibility. There is no patched 0.16 release. The issue affects private cookies when multiple processes seal cookies on the thread that called fork." },
 ]
