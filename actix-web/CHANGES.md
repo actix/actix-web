@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply `Error` response mappers when constructing a response from an error.
+
 ## 4.20.0
 
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
