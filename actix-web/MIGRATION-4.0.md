@@ -115,7 +115,7 @@ An alternative [path param type with public field but no `Deref` impl is availab
 
 ## Rustls Crate Upgrade
 
-Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
+Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/main/https-tls/rustls/)
 
 ## Removed `awc` Client Re-export
 
@@ -422,7 +422,7 @@ async fn main() {
 
 ## Guards API
 
-Implementors of routing guards will need to use the modified interface of the `Guard` trait. The API is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
+Implementers of routing guards will need to use the modified interface of the `Guard` trait. The API is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
 
 ```diff
   struct MethodGuard(HttpMethod);

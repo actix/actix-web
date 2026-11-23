@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # developed on macOS and probably doesn't work on Linux yet due to minor
 # differences in flags on sed
@@ -123,13 +123,17 @@ if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
 
     for f in $(fd Cargo.toml); do
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(${PACKAGE_NAME} ?= ?\")=[^\"]+(\")$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(${PACKAGE_NAME} ?= ?\")[^=\"][^\"]*(\")$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")=[^\"]+(\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^=\"][^\"]*(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")=[^\"]+(\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^=\"][^\"]*(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
+            -e "s/^(.*version ?= ?\")=[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1=${NEW_VERSION}\2/g" \
+            -e "s/^(.*version ?= ?\")[^=\"][^\"]*(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
 
         # remove backup file
         rm -f $f.bak
@@ -146,8 +150,7 @@ else
     echo "chore($PACKAGE_NAME): prepare release $NEW_VERSION"
 fi
 
-SHORT_PACKAGE_NAME="$(echo $PACKAGE_NAME | sed 's/^actix-web-//' | sed 's/^actix-//')"
-GIT_TAG="$(echo $SHORT_PACKAGE_NAME-v$NEW_VERSION)"
+GIT_TAG="${PACKAGE_NAME}-v${NEW_VERSION}"
 RELEASE_TITLE="$(echo $PACKAGE_NAME: v$NEW_VERSION)"
 
 if [ "$(echo $NEW_VERSION | grep beta)" ] || [ "$(echo $NEW_VERSION | grep rc)" ] || [ "$(echo $NEW_VERSION | grep alpha)" ]; then
@@ -170,4 +173,4 @@ fi
 
 echo
 
-cargo update >/dev/null 2>&1 || true
+cargo tree >/dev/null 2>&1 || true

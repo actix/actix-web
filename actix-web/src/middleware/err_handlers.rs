@@ -403,8 +403,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::IntoService;
-    use actix_utils::future::ok;
     use bytes::Bytes;
     use futures_util::FutureExt as _;
 
@@ -415,7 +416,7 @@ mod tests {
         test::{self, TestRequest},
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn add_header_error_handler() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -438,7 +439,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn add_header_error_handler_async() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler<B: 'static>(
@@ -449,7 +450,7 @@ mod tests {
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
 
             Ok(ErrorHandlerResponse::Future(
-                ok(res.map_into_left_body()).boxed_local(),
+                ready(Ok(res.map_into_left_body())).boxed_local(),
             ))
         }
 
@@ -465,7 +466,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn changes_body_type() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -491,7 +492,7 @@ mod tests {
         assert_eq!(test::read_body(res).await, "sorry, that's no bueno");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn error_thrown() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler<B>(_res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -521,7 +522,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn default_error_handler() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -548,7 +549,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn default_handlers_separate_client_server() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -584,7 +585,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn default_handlers_specialization() {
         #[allow(clippy::unnecessary_wraps)]
         fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {

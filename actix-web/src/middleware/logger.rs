@@ -13,6 +13,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
@@ -266,6 +267,7 @@ impl Default for Logger {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for Logger
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -739,8 +741,9 @@ impl fmt::Display for FormatDisplay<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::IntoService;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -749,14 +752,14 @@ mod tests {
         HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_logger() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(
+            ready(Ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .insert_header(("X-Test", "ttt"))
                     .finish(),
-            ))
+            )))
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
@@ -771,14 +774,14 @@ mod tests {
         let _res = srv.call(req).await;
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_logger_exclude_regex() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(
+            ready(Ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .insert_header(("X-Test", "ttt"))
                     .finish(),
-            ))
+            )))
         };
         let logger =
             Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test").exclude_regex("\\w");
@@ -794,7 +797,7 @@ mod tests {
         let _res = srv.call(req).await.unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_escape_percent() {
         let mut format = Format::new("%%{r}a");
 
@@ -827,7 +830,7 @@ mod tests {
         assert_eq!(s, "%{r}a");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_url_path() {
         let mut format = Format::new("%T %U");
         let req = TestRequest::default()
@@ -859,7 +862,7 @@ mod tests {
         assert!(s.contains("/test/route/yeah"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_format() {
         let mut format = Format::default();
 
@@ -896,7 +899,7 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_time_format() {
         let mut format = Format::new("%t");
         let req = TestRequest::default().to_srv_request();
@@ -922,7 +925,7 @@ mod tests {
         assert!(s.contains(&now.format(&Rfc3339).unwrap()));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_remote_addr_format() {
         let mut format = Format::new("%{r}a");
 
@@ -955,7 +958,7 @@ mod tests {
         assert!(s.contains("192.0.2.60"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_closure_req_log() {
         let mut logger = Logger::new("test %{CUSTOM}xi")
             .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
@@ -965,7 +968,7 @@ mod tests {
 
         let label = match &unit {
             FormatText::CustomRequest(label, _) => label,
-            ft => panic!("expected CustomRequest, found {:?}", ft),
+            ft => panic!("Expected CustomRequest, found {:?}", ft),
         };
 
         assert_eq!(label, "CUSTOM");
@@ -981,7 +984,7 @@ mod tests {
         assert_eq!(log_output, "custom_log");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_closure_response_log() {
         let mut logger = Logger::new("test %{CUSTOM}xo").custom_response_replace(
             "CUSTOM",
@@ -997,7 +1000,7 @@ mod tests {
 
         let label = match &unit {
             FormatText::CustomResponse(label, _) => label,
-            ft => panic!("expected CustomResponse, found {:?}", ft),
+            ft => panic!("Expected CustomResponse, found {:?}", ft),
         };
 
         assert_eq!(label, "CUSTOM");
@@ -1013,7 +1016,7 @@ mod tests {
         assert_eq!(log_output, "custom_log");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_closure_logger_in_middleware() {
         let captured = "custom log replacement";
 

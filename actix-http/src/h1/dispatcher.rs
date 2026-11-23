@@ -1,4 +1,5 @@
 use std::{
+    cmp,
     collections::VecDeque,
     fmt,
     future::Future,
@@ -9,13 +10,15 @@ use std::{
 };
 
 use actix_codec::{Framed, FramedParts};
-use actix_rt::time::sleep_until;
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    time::sleep_until,
+};
 use tokio_util::codec::{Decoder as _, Encoder as _};
 use tracing::{error, trace};
 
@@ -31,12 +34,15 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    Error, Extensions, OnConnectData, Request, Response, StatusCode,
+    ConnectionType, Error, Extensions, HttpMessage, OnConnectData, Request, Response, StatusCode,
 };
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
+
+/// Write buffer capacity at which we reallocate it after flushing.
+const WRITE_BUFFER_RETENTION_LIMIT: usize = 1024 * 128;
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -58,6 +64,17 @@ bitflags! {
 
         /// Set if write-half is disconnected.
         const WRITE_DISCONNECT = 0b0010_0000;
+
+        /// Set while gracefully closing a connection after an early response.
+        const LINGER           = 0b0100_0000;
+
+        /// Set when the server is draining this connection during graceful shutdown.
+        ///
+        /// Unlike [`SHUTDOWN`](Self::SHUTDOWN), this state continues polling the current request
+        /// and response. It prevents queued requests from starting and transitions to `SHUTDOWN`
+        /// after the current response finishes. [`LINGER`](Self::LINGER) remains separate and is
+        /// used only to close cleanly after a response to an unread request payload.
+        const DRAINING         = 0b1000_0000;
     }
 }
 
@@ -157,16 +174,67 @@ pin_project! {
         pub(super) state: State<S, B, X>,
         // when Some(_) dispatcher is in state of receiving request payload
         payload: Option<PayloadSender>,
+        // true when current request uses chunked transfer encoding (drainable when payload is dropped)
+        payload_drainable: bool,
         messages: VecDeque<DispatcherMessage>,
 
         head_timer: TimerState,
         ka_timer: TimerState,
         shutdown_timer: TimerState,
+        graceful_shutdown: Option<crate::config::GracefulShutdownFuture>,
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
+
+        // Encoded response heads and buffered body chunks, in wire order.
+        //
+        // Includes small fixed-length chunks and chunks from chunked or close-delimited bodies.
+        // Encoding a chunk can grow this buffer beyond `h1_write_buffer_size`.
+        // These bytes are written before any pending bytes in `write_body`.
         write_buf: BytesMut,
+
+        // Unwritten bytes of one large fixed-length body chunk, sent after `write_buf`.
+        //
+        // Chunks at least `h1_write_buffer_size` bytes long can be stored here without copying them
+        // into `write_buf` if the connection supports vectored writes. Uniquely owned chunks with
+        // spare capacity are copied into `write_buf` instead (see `prepare_chunk`).
+        //
+        // This can be the entire body or one chunk from a stream with a known total length. The
+        // slice is limited to the remaining declared body length.
+        //
+        // Partial writes advance the slice. The next body chunk is not polled while this field is
+        // `Some`. Continue responses and upgrades copy any remaining bytes into `write_buf` to
+        // preserve write order.
+        write_body: Option<Bytes>,
+
+        // Number of bytes to busy-buffer before flushing.
+        h1_write_buffer_size: usize,
+
+        // True if backing allocation of `write_buf` needs to be released.
+        write_buf_needs_reset: bool,
+
         codec: Codec,
+    }
+}
+
+impl<T, S, B, X, U> InnerDispatcherProj<'_, T, S, B, X, U>
+where
+    S: Service<Request>,
+    S::Error: Into<Response<BoxBody>>,
+
+    B: MessageBody,
+
+    X: Service<Request, Response = Request>,
+    X::Error: Into<Response<BoxBody>>,
+
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+{
+    /// Copies any pending body bytes into `write_buf` and clears `write_body`.
+    fn ensure_body_buffered(&mut self) {
+        if let Some(body) = self.write_body.take() {
+            self.write_buf.extend_from_slice(&body);
+        }
     }
 }
 
@@ -269,15 +337,20 @@ where
 
                     state: State::None,
                     payload: None,
+                    payload_drainable: false,
                     messages: VecDeque::new(),
 
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
                     ka_timer: TimerState::new(config.keep_alive().enabled()),
                     shutdown_timer: TimerState::new(config.client_disconnect_deadline().is_some()),
+                    graceful_shutdown: config.graceful_shutdown(),
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    write_body: None,
+                    h1_write_buffer_size: config.h1_write_buffer_size(),
+                    write_buf_needs_reset: false,
                     codec: Codec::new(config),
                 },
             },
@@ -308,7 +381,10 @@ where
         if self.flags.contains(Flags::READ_DISCONNECT) {
             false
         } else if let Some(ref info) = self.payload {
-            info.need_read(cx) == PayloadStatus::Read
+            matches!(
+                info.need_read(cx),
+                PayloadStatus::Read | PayloadStatus::Dropped
+            )
         } else {
             true
         }
@@ -326,33 +402,155 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        let InnerDispatcherProj { io, write_buf, .. } = self.project();
+        let InnerDispatcherProj {
+            io,
+            write_buf,
+            write_body,
+            h1_write_buffer_size,
+            write_buf_needs_reset,
+            ..
+        } = self.project();
+
         let mut io = Pin::new(io.as_mut().unwrap());
 
-        let len = write_buf.len();
-        let mut written = 0;
+        // Allow normal buffer growth, but do not retain allocations caused by large response
+        // chunks on idle connections.
+        let retention_limit = (*h1_write_buffer_size).max(WRITE_BUFFER_RETENTION_LIMIT);
 
-        while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..])? {
+        if write_buf.capacity() > retention_limit {
+            // Needs stored flag because `write_buf.advance(n)` reduces reported capacity without
+            // releasing the backing allocation.
+            *write_buf_needs_reset = true;
+        }
+
+        let write_buf_len = write_buf.len();
+        let mut write_buf_written = 0;
+
+        loop {
+            let head = &write_buf[write_buf_written..];
+            let head_len = head.len();
+
+            let polled = match (head, write_body.as_deref()) {
+                // Both segments are drained. Avoid an empty write that could return zero.
+                ([], None | Some([])) => break,
+
+                // The buffered prefix is drained, so write the remaining body bytes.
+                ([], Some(body)) => io.as_mut().poll_write(cx, body)?,
+
+                // Write the buffered prefix and body in order with one vectored write.
+                (head, Some(body @ [_, ..])) if io.is_write_vectored() => io
+                    .as_mut()
+                    .poll_write_vectored(cx, &[io::IoSlice::new(head), io::IoSlice::new(body)])?,
+
+                // Keep buffered bytes ahead of the body when writing one slice at a time.
+                (head, _) => io.as_mut().poll_write(cx, head)?,
+            };
+
+            match polled {
                 Poll::Ready(0) => {
                     error!("write zero; closing");
                     return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
                 }
 
-                Poll::Ready(n) => written += n,
+                Poll::Ready(n) => {
+                    // Advance cursors of write_buf and write_body buffers according to how much was
+                    // written to the socket for each ready for next loop iteration.
+
+                    let from_head = cmp::min(n, head_len);
+                    write_buf_written += from_head;
+
+                    if let Some(body) = write_body.as_mut() {
+                        let from_body = n - from_head;
+                        body.advance(from_body);
+                    }
+                }
 
                 Poll::Pending => {
-                    write_buf.advance(written);
+                    // `write_buf_written` counts only buffered bytes and cannot exceed
+                    // `write_buf.len()`
+                    write_buf.advance(write_buf_written);
+
                     return Poll::Pending;
                 }
             }
         }
 
-        // everything has written to I/O; clear buffer
-        write_buf.clear();
+        debug_assert_eq!(
+            write_buf_written, write_buf_len,
+            "All buffered bytes should be written before leaving the write loop"
+        );
+
+        // All bytes have been accepted by the I/O stream, so the buffer can be reused or released.
+        if *write_buf_needs_reset {
+            *write_buf = BytesMut::with_capacity(HW_BUFFER_SIZE);
+            *write_buf_needs_reset = false;
+        } else {
+            write_buf.clear();
+        }
+
+        // `write_body` is either absent or fully consumed, so clear it.
+        *write_body = None;
 
         // flush the I/O and check if get blocked
         io.poll_flush(cx)
+    }
+
+    fn enter_linger(flags: &mut Flags) {
+        flags.remove(Flags::KEEP_ALIVE);
+        flags.insert(Flags::LINGER | Flags::FINISHED);
+    }
+
+    fn ensure_linger_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> bool {
+        let this = self.as_mut().project();
+
+        if matches!(this.shutdown_timer, TimerState::Active { .. }) {
+            return true;
+        }
+
+        if let Some(deadline) = this.config.client_disconnect_deadline() {
+            this.shutdown_timer
+                .set_and_init(cx, sleep_until(deadline.into()), line!());
+            true
+        } else {
+            false
+        }
+    }
+
+    fn poll_linger(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<Poll<()>, DispatchError> {
+        if self.as_mut().poll_flush(cx)?.is_pending() {
+            return Ok(Poll::Pending);
+        }
+
+        if !self.as_mut().ensure_linger_timer(cx) {
+            let this = self.as_mut().project();
+            this.flags.remove(Flags::LINGER);
+            this.flags.insert(Flags::SHUTDOWN);
+            return Ok(Poll::Ready(()));
+        }
+
+        loop {
+            let should_disconnect = self.as_mut().read_available(cx)?;
+            let this = self.as_mut().project();
+            let mut progressed = false;
+
+            if !this.read_buf.is_empty() {
+                this.read_buf.clear();
+                progressed = true;
+            }
+
+            if should_disconnect {
+                this.flags.remove(Flags::LINGER);
+                this.flags.insert(Flags::READ_DISCONNECT | Flags::SHUTDOWN);
+                return Ok(Poll::Ready(()));
+            }
+
+            if !progressed {
+                return Ok(Poll::Pending);
+            }
+        }
     }
 
     fn send_response_inner(
@@ -379,43 +577,110 @@ where
 
     fn send_response(
         mut self: Pin<&mut Self>,
-        res: Response<()>,
+        mut res: Response<()>,
         body: B,
     ) -> Result<(), DispatchError> {
+        let is_upgrade = res.upgrade();
+        let (draining, close_for_unread_payload) = {
+            let this = self.as_mut().project();
+            (
+                this.flags.contains(Flags::DRAINING),
+                !is_upgrade
+                    && should_close_for_unread_payload(
+                        this.payload.as_ref(),
+                        *this.payload_drainable,
+                    ),
+            )
+        };
+        let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
+
+        if close_after_response {
+            res.head_mut().set_connection_type(ConnectionType::Close);
+        }
+
         let size = self.as_mut().send_response_inner(res, &body)?;
-        let mut this = self.project();
-        this.state.set(match size {
+        match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
-                State::None
+                let mut this = self.as_mut().project();
+
+                if close_for_unread_payload {
+                    if this.config.client_disconnect_deadline().is_some() {
+                        Self::enter_linger(this.flags);
+                    } else {
+                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                    }
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
+                this.state.set(State::None);
             }
-            _ => State::SendPayload { body },
-        });
+            _ => self
+                .as_mut()
+                .project()
+                .state
+                .set(State::SendPayload { body }),
+        }
 
         Ok(())
     }
 
     fn send_error_response(
         mut self: Pin<&mut Self>,
-        res: Response<()>,
+        mut res: Response<()>,
         body: BoxBody,
     ) -> Result<(), DispatchError> {
+        let is_upgrade = res.upgrade();
+        let (draining, close_for_unread_payload) = {
+            let this = self.as_mut().project();
+            (
+                this.flags.contains(Flags::DRAINING),
+                !is_upgrade
+                    && should_close_for_unread_payload(
+                        this.payload.as_ref(),
+                        *this.payload_drainable,
+                    ),
+            )
+        };
+        let close_after_response = (!is_upgrade && draining) || close_for_unread_payload;
+
+        if close_after_response {
+            res.head_mut().set_connection_type(ConnectionType::Close);
+        }
+
         let size = self.as_mut().send_response_inner(res, &body)?;
-        let mut this = self.project();
-        this.state.set(match size {
+        match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
-                State::None
+                let mut this = self.as_mut().project();
+
+                if close_for_unread_payload {
+                    if this.config.client_disconnect_deadline().is_some() {
+                        Self::enter_linger(this.flags);
+                    } else {
+                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                    }
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
+                this.state.set(State::None);
             }
-            _ => State::SendErrorPayload { body },
-        });
+            _ => self
+                .as_mut()
+                .project()
+                .state
+                .set(State::SendErrorPayload { body }),
+        }
 
         Ok(())
     }
 
     fn send_continue(self: Pin<&mut Self>) {
-        self.project()
-            .write_buf
+        let mut this = self.project();
+
+        this.ensure_body_buffered();
+
+        this.write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
@@ -426,6 +691,17 @@ where
         'res: loop {
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
+                StateProj::None if this.flags.contains(Flags::DRAINING) => {
+                    this.messages.clear();
+                    this.flags.remove(Flags::KEEP_ALIVE);
+
+                    if !this.flags.contains(Flags::LINGER) {
+                        this.flags.insert(Flags::SHUTDOWN);
+                    }
+
+                    return Ok(PollResponse::DoNothing);
+                }
+
                 // no future is in InnerDispatcher state; pop next message
                 StateProj::None => match this.messages.pop_front() {
                     // handle request message
@@ -455,8 +731,11 @@ where
 
                     // all messages are dealt with
                     None => {
-                        // start keep-alive if last request allowed it
-                        this.flags.set(Flags::KEEP_ALIVE, this.codec.keep_alive());
+                        // start keep-alive only if request payload is fully read/drained
+                        this.flags.set(
+                            Flags::KEEP_ALIVE,
+                            this.payload.is_none() && this.codec.keep_alive(),
+                        );
 
                         return Ok(PollResponse::DoNothing);
                     }
@@ -493,20 +772,52 @@ where
                 StateProj::SendPayload { mut body } => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.len() < *this.h1_write_buffer_size
+                        && this.write_body.is_none()
+                    {
                         match body.as_mut().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => {
-                                this.codec
-                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                            Poll::Ready(Some(Ok(chunk))) => {
+                                let write_vectored =
+                                    this.io.as_ref().is_some_and(|io| io.is_write_vectored());
+
+                                if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
+                                    this.codec,
+                                    this.write_body,
+                                    write_vectored,
+                                    *this.h1_write_buffer_size,
+                                    chunk,
+                                ) {
+                                    this.codec
+                                        .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                                }
                             }
 
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let close_for_unread_payload = should_close_for_unread_payload(
+                                    this.payload.as_ref(),
+                                    *this.payload_drainable,
+                                );
+                                let not_pipelined = this.messages.is_empty();
+
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && close_for_unread_payload {
+                                    if this.config.client_disconnect_deadline().is_some() {
+                                        Self::enter_linger(this.flags);
+                                    } else {
+                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                    }
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
@@ -532,20 +843,52 @@ where
 
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.len() < *this.h1_write_buffer_size
+                        && this.write_body.is_none()
+                    {
                         match body.as_mut().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => {
-                                this.codec
-                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                            Poll::Ready(Some(Ok(chunk))) => {
+                                let write_vectored =
+                                    this.io.as_ref().is_some_and(|io| io.is_write_vectored());
+
+                                if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
+                                    this.codec,
+                                    this.write_body,
+                                    write_vectored,
+                                    *this.h1_write_buffer_size,
+                                    chunk,
+                                ) {
+                                    this.codec
+                                        .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                                }
                             }
 
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // payload stream finished
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let close_for_unread_payload = should_close_for_unread_payload(
+                                    this.payload.as_ref(),
+                                    *this.payload_drainable,
+                                );
+                                let not_pipelined = this.messages.is_empty();
+
+                                // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && close_for_unread_payload {
+                                    if this.config.client_disconnect_deadline().is_some() {
+                                        Self::enter_linger(this.flags);
+                                    } else {
+                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                    }
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
@@ -574,8 +917,11 @@ where
                         // expect resolved. write continue to buffer and set InnerDispatcher state
                         // to service call.
                         Poll::Ready(Ok(req)) => {
+                            this.ensure_body_buffered();
+
                             this.write_buf
                                 .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
+
                             let fut = this.flow.service.call(req);
                             this.state.set(State::ServiceCall { fut });
                         }
@@ -681,6 +1027,10 @@ where
     ///
     /// Returns true if any meaningful work was done.
     fn poll_request(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
+        if self.flags.contains(Flags::DRAINING) && self.state.is_none() {
+            return Ok(false);
+        }
+
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
@@ -701,7 +1051,7 @@ where
 
                     match msg {
                         Message::Item(mut req) => {
-                            // head timer only applies to first request on connection
+                            // Stop the head timer before reading the request payload.
                             this.head_timer.clear(line!());
 
                             req.head_mut().peer_addr = *this.peer_addr;
@@ -710,12 +1060,13 @@ where
 
                             match this.codec.message_type() {
                                 // request has no payload
-                                MessageType::None => {}
+                                MessageType::None => *this.payload_drainable = false,
 
                                 // Request is upgradable. Add upgrade message and break.
                                 // Everything remaining in read buffer will be handed to
                                 // upgraded Request.
                                 MessageType::Stream if this.flow.upgrade.is_some() => {
+                                    *this.payload_drainable = false;
                                     this.messages.push_back(DispatcherMessage::Upgrade(req));
                                     break;
                                 }
@@ -730,6 +1081,7 @@ where
                                     let (sender, payload) = Payload::create(false);
                                     *req.payload() = crate::Payload::H1 { payload };
                                     *this.payload = Some(sender);
+                                    *this.payload_drainable = req.chunked().unwrap_or(false);
                                 }
                             }
 
@@ -759,6 +1111,7 @@ where
                         Message::Chunk(None) => {
                             if let Some(mut payload) = this.payload.take() {
                                 payload.feed_eof();
+                                *this.payload_drainable = false;
                             } else {
                                 error!("Internal server error: unexpected eof");
                                 this.flags.insert(Flags::READ_DISCONNECT);
@@ -772,9 +1125,23 @@ where
                     }
                 }
 
-                // decode is partial and buffer is not full yet
-                // break and wait for more read
-                Ok(None) => break,
+                // Decode is partial.
+                Ok(None) => {
+                    if this.payload.is_none()
+                        && this.codec.keep_alive()
+                        && !this.read_buf.is_empty()
+                        && !matches!(this.head_timer, TimerState::Active { .. })
+                    {
+                        // Subsequent requests on this connection get client deadlines too.
+                        if let Some(deadline) = this.config.client_request_deadline() {
+                            this.head_timer
+                                .set_and_init(cx, sleep_until(deadline.into()), line!());
+                        }
+                    }
+
+                    // Needs more bytes read for full head.
+                    break;
+                }
 
                 Err(ParseError::Io(err)) => {
                     trace!("I/O error: {}", &err);
@@ -834,7 +1201,7 @@ where
 
         if let TimerState::Active { timer } = this.head_timer {
             if timer.as_mut().poll(cx).is_ready() {
-                // timeout on first request (slow request) return 408
+                // Return 408 when a request head takes too long.
 
                 trace!("timed out on slow request; replying with 408 and closing connection");
 
@@ -900,18 +1267,43 @@ where
         let this = self.as_mut().project();
         if let TimerState::Active { timer } = this.shutdown_timer {
             debug_assert!(
-                this.flags.contains(Flags::SHUTDOWN),
-                "shutdown flag should be set when timer is active",
+                this.flags.intersects(Flags::LINGER | Flags::SHUTDOWN),
+                "shutdown or linger flag should be set when timer is active",
             );
 
-            // timed-out during shutdown; drop connection
             if timer.as_mut().poll(cx).is_ready() {
-                trace!("timed-out during shutdown");
-                return Err(DispatchError::DisconnectTimeout);
+                if this.flags.contains(Flags::LINGER) {
+                    trace!("timed-out during linger; shutting down connection");
+                    this.flags.remove(Flags::LINGER);
+                    this.flags.insert(Flags::SHUTDOWN);
+                    this.shutdown_timer.clear(line!());
+                } else {
+                    trace!("timed-out during shutdown");
+                    return Err(DispatchError::DisconnectTimeout);
+                }
             }
         }
 
         Ok(())
+    }
+
+    fn poll_graceful_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) {
+        let this = self.as_mut().project();
+
+        let notified = this
+            .graceful_shutdown
+            .as_mut()
+            .is_some_and(|signal| signal.as_mut().poll(cx).is_ready());
+
+        if notified {
+            *this.graceful_shutdown = None;
+            this.flags.remove(Flags::KEEP_ALIVE);
+            this.flags.insert(Flags::DRAINING);
+
+            if this.ka_timer.is_enabled() {
+                this.ka_timer.clear(line!());
+            }
+        }
     }
 
     /// Poll head, keep-alive, and disconnect timer.
@@ -961,23 +1353,14 @@ where
                 //
                 // A Request head too large to parse is only checked on `httparse::Status::Partial`.
 
-                match this.payload {
-                    // When dispatcher has a payload the responsibility of wake ups is shifted to
-                    // `h1::payload::Payload` unless the payload is needing a read, in which case it
-                    // might not have access to the waker and could result in the dispatcher
-                    // getting stuck until timeout.
-                    //
-                    // Reason:
-                    // Self wake up when there is payload would waste poll and/or result in
-                    // over read.
-                    //
-                    // Case:
-                    // When payload is (partial) dropped by user there is no need to do
-                    // read anymore. At this case read_buf could always remain beyond
-                    // MAX_BUFFER_SIZE and self wake up would be busy poll dispatcher and
-                    // waste resources.
-                    Some(ref p) if p.need_read(cx) != PayloadStatus::Read => {}
-                    _ => cx.waker().wake_by_ref(),
+                match this.payload.as_ref().map(|p| p.need_read(cx)) {
+                    // Payload consumer is alive but applying backpressure. Wait for its waker.
+                    Some(PayloadStatus::Pause) => {}
+
+                    // Consumer dropped means drain/discard mode; keep polling to make progress.
+                    Some(PayloadStatus::Dropped) | Some(PayloadStatus::Read) | None => {
+                        cx.waker().wake_by_ref()
+                    }
                 }
 
                 return Ok(false);
@@ -991,7 +1374,11 @@ where
 
             match tokio_util::io::poll_read_buf(io.as_mut(), cx, this.read_buf) {
                 Poll::Ready(Ok(n)) => {
-                    this.flags.remove(Flags::FINISHED);
+                    // When draining a dropped request payload, keep FINISHED set so the
+                    // disconnect/keep-alive decision can be made once the payload is fully drained.
+                    if !this.payload.as_ref().is_some_and(|pl| pl.is_dropped()) {
+                        this.flags.remove(Flags::FINISHED);
+                    }
 
                     if n == 0 {
                         return Ok(true);
@@ -1021,12 +1408,15 @@ where
 
     /// call upgrade service with request.
     fn upgrade(self: Pin<&mut Self>, req: Request) -> U::Future {
-        let this = self.project();
+        let mut this = self.project();
         let mut parts = FramedParts::with_read_buf(
             this.io.take().unwrap(),
             mem::take(this.codec),
             mem::take(this.read_buf),
         );
+
+        this.ensure_body_buffered();
+
         parts.write_buf = mem::take(this.write_buf);
         let framed = Framed::from_parts(parts);
         this.flow.upgrade.as_ref().unwrap().call((req, framed))
@@ -1076,9 +1466,18 @@ where
                     &inner.shutdown_timer,
                 );
 
+                inner.as_mut().poll_graceful_shutdown(cx);
                 inner.as_mut().poll_timers(cx)?;
 
-                let poll = if inner.flags.contains(Flags::SHUTDOWN) {
+                let poll = if inner.flags.contains(Flags::LINGER) {
+                    match inner.as_mut().poll_linger(cx)? {
+                        Poll::Ready(()) => {
+                            cx.waker().wake_by_ref();
+                            Poll::Pending
+                        }
+                        Poll::Pending => Poll::Pending,
+                    }
+                } else if inner.flags.contains(Flags::SHUTDOWN) {
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
                         Poll::Ready(Ok(()))
                     } else {
@@ -1118,6 +1517,7 @@ where
                         let inner = inner.as_mut().project();
                         inner.flags.insert(Flags::READ_DISCONNECT);
                         if let Some(mut payload) = inner.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
                             payload.feed_eof();
                         }
                     };
@@ -1131,7 +1531,10 @@ where
                             PollResponse::DoNothing => {
                                 // KEEP_ALIVE is set in send_response_inner if client allows it
                                 // FINISHED is set after writing last chunk of response
-                                if inner.flags.contains(Flags::KEEP_ALIVE | Flags::FINISHED) {
+                                // A partial head uses its own deadline instead of the idle timeout.
+                                if inner.flags.contains(Flags::KEEP_ALIVE | Flags::FINISHED)
+                                    && !matches!(inner.head_timer, TimerState::Active { .. })
+                                {
                                     if let Some(timer) = inner.config.keep_alive_deadline() {
                                         inner.as_mut().project().ka_timer.set_and_init(
                                             cx,
@@ -1181,14 +1584,23 @@ where
                     let inner_p = inner.as_mut().project();
                     let state_is_none = inner_p.state.is_none();
 
-                    // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
+                    // If the read-half is closed, we start the shutdown procedure if either is
+                    // true:
+                    //
+                    // - state is [`State::None`], which means that we're done with request
+                    //   processing, so if the client closed its writer-side it means that it won't
+                    //   send more requests.
+                    // - The user requested to not allow half-closures
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT)
+                        && (!inner_p.config.h1_allow_half_closed() || state_is_none)
+                    {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
 
                     // keep-alive and stream errors
-                    if state_is_none && inner_p.write_buf.is_empty() {
+                    if state_is_none && inner_p.write_buf.is_empty() && inner_p.write_body.is_none()
+                    {
                         if let Some(err) = inner_p.error.take() {
                             error!("stream error: {}", &err);
                             return Poll::Ready(Err(err));
@@ -1197,6 +1609,7 @@ where
                         // disconnect if keep-alive is not enabled
                         if inner_p.flags.contains(Flags::FINISHED)
                             && !inner_p.flags.contains(Flags::KEEP_ALIVE)
+                            && inner_p.payload.is_none()
                         {
                             inner_p.flags.remove(Flags::FINISHED);
                             inner_p.flags.insert(Flags::SHUTDOWN);
@@ -1216,6 +1629,9 @@ where
                         inner_p.shutdown_timer,
                     );
 
+                    if inner_p.flags.intersects(Flags::LINGER | Flags::SHUTDOWN) {
+                        cx.waker().wake_by_ref();
+                    }
                     Poll::Pending
                 };
 
@@ -1225,6 +1641,65 @@ where
             }
         }
     }
+}
+
+#[derive(Debug)]
+enum ChunkDisposition {
+    /// The chunk is stored in `write_body` for direct writing.
+    WriteDirectly,
+
+    /// The caller must encode this chunk into `write_buf`.
+    NeedsBuffering(Bytes),
+}
+
+/// Stores a large chunk of a fixed-length body in `write_body` without copying it into `write_buf`.
+///
+/// Returns `WriteDirectly` if the chunk was stored, or `NeedsBuffering(chunk)` for the caller to encode
+/// into `write_buf`.
+///
+/// Chunks smaller than `min_len` are always buffered. Connections without vectored writes also use
+/// the buffer, so the head and body can be passed to the I/O in one write.
+///
+/// Uniquely owned chunks with spare capacity are also buffered. For example, the `String` produced
+/// by JSON serialization can have more capacity than the body needs. Copying its contents into
+/// `write_buf` lets the original allocation be freed instead of retaining that spare capacity while
+/// the body is pending.
+fn prepare_chunk(
+    codec: &mut Codec,
+    write_body: &mut Option<Bytes>,
+    write_vectored: bool,
+    min_len: usize,
+    chunk: Bytes,
+) -> ChunkDisposition {
+    if chunk.len() < min_len || !write_vectored {
+        return ChunkDisposition::NeedsBuffering(chunk);
+    }
+
+    let chunk = match chunk.try_into_mut() {
+        Ok(buf) if buf.capacity() > buf.len() => {
+            return ChunkDisposition::NeedsBuffering(buf.freeze());
+        }
+        Ok(buf) => buf.freeze(),
+        Err(chunk) => chunk,
+    };
+
+    match codec.encoder.try_take_chunk(&chunk) {
+        Some(body) => {
+            *write_body = Some(body);
+            ChunkDisposition::WriteDirectly
+        }
+        None => ChunkDisposition::NeedsBuffering(chunk),
+    }
+}
+
+fn should_close_for_unread_payload(
+    payload: Option<&PayloadSender>,
+    payload_drainable: bool,
+) -> bool {
+    let payload_unfinished = payload.is_some();
+    let drain_payload = payload.is_some_and(|pl| pl.is_dropped()) && payload_drainable;
+
+    payload_unfinished && !drain_payload
 }
 
 #[allow(dead_code)]
@@ -1248,3 +1723,11 @@ fn trace_timer_states(
         trace!("  shutdown {}", &shutdown_timer);
     }
 }
+
+#[cfg(test)]
+#[path = "dispatcher_tests.rs"]
+mod dispatcher_tests;
+
+#[cfg(test)]
+#[path = "dispatcher_buffer_tests.rs"]
+mod buffer_tests;

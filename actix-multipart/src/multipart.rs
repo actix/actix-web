@@ -11,7 +11,7 @@ use actix_web::{
     dev,
     error::{ParseError, PayloadError},
     http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
-    web::Bytes,
+    web::{self, Bytes},
     HttpRequest,
 };
 use futures_core::stream::Stream;
@@ -19,8 +19,8 @@ use mime::Mime;
 
 use crate::{
     error::Error,
-    field::InnerField,
-    payload::{PayloadBuffer, PayloadRef},
+    field::{BoundarySearch, InnerField},
+    payload::{PayloadBuffer, PayloadRef, DEFAULT_BUFFER_LIMIT},
     safety::Safety,
     Field,
 };
@@ -44,6 +44,46 @@ enum Flow {
     Error(Option<Error>),
 }
 
+/// [`Multipart`] extractor configuration.
+///
+/// Add to your app data to have it picked up by [`Multipart`] extractors.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct MultipartConfig {
+    buffer_limit: usize,
+}
+
+impl MultipartConfig {
+    /// Creates a default multipart extractor configuration.
+    pub fn new() -> Self {
+        DEFAULT_CONFIG
+    }
+
+    /// Sets maximum internal parser buffer size. By default this limit is 64 KiB.
+    pub fn buffer_limit(mut self, buffer_limit: usize) -> Self {
+        self.buffer_limit = buffer_limit;
+        self
+    }
+
+    /// Extracts multipart config from app data. Check both `T` and `Data<T>`, in that order, and
+    /// fall back to the default multipart config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
+}
+
+const DEFAULT_CONFIG: MultipartConfig = MultipartConfig {
+    buffer_limit: DEFAULT_BUFFER_LIMIT,
+};
+
+impl Default for MultipartConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Multipart {
     /// Creates multipart instance from parts.
     pub fn new<S>(headers: &HeaderMap, stream: S) -> Self
@@ -58,8 +98,15 @@ impl Multipart {
 
     /// Creates multipart instance from parts.
     pub(crate) fn from_req(req: &HttpRequest, payload: &mut dev::Payload) -> Self {
+        let config = MultipartConfig::from_req(req);
+
         match Self::find_ct_and_boundary(req.headers()) {
-            Ok((ct, boundary)) => Self::from_ct_and_boundary(ct, boundary, payload.take()),
+            Ok((ct, boundary)) => Self::from_ct_and_boundary_with_buffer_limit(
+                ct,
+                boundary,
+                payload.take(),
+                config.buffer_limit,
+            ),
             Err(err) => Self::from_error(err),
         }
     }
@@ -84,6 +131,10 @@ impl Multipart {
             .as_str()
             .to_owned();
 
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         Ok((content_type, boundary))
     }
 
@@ -92,10 +143,27 @@ impl Multipart {
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
+        Self::from_ct_and_boundary_with_buffer_limit(
+            ct,
+            boundary,
+            stream,
+            DEFAULT_CONFIG.buffer_limit,
+        )
+    }
+
+    fn from_ct_and_boundary_with_buffer_limit<S>(
+        ct: Mime,
+        boundary: String,
+        stream: S,
+        buffer_limit: usize,
+    ) -> Multipart
+    where
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+    {
         Multipart {
             safety: Safety::new(),
             flow: Flow::InFlight(Inner {
-                payload: PayloadRef::new(PayloadBuffer::new(stream)),
+                payload: PayloadRef::new(PayloadBuffer::new_with_limit(stream, buffer_limit)),
                 content_type: ct,
                 boundary,
                 state: State::FirstBoundary,
@@ -118,7 +186,7 @@ impl Multipart {
             Flow::InFlight(ref inner) => Ok(inner.content_type.clone()),
             Flow::Error(ref mut err) => Err(err
                 .take()
-                .expect("error should not be taken after it was returned")),
+                .expect("Error should not be taken after it was returned")),
         }
     }
 }
@@ -229,17 +297,23 @@ impl Inner {
     ///
     /// ```plain
     /// --foo    <-- in-between fields
-    /// --foo--  <-- end of request body, should be followed by EOF
+    /// --foo--  <-- final boundary; an epilogue may follow its CRLF
     /// ```
     ///
     /// Returns:
     ///
-    /// - `Ok(Some(true))` - final field boundary read (EOF)
+    /// - `Ok(Some(true))` - final field boundary read
     /// - `Ok(Some(false))` - field boundary read
     /// - `Ok(None)` - boundary not found, more data needs reading
     /// - `Err(BoundaryMissing)` - multipart boundary is missing
     fn read_boundary(payload: &mut PayloadBuffer, boundary: &str) -> Result<Option<bool>, Error> {
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         // TODO: need to read epilogue
+        // Read a complete line, or the remaining bytes at EOF. A partial line must wait
+        // for more input while the stream is open. Examples: b"--foo \t\r\n", b"--foo-- \t".
         let chunk = match payload.readline_or_eof()? {
             // TODO: this might be okay as a let Some() else return Ok(None)
             None => return Ok(payload.eof.then_some(true)),
@@ -249,34 +323,32 @@ impl Inner {
         const BOUNDARY_MARKER: &[u8] = b"--";
         const LINE_BREAK: &[u8] = b"\r\n";
 
-        let boundary_len = boundary.len();
-
-        if chunk.len() < boundary_len + 2 + 2
-            || !chunk.starts_with(BOUNDARY_MARKER)
-            || &chunk[2..boundary_len + 2] != boundary.as_bytes()
-        {
+        // Remove the leading "--", shared by intermediate and closing delimiters.
+        // For example, b"--foo-- \t\r\n" becomes b"foo-- \t\r\n".
+        let Some(chunk) = chunk.as_ref().strip_prefix(BOUNDARY_MARKER) else {
             return Err(Error::BoundaryMissing);
+        };
+
+        // Remove the boundary value. For "foo", the remaining suffix is now
+        // b" \t\r\n" (intermediate) or b"-- \t\r\n" (closing), for example.
+        let Some(chunk) = chunk.strip_prefix(boundary.as_bytes()) else {
+            return Err(Error::BoundaryMissing);
+        };
+
+        // An intermediate delimiter requires CRLF, preceded only by optional spaces/tabs.
+        // For b" \t\r\n", removing CRLF and padding leaves an empty slice.
+        if let Some(padding) = chunk.strip_suffix(LINE_BREAK) {
+            if trim_transport_padding(padding).is_empty() {
+                return Ok(Some(false));
+            }
         }
 
-        // chunk facts:
-        // - long enough to contain boundary + 2 markers or 1 marker and line-break
-        // - starts with boundary marker
-        // - chunk contains correct boundary
+        // The original suffix is unchanged by the intermediate-delimiter check above.
+        // A closing delimiter may omit CRLF at EOF: b"-- \t\r\n" or b"-- \t".
+        let chunk = chunk.strip_suffix(LINE_BREAK).unwrap_or(chunk);
 
-        if &chunk[boundary_len + 2..] == LINE_BREAK {
-            // boundary is followed by line-break, indicating more fields to come
-            return Ok(Some(false));
-        }
-
-        // boundary is followed by marker
-        if &chunk[boundary_len + 2..boundary_len + 4] == BOUNDARY_MARKER
-            && (
-                // chunk is exactly boundary len + 2 markers
-                chunk.len() == boundary_len + 2 + 2
-                // final boundary is allowed to end with a line-break
-                || &chunk[boundary_len + 4..] == LINE_BREAK
-            )
-        {
+        // After removing padding, only the closing "--" may remain.
+        if trim_transport_padding(chunk) == BOUNDARY_MARKER {
             return Ok(Some(true));
         }
 
@@ -287,7 +359,12 @@ impl Inner {
         payload: &mut PayloadBuffer,
         boundary: &str,
     ) -> Result<Option<bool>, Error> {
+        if boundary.is_empty() {
+            return Err(Error::BoundaryMissing);
+        }
+
         let mut eof = false;
+        let boundary = boundary.as_bytes();
 
         loop {
             match payload.readline()? {
@@ -295,19 +372,18 @@ impl Inner {
                     if chunk.is_empty() {
                         return Err(Error::BoundaryMissing);
                     }
-                    if chunk.len() < boundary.len() {
+
+                    let Some(line) = chunk.as_ref().strip_suffix(b"\r\n") else {
                         continue;
-                    }
-                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes() {
-                        break;
-                    } else {
-                        if chunk.len() < boundary.len() + 2 {
-                            continue;
+                    };
+                    let line = trim_transport_padding(line);
+
+                    if let Some(line) = line.strip_prefix(b"--") {
+                        if line == boundary {
+                            break;
                         }
-                        let b: &[u8] = boundary.as_ref();
-                        if &chunk[..boundary.len()] == b
-                            && &chunk[boundary.len()..boundary.len() + 2] == b"--"
-                        {
+
+                        if line.strip_suffix(b"--") == Some(boundary) {
                             eof = true;
                             break;
                         }
@@ -445,8 +521,12 @@ impl Inner {
                 }
             }
 
-            let field_inner =
-                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &field_headers)?;
+            let field_inner = InnerField::new_in_rc(
+                self.payload.clone(),
+                self.boundary.clone(),
+                BoundarySearch::new(&self.boundary, field_content_type.as_ref()),
+                &field_headers,
+            )?;
 
             self.item = Item::Field(Rc::clone(&field_inner));
 
@@ -467,6 +547,16 @@ impl Drop for Inner {
         // InnerMultipartItem::Field has to be dropped first because of Safety.
         self.item = Item::None;
     }
+}
+
+/// Strips the transport padding (spaces and tabs) that RFC 2046 §5.1.1 allows between a boundary
+/// delimiter and the line-break that ends it.
+fn trim_transport_padding(line: &[u8]) -> &[u8] {
+    let end = line
+        .iter()
+        .rposition(|&b| b != b' ' && b != b'\t')
+        .map_or(0, |i| i + 1);
+    &line[..end]
 }
 
 #[cfg(test)]
@@ -491,7 +581,7 @@ mod tests {
 
     const BOUNDARY: &str = "abbc761f78ff4d7cb7573b5a23f96ef0";
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_boundary() {
         let headers = HeaderMap::new();
         match Multipart::find_ct_and_boundary(&headers) {
@@ -589,11 +679,226 @@ mod tests {
         (bytes, headers)
     }
 
-    #[actix_rt::test]
+    fn create_header(content_type: &'static str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(content_type),
+        );
+        headers
+    }
+
+    fn create_multipart_with_buffer_limit(
+        body: impl Stream<Item = Result<Bytes, PayloadError>> + 'static,
+        buffer_limit: usize,
+    ) -> Multipart {
+        Multipart::from_ct_and_boundary_with_buffer_limit(
+            "multipart/mixed; boundary=\"a\"".parse().unwrap(),
+            "a".to_owned(),
+            body,
+            buffer_limit,
+        )
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn empty_boundary_does_not_panic() {
+        let payload = stream::once(async { Ok(Bytes::from_static(b"\n")) });
+        let ct = "multipart/mixed; boundary=\"a\"".parse().unwrap();
+
+        let mut multipart = Multipart::from_ct_and_boundary(ct, String::new(), payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::BoundaryMissing));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn short_line_with_one_byte_boundary_does_not_panic() {
+        let bytes = Bytes::from_static(b"\n");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/mixed; boundary=\"a\""),
+        );
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::Incomplete));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn short_final_boundary_with_one_byte_boundary_does_not_panic() {
+        let bytes = Bytes::from_static(b"--\n");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/mixed; boundary=\"a\""),
+        );
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(res, Err(Error::Incomplete));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn one_byte_boundary_parses_valid_body() {
+        let bytes = Bytes::from_static(
+            b"preamble\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            one\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            two\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "one");
+        drop(field);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "two");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn one_byte_boundary_parses_when_split_across_chunks() {
+        let bytes = Bytes::from_static(
+            b"x\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 4\r\n\
+            \r\n\
+            data\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "data");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn short_preamble_lines_before_boundary_are_skipped() {
+        let bytes = Bytes::from_static(
+            b"\n\
+            -\r\n\
+            --a\r\n\
+            Content-Type: text/plain\r\n\
+            Content-Length: 4\r\n\
+            \r\n\
+            data\r\n\
+            --a--\r\n",
+        );
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+
+        let mut field = multipart.next().await.unwrap().unwrap();
+        assert_eq!(get_whole_field(&mut field).await, "data");
+        drop(field);
+
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn first_boundary_can_be_final() {
+        let bytes = Bytes::from_static(b"--a--\r\n");
+        let headers = create_header("multipart/mixed; boundary=\"a\"");
+        let payload = stream::once(async { Ok(bytes) });
+
+        let mut multipart = Multipart::new(&headers, payload);
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn malformed_preamble_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [b"aaaaaaaa", b"bbbbbbbb", b"cccccccc"].map(|chunk| Ok(Bytes::from_static(chunk))),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 16);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn malformed_headers_over_buffer_limit_errors() {
+        let body = stream::iter(
+            [
+                Bytes::from_static(b"--a\r\n"),
+                Bytes::from_static(b"X-Long: 12345678"),
+                Bytes::from_static(b"9012345678901234"),
+                Bytes::from_static(b"5678901234567890"),
+            ]
+            .map(Ok),
+        );
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 24);
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn raw_extractor_uses_configured_buffer_limit() {
+        let (req, mut payload) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "multipart/mixed; boundary=\"a\""))
+            .app_data(MultipartConfig::default().buffer_limit(16))
+            .set_payload(Bytes::from_static(b"aaaaaaaabbbbbbbbcccccccc"))
+            .to_http_parts();
+
+        let mut multipart = Multipart::from_request(&req, &mut payload).await.unwrap();
+        let res = multipart.next().await.unwrap();
+
+        assert_matches!(res, Err(Error::Payload(PayloadError::Overflow)));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn valid_large_field_streams_through_small_parser_buffer() {
+        let mut bytes = BytesMut::new();
+        bytes.put(&b"--a\r\nContent-Length: 100\r\n\r\n"[..]);
+        bytes.put(&[b'x'; 100][..]);
+        bytes.put(&b"\r\n--a--\r\n"[..]);
+        let body = stream::once(async { Ok(bytes.freeze()) });
+
+        let mut multipart = create_multipart_with_buffer_limit(body, 32);
+        let mut field = multipart.next().await.unwrap().unwrap();
+
+        assert_eq!(
+            get_whole_field(&mut field).await,
+            Bytes::from(vec![b'x'; 100])
+        );
+        drop(field);
+        assert!(multipart.next().await.is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
         let (mut bytes, headers) = create_double_request_with_header();
-        let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
+        let bytes_stripped = bytes.split_to(bytes.len() - 2); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
         drop(sender); // eof
@@ -616,7 +921,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_multipart() {
         let (sender, payload) = create_stream();
         let (bytes, headers) = create_double_request_with_header();
@@ -668,6 +973,37 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "local")]
+    async fn test_multipart_transport_padding() {
+        let (sender, payload) = create_stream();
+        let bytes = Bytes::from(
+            "--abbc761f78ff4d7cb7573b5a23f96ef0  \r\n\
+             Content-Disposition: form-data; name=\"first\"\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\t\r\n\
+             Content-Disposition: form-data; name=\"second\"\r\n\r\n\
+             data\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0-- \t\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        sender.send(Ok(bytes)).unwrap();
+        drop(sender); // eof
+
+        let mut multipart = Multipart::new(&headers, payload);
+        for (name, data) in [("first", "test"), ("second", "data")] {
+            let mut field = multipart.next().await.unwrap().unwrap();
+            assert_eq!(field.name(), Some(name));
+            assert_eq!(get_whole_field(&mut field).await, data);
+        }
+        assert!(multipart.next().await.is_none());
+    }
+
     // Loops, collecting all bytes until end-of-field
     async fn get_whole_field(field: &mut Field) -> BytesMut {
         let mut b = BytesMut::new();
@@ -680,7 +1016,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_stream() {
         let (bytes, headers) = create_double_request_with_header();
         let payload = stream::iter(bytes)
@@ -718,14 +1054,14 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_multipart_from_error() {
         let err = Error::ContentTypeMissing;
         let mut multipart = Multipart::from_error(err);
         assert!(multipart.next().await.unwrap().is_err())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_multipart_from_boundary() {
         let (_, payload) = create_stream();
         let (_, headers) = create_simple_request_with_header();
@@ -733,10 +1069,10 @@ mod tests {
         let _ = Multipart::from_ct_and_boundary(ct, boundary, payload);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = h1::Payload::create(false);
+        let (_sender, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 
@@ -751,7 +1087,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn no_content_disposition_form_data() {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
@@ -783,7 +1119,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn no_content_disposition_non_form_data() {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
@@ -810,7 +1146,7 @@ mod tests {
         res.unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn no_name_in_form_data_content_disposition() {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
@@ -841,7 +1177,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_multipart_dont_hang() {
         let (sender, payload) = create_stream();
         let (bytes, headers) = create_simple_request_with_header();
@@ -860,7 +1196,7 @@ mod tests {
         };
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_field_awaken_multipart() {
         let (sender, payload) = create_stream();
         let (bytes, headers) = create_double_request_with_header();

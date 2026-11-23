@@ -9,7 +9,8 @@ use std::{
 
 use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
-use actix_utils::future::{ok, Either, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Either, Ready};
 use futures_core::ready;
 use mime::Mime;
 use once_cell::sync::Lazy;
@@ -61,7 +62,7 @@ use crate::{
 /// use actix_web::{middleware, http::header, web, App, HttpResponse, Responder};
 ///
 /// async fn index_handler() -> actix_web::Result<impl Responder> {
-///     Ok(actix_files::NamedFile::open_async("./assets/index.html.gz").await?
+///     Ok(actix_files::NamedFile::open("./assets/index.html.gz")?
 ///         .customize()
 ///         .insert_header(header::ContentEncoding::Gzip))
 /// }
@@ -76,6 +77,7 @@ use crate::{
 #[non_exhaustive]
 pub struct Compress;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
     B: MessageBody,
@@ -88,7 +90,7 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware { service })
+        ready(Ok(CompressMiddleware { service }))
     }
 }
 
@@ -96,6 +98,7 @@ pub struct CompressMiddleware<S> {
     service: S,
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -137,10 +140,10 @@ where
                 res.headers_mut()
                     .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
 
-                Either::right(ok(req
+                Either::right(ready(Ok(req
                     .into_response(res)
                     .map_into_boxed_body()
-                    .map_into_right_body()))
+                    .map_into_right_body())))
             }
 
             Some(encoding) => Either::left(CompressResponse {
@@ -297,9 +300,9 @@ mod tests {
         assert!(
             res.headers()
                 .get(header::CONTENT_TYPE)
-                .expect("content-type header should be present")
+                .expect("Content-type header should be present")
                 .to_str()
-                .expect("content-type header should be utf-8")
+                .expect("Content-type header should be utf-8")
                 .contains(ct),
             "response's content-type did not match {}",
             ct
@@ -312,7 +315,7 @@ mod tests {
         assert_eq!(
             res.headers()
                 .get(header::CONTENT_ENCODING)
-                .expect("response should be gzip compressed"),
+                .expect("Response should be gzip compressed"),
             "gzip",
         );
     }
@@ -326,7 +329,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_double_compressing() {
         let app = test::init_service({
             App::new()
@@ -367,7 +370,7 @@ mod tests {
         assert_eq!(gzip_decode(bytes), TEXT_DATA.as_bytes());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn retains_previously_set_vary_header() {
         let app = test::init_service({
             App::new()
@@ -410,7 +413,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_jpeg() {
         let app = test::init_service(
             App::new()
@@ -432,7 +435,7 @@ mod tests {
         assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_empty() {
         let app = test::init_service({
             App::new()
@@ -449,6 +452,29 @@ mod tests {
         assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
         assert!(test::read_body(res).await.is_empty());
     }
+
+    #[tokio::test(flavor = "local")]
+    async fn skips_compression_partial_content() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(|| {
+                    HttpResponse::PartialContent()
+                        .insert_header((header::CONTENT_TYPE, "text/plain"))
+                        .insert_header((header::CONTENT_RANGE, "bytes 0-10/100"))
+                        .body(TEXT_DATA)
+                }))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
+    }
 }
 
 #[cfg(feature = "compress-brotli")]
@@ -457,7 +483,7 @@ mod tests_brotli {
     use super::*;
     use crate::{test, web, App};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn prevents_compression_empty() {
         let app = test::init_service({
             App::new()

@@ -1,13 +1,17 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
-    fmt, net,
+    cell::{Cell, Ref, RefCell, RefMut},
+    collections::HashMap,
+    fmt,
+    hash::{BuildHasher, Hash},
+    net,
     rc::Rc,
     str,
 };
 
 use actix_http::{Message, RequestHead};
 use actix_router::{Path, Url};
-use actix_utils::future::{ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
@@ -26,6 +30,9 @@ use crate::{
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+#[cfg(feature = "cookies")]
+struct RawCookies(Vec<Cookie<'static>>);
+
 /// An incoming request.
 #[derive(Clone)]
 pub struct HttpRequest {
@@ -39,6 +46,8 @@ pub struct HttpRequest {
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    pub(crate) resource_path: SmallVec<[u16; 4]>,
+    pub(crate) resource_path_matched: bool,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
     pub(crate) extensions: Rc<RefCell<Extensions>>,
@@ -62,6 +71,8 @@ impl HttpRequest {
             inner: Rc::new(HttpRequestInner {
                 head,
                 path,
+                resource_path: SmallVec::new(),
+                resource_path_matched: false,
                 app_state,
                 app_data: data,
                 conn_data,
@@ -79,7 +90,10 @@ impl HttpRequest {
     }
 
     /// This method returns mutable reference to the request head.
-    /// panics if multiple references of HTTP request exists.
+    ///
+    /// # Panics
+    ///
+    /// Panics if multiple references of HTTP request exists.
     #[inline]
     pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
         &mut Rc::get_mut(&mut self.inner).unwrap().head
@@ -95,6 +109,12 @@ impl HttpRequest {
     ///
     /// Reconstructed URL is best-effort, using [`connection_info`](HttpRequest::connection_info())
     /// to get forwarded scheme & host.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the reconstructed URL cannot be parsed, such as when the host is malformed.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use actix_web::test::TestRequest;
@@ -177,6 +197,26 @@ impl HttpRequest {
         &mut Rc::get_mut(&mut self.inner).unwrap().path
     }
 
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path.push(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        Rc::get_mut(&mut self.inner).unwrap().resource_path_matched = is_matched;
+    }
+
+    #[inline]
+    pub(crate) fn resource_path(&self) -> &[u16] {
+        &self.inner.resource_path
+    }
+
+    #[inline]
+    pub(crate) fn is_resource_path_matched(&self) -> bool {
+        self.inner.resource_path_matched
+    }
+
     /// The resource definition pattern that matched the path. Useful for logging and metrics.
     ///
     /// For example, when a resource with pattern `/user/{id}/profile` is defined and a call is made
@@ -185,6 +225,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
+        if self.is_resource_path_matched() {
+            if let Some(pattern) = self
+                .resource_map()
+                .match_pattern_by_resource_path(self.resource_path())
+            {
+                return Some(pattern);
+            }
+        }
+
         self.resource_map().match_pattern(self.path())
     }
 
@@ -193,6 +242,15 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
+        if self.is_resource_path_matched() {
+            if let Some(name) = self
+                .resource_map()
+                .match_name_by_resource_path(self.resource_path())
+            {
+                return Some(name);
+            }
+        }
+
         self.resource_map().match_name(self.path())
     }
 
@@ -240,6 +298,76 @@ impl HttpRequest {
         I: AsRef<str>,
     {
         self.resource_map().url_for(self, name, elements)
+    }
+
+    /// Generates URL for a named resource using a map of dynamic segment values.
+    ///
+    /// This substitutes URL parameters by name from `elements`, including parameters from parent
+    /// scopes.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one", "1");
+    ///     params.insert("two", "2");
+    ///     let url = req.url_for_map("foo", &params); // <- generate URL for "foo" resource
+    ///     HttpResponse::Ok().into()
+    /// }
+    ///
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for_map`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
+    /// ```
+    pub fn url_for_map<K, V, S>(
+        &self,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        self.resource_map().url_for_map(self, name, elements)
+    }
+
+    /// Generates URL for a named resource using an iterator of key-value pairs.
+    ///
+    /// This is a convenience wrapper around [`HttpRequest::url_for_map`].
+    ///
+    /// Note: passing a borrowed map (e.g. `&HashMap<String, String>`) directly does not satisfy the
+    /// trait bounds because the iterator yields `(&String, &String)`. Prefer `url_for_map` for
+    /// borrowed maps, or map entries to `&str`:
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut params = HashMap::new();
+    ///     params.insert("one".to_string(), "1".to_string());
+    ///     params.insert("two".to_string(), "2".to_string());
+    ///
+    ///     let iter = params.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+    ///     let url = req.url_for_iter("foo", iter);
+    ///     HttpResponse::Ok().into()
+    /// }
+    /// ```
+    pub fn url_for_iter<K, V, I>(
+        &self,
+        name: &str,
+        elements: I,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: std::borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+    {
+        self.resource_map().url_for_iter(self, name, elements)
     }
 
     /// Generate URL for named resource
@@ -340,7 +468,56 @@ impl HttpRequest {
         &self.inner.app_state
     }
 
+    /// Returns request cookies with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_0_18(&self) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse_encoded)
+    }
+
+    /// Returns request cookies with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_raw_0_18(
+        &self,
+    ) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse)
+    }
+
+    /// Returns the named request cookie with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.cookies_0_18()
+            .ok()?
+            .into_iter()
+            .find(|cookie| cookie.name() == name)
+    }
+
+    /// Returns the named request cookie with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_raw_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.cookies_raw_0_18()
+            .ok()?
+            .into_iter()
+            .find(|cookie| cookie.name() == name)
+    }
+
+    #[cfg(feature = "cookies-0_18")]
+    fn parse_cookies_0_18<'a>(
+        &'a self,
+        parse: impl Fn(&'a str) -> cookie_0_18::SplitCookies<'a>,
+    ) -> Result<Vec<cookie_0_18::Cookie<'a>>, cookie_0_18::ParseError> {
+        let mut cookies = Vec::new();
+        for header in self.headers().get_all(actix_http::header::COOKIE) {
+            cookies.extend(parse(str::from_utf8(header.as_bytes())?).flatten());
+        }
+        Ok(cookies)
+    }
+
     /// Load request cookies.
+    ///
+    /// The names and values of cookies are percent-decoded.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::header::COOKIE;
@@ -349,9 +526,9 @@ impl HttpRequest {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                for cookie_str in s.split(';').map(|s| s.trim()) {
-                    if !cookie_str.is_empty() {
-                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse_encoded(cookie_str) {
+                        cookies.push(cookie.into_owned());
                     }
                 }
             }
@@ -363,16 +540,49 @@ impl HttpRequest {
         }))
     }
 
+    /// Load request cookies **without** percent-decoding their names and values.
+    ///
+    /// Any cookie that cannot be parsed is omitted from the result.
+    /// This includes cookies with an empty name (e.g. `document.cookie = "=value"`).
+    #[cfg(feature = "cookies")]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::header::COOKIE;
+
+        if self.extensions().get::<RawCookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    if let Ok(cookie) = Cookie::parse(cookie_str) {
+                        cookies.push(cookie.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(RawCookies(cookies));
+        }
+
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<RawCookies>().unwrap().0
+        }))
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
-            for cookie in cookies.iter() {
-                if cookie.name() == name {
-                    return Some(cookie.to_owned());
-                }
-            }
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
         }
+
+        None
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies_raw() {
+            return cookies.iter().find(|cookie| cookie.name() == name).cloned();
+        }
+
         None
     }
 }
@@ -447,13 +657,14 @@ impl Drop for HttpRequest {
 ///         web::get().to(index))
 /// );
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for HttpRequest {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.clone())
+        ready(Ok(req.clone()))
     }
 }
 
@@ -504,6 +715,7 @@ impl fmt::Debug for HttpRequest {
 /// The pool's default capacity is 128 items.
 pub(crate) struct HttpRequestPool {
     inner: RefCell<Vec<Rc<HttpRequestInner>>>,
+    enabled: Cell<bool>,
     cap: usize,
 }
 
@@ -517,6 +729,7 @@ impl HttpRequestPool {
     pub(crate) fn with_capacity(cap: usize) -> Self {
         HttpRequestPool {
             inner: RefCell::new(Vec::with_capacity(cap)),
+            enabled: Cell::new(true),
             cap,
         }
     }
@@ -533,7 +746,7 @@ impl HttpRequestPool {
     /// Check if the pool still has capacity for request storage.
     #[inline]
     pub(crate) fn is_available(&self) -> bool {
-        self.inner.borrow_mut().len() < self.cap
+        self.enabled.get() && self.inner.borrow().len() < self.cap
     }
 
     /// Push a request to pool.
@@ -542,19 +755,23 @@ impl HttpRequestPool {
         self.inner.borrow_mut().push(req);
     }
 
-    /// Clears all allocated HttpRequest objects.
-    pub(crate) fn clear(&self) {
-        self.inner.borrow_mut().clear()
+    /// Prevents future requests from being returned to the pool and clears existing entries.
+    pub(crate) fn disable(&self) {
+        self.enabled.set(false);
+        self.inner.borrow_mut().clear();
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, sync::Arc};
+
     use bytes::Bytes;
 
     use super::*;
     use crate::{
         dev::{ResourceDef, Service},
+        guard,
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
@@ -603,6 +820,65 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=hello%20world"))
+            .append_header((header::COOKIE, "cookie2=%db"))
+            .to_http_request();
+        {
+            let cookies = req.cookies_raw().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "hello%20world");
+            assert_eq!(cookies[1].name(), "cookie2");
+            assert_eq!(cookies[1].value(), "%db");
+        }
+
+        let cookie = req.cookie_raw("cookie1");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie1");
+        assert_eq!(cookie.value(), "hello%20world");
+
+        let cookie = req.cookie_raw("cookie2");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie2");
+        assert_eq!(cookie.value(), "%db");
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_request_cookies_raw_is_independent_from_encoded_cookies() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie=%20"))
+            .to_http_request();
+
+        let cookie = req.cookie("cookie").unwrap();
+        assert_eq!(cookie.value(), " ");
+
+        let raw_cookie = req.cookie_raw("cookie").unwrap();
+        assert_eq!(raw_cookie.value(), "%20");
+    }
+
+    #[test]
+    #[cfg(feature = "cookies")]
+    fn test_empty_key() {
+        let req = TestRequest::default()
+            .append_header((header::COOKIE, "cookie1=value1; value2; cookie3=value3"))
+            .to_http_request();
+        {
+            let cookies = req.cookies().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "value1");
+            assert_eq!(cookies[1].name(), "cookie3");
+            assert_eq!(cookies[1].value(), "value3");
+        }
+    }
+
+    #[test]
     fn test_request_query() {
         let req = TestRequest::with_uri("/?id=test").to_http_request();
         assert_eq!(req.query_string(), "id=test");
@@ -636,6 +912,59 @@ mod tests {
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
         );
+    }
+
+    #[test]
+    fn test_url_for_map() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let mut params = HashMap::new();
+        params.insert("name", "test");
+        params.insert("ext", "html");
+
+        let url = req.url_for_map("index", &params);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        params.remove("ext");
+        assert_eq!(
+            req.url_for_map("index", &params),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
+    }
+
+    #[test]
+    fn test_url_for_iter() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        res.set_name("index");
+
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
+        rmap.add(&mut res, None);
+
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.actix.rs"))
+            .rmap(rmap)
+            .to_http_request();
+
+        let url = req.url_for_iter("index", [("ext", "html"), ("name", "test")]);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.actix.rs/user/test.html"
+        );
+
+        let url = req.url_for_iter("index", [("name", "test")]);
+        assert_eq!(url, Err(UrlGenerationError::NotEnoughElements));
     }
 
     #[test]
@@ -694,7 +1023,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_http_request_pool() {
         let srv = init_service(
             App::new().service(web::resource("/").to(|req: HttpRequest| {
@@ -713,7 +1042,42 @@ mod tests {
         assert_eq!(resp.headers().get("pool_cap").unwrap(), "128");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn test_request_dropped_after_service_does_not_reenter_pool() {
+        struct State {
+            _data: Arc<String>,
+        }
+
+        let (weak_data, app_data) = {
+            let data = Arc::new("data".to_owned());
+            (Arc::downgrade(&data), web::Data::new(State { _data: data }))
+        };
+
+        let held_req = Rc::new(RefCell::new(None));
+
+        {
+            let held_req = Rc::clone(&held_req);
+            let srv = init_service(App::new().app_data(app_data).service(web::resource("/").to(
+                move |req: HttpRequest| {
+                    *held_req.borrow_mut() = Some(req.clone());
+                    HttpResponse::Ok()
+                },
+            )))
+            .await;
+
+            let resp = call_service(&srv, TestRequest::default().to_request()).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+
+            drop(resp);
+            drop(srv);
+        }
+
+        assert!(weak_data.upgrade().is_some());
+        drop(held_req.borrow_mut().take());
+        assert!(weak_data.upgrade().is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_data() {
         let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
             |req: HttpRequest| {
@@ -746,7 +1110,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_cascading_data() {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
@@ -777,7 +1141,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"88"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_overwrite_data() {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
@@ -808,7 +1172,7 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_app_data_dropped() {
         struct Tracker {
             pub dropped: bool,
@@ -843,7 +1207,7 @@ mod tests {
         assert!(tracker.borrow().dropped);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn extract_path_pattern() {
         let srv = init_service(
             App::new().service(
@@ -872,7 +1236,45 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn extract_path_pattern_with_guards() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/widgets")
+                    .service(
+                        web::resource("/{id}")
+                            .name("get_widget")
+                            .guard(guard::Get())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/{id}".to_owned()));
+                                assert_eq!(req.match_name(), Some("get_widget"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    )
+                    .service(
+                        web::resource("/action")
+                            .name("widget_action")
+                            .guard(guard::Post())
+                            .to(|req: HttpRequest| {
+                                assert_eq!(req.match_pattern(), Some("/widgets/action".to_owned()));
+                                assert_eq!(req.match_name(), Some("widget_action"));
+                                HttpResponse::Ok().finish()
+                            }),
+                    ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/widgets/42").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::post().uri("/widgets/action").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn extract_path_pattern_complex() {
         let srv = init_service(
             App::new()
@@ -908,7 +1310,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn url_for_closest_named_resource() {
         // we mount the route named 'nested' on 2 different scopes, 'a' and 'b'
         let srv = test::init_service(

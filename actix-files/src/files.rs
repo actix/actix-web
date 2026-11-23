@@ -1,5 +1,7 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
+    ffi::{OsStr, OsString},
     fmt, io,
     path::{Path, PathBuf},
     rc::Rc,
@@ -37,10 +39,11 @@ use crate::{
 /// ```
 pub struct Files {
     mount_path: String,
-    directory: PathBuf,
+    directories: Vec<PathBuf>,
     index: Option<String>,
     show_index: bool,
     redirect_to_slash: bool,
+    with_permanent_redirect: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -49,6 +52,8 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    try_compressed: bool,
+    read_mode_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -60,10 +65,11 @@ impl fmt::Debug for Files {
 impl Clone for Files {
     fn clone(&self) -> Self {
         Self {
-            directory: self.directory.clone(),
+            directories: self.directories.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
+            with_permanent_redirect: self.with_permanent_redirect,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -73,7 +79,134 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
+            read_mode_threshold: self.read_mode_threshold,
         }
+    }
+}
+
+/// File serving root directories for [`Files`].
+///
+/// This type is used by [`Files::new`] to accept either one root directory or an ordered
+/// collection of root directories.
+#[derive(Debug)]
+pub struct FilesDirs(Vec<PathBuf>);
+
+impl FilesDirs {
+    fn canonicalize(self) -> Vec<PathBuf> {
+        self.0
+            .into_iter()
+            .map(|orig_dir| match orig_dir.canonicalize() {
+                Ok(canon_dir) => canon_dir,
+                Err(_) => {
+                    log::error!("Specified path is not a directory: {:?}", orig_dir);
+                    // Preserve original path so requests don't fall back to CWD.
+                    orig_dir
+                }
+            })
+            .collect()
+    }
+}
+
+impl From<&Path> for FilesDirs {
+    fn from(dir: &Path) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&PathBuf> for FilesDirs {
+    fn from(dir: &PathBuf) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<PathBuf> for FilesDirs {
+    fn from(dir: PathBuf) -> Self {
+        Self(vec![dir])
+    }
+}
+
+impl From<&str> for FilesDirs {
+    fn from(dir: &str) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&String> for FilesDirs {
+    fn from(dir: &String) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<String> for FilesDirs {
+    fn from(dir: String) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&OsStr> for FilesDirs {
+    fn from(dir: &OsStr) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<OsString> for FilesDirs {
+    fn from(dir: OsString) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<&OsString> for FilesDirs {
+    fn from(dir: &OsString) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<Box<Path>> for FilesDirs {
+    fn from(dir: Box<Path>) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl From<Cow<'_, Path>> for FilesDirs {
+    fn from(dir: Cow<'_, Path>) -> Self {
+        Self(vec![dir.into()])
+    }
+}
+
+impl<P, const N: usize> From<[P; N]> for FilesDirs
+where
+    P: Into<PathBuf>,
+{
+    fn from(dirs: [P; N]) -> Self {
+        Self(dirs.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<P, const N: usize> From<&[P; N]> for FilesDirs
+where
+    P: Clone + Into<PathBuf>,
+{
+    fn from(dirs: &[P; N]) -> Self {
+        Self(dirs.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<P> From<&[P]> for FilesDirs
+where
+    P: Clone + Into<PathBuf>,
+{
+    fn from(dirs: &[P]) -> Self {
+        Self(dirs.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<P> From<Vec<P>> for FilesDirs
+where
+    P: Into<PathBuf>,
+{
+    fn from(dirs: Vec<P>) -> Self {
+        Self(dirs.into_iter().map(Into::into).collect())
     }
 }
 
@@ -84,33 +217,38 @@ impl Files {
     /// The first argument (`mount_path`) is the root URL at which the static files are served.
     /// For example, `/assets` will serve files at `example.com/assets/...`.
     ///
-    /// The second argument (`serve_from`) is the location on disk at which files are loaded.
-    /// This can be a relative path. For example, `./` would serve files from the current
-    /// working directory.
+    /// The second argument (`serve_from`) is the location on disk that files are served from. This
+    /// can be a single path or an ordered collection of paths. Relative paths are resolved from the
+    /// current working directory.
+    ///
+    /// When multiple directories are provided, they are checked in order. The first directory that
+    /// can serve the requested path is used.
+    ///
+    /// Directory listings are generated from the first matching directory and are not merged across
+    /// roots. When [`Files::index_file()`] is configured, later roots are searched if an earlier
+    /// matching directory does not contain the index file.
+    ///
+    /// Empty root collections never match files; requests fall through to the default handler, or
+    /// return `404 Not Found` if none is configured.
     ///
     /// # Implementation Notes
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
+    /// If a `serve_from` path cannot be canonicalized at startup, an error is logged and the
+    /// original path is preserved. Requests will return `404 Not Found` until the path exists.
+    ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
     /// the number of server [workers](actix_web::HttpServer::workers), by default.
-    pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
-        let orig_dir = serve_from.into();
-        let dir = match orig_dir.canonicalize() {
-            Ok(canon_dir) => canon_dir,
-            Err(_) => {
-                log::error!("Specified path is not a directory: {:?}", orig_dir);
-                PathBuf::new()
-            }
-        };
-
+    pub fn new<T: Into<FilesDirs>>(mount_path: &str, serve_from: T) -> Files {
         Files {
             mount_path: mount_path.trim_end_matches('/').to_owned(),
-            directory: dir,
+            directories: serve_from.into().canonicalize(),
             index: None,
             show_index: false,
             redirect_to_slash: false,
+            with_permanent_redirect: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -119,6 +257,8 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            try_compressed: false,
+            read_mode_threshold: 0,
         }
     }
 
@@ -136,8 +276,19 @@ impl Files {
     /// Redirects to a slash-ended path when browsing a directory.
     ///
     /// By default never redirect.
+    ///
+    /// When multiple root directories are configured, a matching directory in an earlier root can
+    /// trigger a redirect before later roots are checked for a file at the same path.
     pub fn redirect_to_slash_directory(mut self) -> Self {
         self.redirect_to_slash = true;
+        self
+    }
+
+    /// Redirect with permanent redirect status code (308).
+    ///
+    /// By default redirect with temporary redirect status code (307).
+    pub fn with_permanent_redirect(mut self) -> Self {
+        self.with_permanent_redirect = true;
         self
     }
 
@@ -192,15 +343,34 @@ impl Files {
         self
     }
 
-    /// Set index file
+    /// Sets index file for directory requests.
     ///
-    /// Shows specific index file for directories instead of
-    /// showing files listing.
+    /// When a directory is requested, this value is appended to the directory's path on disk.
+    /// Therefore, the index file path is relative to the served directory (the `serve_from` path
+    /// passed to [`Files::new`]) and should not include the `serve_from` prefix.
+    ///
+    /// For example, to serve `./static/index.html` when mounting `Files::new("/", "./static")`,
+    /// configure it as `.index_file("index.html")` (not `.index_file("./static/index.html")`).
     ///
     /// If the index file is not found, files listing is shown as a fallback if
     /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
+        self
+    }
+
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
         self
     }
 
@@ -290,7 +460,7 @@ impl Files {
     ///     .index_file("index.html")
     ///     .default_handler(fn_service(|req: ServiceRequest| async {
     ///         let (req, _) = req.into_parts();
-    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let file = NamedFile::open("./static/404.html")?;
     ///         let res = file.into_response(&req);
     ///         Ok(ServiceResponse::new(req, res))
     ///     }));
@@ -314,6 +484,15 @@ impl Files {
     /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
     pub fn use_hidden_files(mut self) -> Self {
         self.hidden_files = true;
+        self
+    }
+
+    /// Attempts to search for a suitable pre-compressed version of a file on disk before falling
+    /// back to the uncompressed version.
+    ///
+    /// Currently, `.gz`, `.br`, and `.zst` files are supported.
+    pub fn try_compressed(mut self) -> Self {
+        self.try_compressed = true;
         self
     }
 }
@@ -356,7 +535,7 @@ impl ServiceFactory<ServiceRequest> for Files {
 
     fn new_service(&self, _: ()) -> Self::Future {
         let mut inner = FilesServiceInner {
-            directory: self.directory.clone(),
+            directories: self.directories.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
@@ -367,6 +546,9 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
+            size_threshold: self.read_mode_threshold,
+            with_permanent_redirect: self.with_permanent_redirect,
         };
 
         if let Some(ref default) = *self.default.borrow() {
@@ -396,7 +578,7 @@ mod tests {
 
     use super::*;
 
-    #[actix_web::test]
+    #[tokio::test(flavor = "local")]
     async fn custom_files_listing_renderer() {
         let srv = test::init_service(
             App::new().service(

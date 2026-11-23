@@ -2,11 +2,11 @@
 //!
 //! # References
 //! - "The Content-Disposition Header Field":
-//!   <https://datatracker.ietf.org/doc/html/rfc2183>
+//!   <https://www.rfc-editor.org/info/rfc2183>
 //! - "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)":
-//!   <https://datatracker.ietf.org/doc/html/rfc6266>
+//!   <https://www.rfc-editor.org/info/rfc6266>
 //! - "Returning Values from Forms: multipart/form-data":
-//!   <https://datatracker.ietf.org/doc/html/rfc7578>
+//!   <https://www.rfc-editor.org/info/rfc7578>
 //! - Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
 //! - IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
 
@@ -50,7 +50,7 @@ pub enum DispositionType {
     Attachment,
 
     /// Used in *multipart/form-data* as defined in
-    /// [RFC 7578](https://datatracker.ietf.org/doc/html/rfc7578) to carry the field name and
+    /// [RFC 7578](https://www.rfc-editor.org/info/rfc7578) to carry the field name and
     /// optional filename.
     FormData,
 
@@ -91,27 +91,27 @@ pub enum DispositionParam {
 
     /// A plain file name.
     ///
-    /// It is [not supposed](https://datatracker.ietf.org/doc/html/rfc6266#appendix-D) to contain
+    /// It is [not supposed](https://www.rfc-editor.org/info/rfc6266/#appendix-D) to contain
     /// any non-ASCII characters when used in a *Content-Disposition* HTTP response header, where
     /// [`FilenameExt`](DispositionParam::FilenameExt) with charset UTF-8 may be used instead
     /// in case there are Unicode characters in file names.
     Filename(String),
 
     /// An extended file name. It must not exist for `ContentType::Formdata` according to
-    /// [RFC 7578 §4.2](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2).
+    /// [RFC 7578 §4.2](https://www.rfc-editor.org/info/rfc7578/#section-4.2).
     FilenameExt(ExtendedValue),
 
     /// An unrecognized regular parameter as defined in
-    /// [RFC 5987 §3.2.1](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2.1) as
+    /// [RFC 5987 §3.2.1](https://www.rfc-editor.org/info/rfc5987/#section-3.2.1) as
     /// `reg-parameter`, in
-    /// [RFC 6266 §4.1](https://datatracker.ietf.org/doc/html/rfc6266#section-4.1) as
+    /// [RFC 6266 §4.1](https://www.rfc-editor.org/info/rfc6266/#section-4.1) as
     /// `token "=" value`. Recipients should ignore unrecognizable parameters.
     Unknown(String, String),
 
     /// An unrecognized extended parameter as defined in
-    /// [RFC 5987 §3.2.1](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2.1) as
+    /// [RFC 5987 §3.2.1](https://www.rfc-editor.org/info/rfc5987/#section-3.2.1) as
     /// `ext-parameter`, in
-    /// [RFC 6266 §4.1](https://datatracker.ietf.org/doc/html/rfc6266#section-4.1) as
+    /// [RFC 6266 §4.1](https://www.rfc-editor.org/info/rfc6266/#section-4.1) as
     /// `ext-token "=" ext-value`. The single trailing asterisk is not included. Recipients should
     /// ignore unrecognizable parameters.
     UnknownExt(String, ExtendedValue),
@@ -210,7 +210,7 @@ impl DispositionParam {
 ///
 /// It is compatible to be used either as [a response header for the main body][use_main_body]
 /// as (re)defined in [RFC 6266], or as [a header for a multipart body][use_multipart] as
-/// (re)defined in [RFC 7587].
+/// (re)defined in [RFC 7578].
 ///
 /// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
 /// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
@@ -245,14 +245,14 @@ impl DispositionParam {
 /// ```
 ///
 /// # Note
-/// *filename* is [not supposed](https://datatracker.ietf.org/doc/html/rfc6266#appendix-D) to
+/// *filename* is [not supposed](https://www.rfc-editor.org/info/rfc6266/#appendix-D) to
 /// contain any non-ASCII characters when used in a *Content-Disposition* HTTP response header,
 /// where filename* with charset UTF-8 may be used instead in case there are Unicode characters in
-/// file names. Filename is [acceptable](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2)
+/// file names. Filename is [acceptable](https://www.rfc-editor.org/info/rfc7578/#section-4.2)
 /// to be UTF-8 encoded directly in a *Content-Disposition* header for
 /// *multipart/form-data*, though.
 ///
-/// *filename* [must not](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2) be used within
+/// `filename*` [must not](https://www.rfc-editor.org/info/rfc7578/#section-4.2) be used within
 /// *multipart/form-data*.
 ///
 /// # Examples
@@ -304,12 +304,12 @@ impl DispositionParam {
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
-/// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
+/// See [RFC 2183 §2.3](https://www.rfc-editor.org/info/rfc2183/#section-2.3).
 ///
 /// [use_main_body]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body
-/// [RFC 6266]: https://datatracker.ietf.org/doc/html/rfc6266
+/// [RFC 6266]: https://www.rfc-editor.org/info/rfc6266
 /// [use_multipart]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_header_for_a_multipart_body
-/// [RFC 7587]: https://datatracker.ietf.org/doc/html/rfc7578
+/// [RFC 7578]: https://www.rfc-editor.org/info/rfc7578
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentDisposition {
     /// The disposition type
@@ -322,6 +322,9 @@ pub struct ContentDisposition {
 impl ContentDisposition {
     /// Constructs a Content-Disposition header suitable for downloads.
     ///
+    /// Includes a `filename` parameter and adds a UTF-8 encoded `filename*` parameter if the
+    /// filename contains non-ASCII characters.
+    ///
     /// # Examples
     /// ```
     /// use actix_web::http::header::{ContentDisposition, TryIntoHeaderValue as _};
@@ -332,9 +335,25 @@ impl ContentDisposition {
     /// assert_eq!(cd_val, "attachment; filename=\"files.zip\"");
     /// ```
     pub fn attachment(filename: impl Into<String>) -> Self {
+        let filename = filename.into();
+        let is_ascii = filename.is_ascii();
+
+        let mut parameters = Vec::new();
+
+        if is_ascii {
+            parameters.push(DispositionParam::Filename(filename));
+        } else {
+            parameters.push(DispositionParam::Filename(filename.clone()));
+            parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+                charset: header::Charset::Ext(String::from("UTF-8")),
+                language_tag: None,
+                value: filename.into_bytes(),
+            }));
+        }
+
         Self {
             disposition: DispositionType::Attachment,
-            parameters: vec![DispositionParam::Filename(filename.into())],
+            parameters,
         }
     }
 
@@ -564,12 +583,9 @@ impl fmt::Display for DispositionParam {
                 write!(f, "filename=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
             }
 
-            DispositionParam::Unknown(ref name, ref value) => write!(
-                f,
-                "{}=\"{}\"",
-                name,
-                &RE.replace_all(value, "\\$0").as_ref()
-            ),
+            DispositionParam::Unknown(ref name, ref value) => {
+                write!(f, "{name}=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
+            }
 
             DispositionParam::FilenameExt(ref ext_value) => {
                 write!(f, "filename*={}", ext_value)
@@ -594,7 +610,28 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::http::header::{Charset, ExtendedValue, HeaderValue};
+    use crate::http::header::{Charset, ExtendedValue, HeaderValue, TryIntoHeaderValue as _};
+
+    #[test]
+    fn test_attachment_ascii() {
+        let header = ContentDisposition::attachment("file name.zip")
+            .try_into_value()
+            .unwrap();
+
+        assert_eq!(header, "attachment; filename=\"file name.zip\"");
+    }
+
+    #[test]
+    fn test_attachment_non_ascii() {
+        let header = ContentDisposition::attachment("café.pdf")
+            .try_into_value()
+            .unwrap();
+
+        assert_eq!(
+            header.as_bytes(),
+            "attachment; filename=\"café.pdf\"; filename*=UTF-8''caf%C3%A9.pdf".as_bytes()
+        );
+    }
 
     #[test]
     fn test_from_raw_basic() {
@@ -899,9 +936,9 @@ mod tests {
 
         let a = HeaderValue::from_static("inline; filename=\"\"");
         assert!(ContentDisposition::from_raw(&a)
-            .expect("parse cd")
+            .expect("Parse cd")
             .get_filename()
-            .expect("filename")
+            .expect("Filename")
             .is_empty());
     }
 

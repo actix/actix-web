@@ -10,7 +10,6 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
@@ -20,10 +19,11 @@ use h2::{
     Ping, PingPong,
 };
 use pin_project_lite::pin_project;
+use tokio::time::{sleep, Sleep};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
-    config::ServiceConfig,
+    config::{GracefulShutdownFuture, ServiceConfig},
     header::{
         HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
     },
@@ -42,6 +42,7 @@ pin_project! {
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
         ping_pong: Option<H2PingPong>,
+        graceful_shutdown: Option<GracefulShutdownFuture>,
         _phantom: PhantomData<B>
     }
 }
@@ -70,6 +71,8 @@ where
             ping_pong: conn.ping_pong().unwrap(),
         });
 
+        let graceful_shutdown = config.graceful_shutdown();
+
         Self {
             flow,
             config,
@@ -77,7 +80,25 @@ where
             connection: conn,
             conn_data: conn_data.0.map(Rc::new),
             ping_pong,
+            graceful_shutdown,
             _phantom: PhantomData,
+        }
+    }
+
+    /// Starts a graceful shutdown when the server shutdown signal is ready.
+    fn poll_shutdown(&mut self, cx: &mut Context<'_>) {
+        let shutdown = self
+            .graceful_shutdown
+            .as_mut()
+            .is_some_and(|signal| signal.as_mut().poll(cx).is_ready());
+
+        if shutdown {
+            self.graceful_shutdown = None;
+
+            // Sends GOAWAY, then a second GOAWAY with the last processed stream ID after a PING
+            // round trip. `poll_accept` keeps driving in-flight streams and returns `None` once
+            // they have all finished.
+            self.connection.graceful_shutdown();
         }
     }
 }
@@ -110,6 +131,8 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
+        this.poll_shutdown(cx);
+
         loop {
             match Pin::new(&mut this.connection).poll_accept(cx)? {
                 Poll::Ready(Some((req, tx))) => {
@@ -132,7 +155,7 @@ where
                     let config = this.config.clone();
 
                     // multiplex request handling with spawn task
-                    actix_rt::spawn(async move {
+                    tokio::task::spawn_local(async move {
                         // resolve service call and send response.
                         let res = match fut.await {
                             Ok(res) => handle_response(res.into(), tx, config, head_req).await,
@@ -163,7 +186,7 @@ where
                 Poll::Pending => match this.ping_pong.as_mut() {
                     Some(ping_pong) => loop {
                         if ping_pong.in_flight {
-                            // When there is an in-flight ping-pong, poll pong and and keep-alive
+                            // When there is an in-flight ping-pong, poll pong and keep-alive
                             // timer. On successful pong received, update keep-alive timer to
                             // determine the next timing of ping pong.
                             match ping_pong.ping_pong.poll_pong(cx)? {
@@ -320,14 +343,14 @@ fn prepare_response(
     for (key, value) in head.headers.iter() {
         match key {
             // omit HTTP/1.x only headers according to:
-            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            // https://www.rfc-editor.org/info/rfc7540/#section-8.1.2.2
             &CONNECTION | &TRANSFER_ENCODING | &UPGRADE => continue,
 
             &CONTENT_LENGTH if skip_len => continue,
             &DATE => has_date = true,
 
             // omit HTTP/1.x only headers according to:
-            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            // https://www.rfc-editor.org/info/rfc7540/#section-8.1.2.2
             hdr if hdr == HeaderName::from_static("keep-alive")
                 || hdr == HeaderName::from_static("proxy-connection") =>
             {

@@ -1,6 +1,8 @@
 //! Based on https://github.com/ibraheemdev/matchit/blob/master/benches/bench.rs
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, Criterion};
 
 macro_rules! register {
     (colon) => {{
@@ -13,6 +15,7 @@ macro_rules! register {
         register!(finish => "(.*)", "(.*)", "(.*)", "(.*)")
     }};
     (finish => $p1:literal, $p2:literal, $p3:literal, $p4:literal) => {{
+        #[expect(clippy::useless_concat)]
         let arr = [
             concat!("/authorizations"),
             concat!("/authorizations/", $p1),

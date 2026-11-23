@@ -93,7 +93,10 @@ pub trait HttpMessage: Sized {
     fn chunked(&self) -> Result<bool, ParseError> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
-                Ok(s.to_lowercase().contains("chunked"))
+                Ok(s.rsplit(',')
+                    .next()
+                    .map(|token| token.trim().eq_ignore_ascii_case("chunked"))
+                    .unwrap_or(false))
             } else {
                 Err(ParseError::Header)
             }
@@ -217,6 +220,26 @@ mod tests {
             .insert_header((header::TRANSFER_ENCODING, "chunked"))
             .finish();
         assert!(req.chunked().unwrap());
+
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "gzip, chunked"))
+            .finish();
+        assert!(req.chunked().unwrap());
+
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "chunked, gzip"))
+            .finish();
+        assert!(!req.chunked().unwrap());
+
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "not-chunked"))
+            .finish();
+        assert!(!req.chunked().unwrap());
+
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "chunked-fake"))
+            .finish();
+        assert!(!req.chunked().unwrap());
 
         let req = TestRequest::default()
             .insert_header((

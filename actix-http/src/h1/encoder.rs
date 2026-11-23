@@ -6,17 +6,24 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::{
     body::BodySize,
     header::{
         map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+        UPGRADE,
     },
-    helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
+    helpers::{self, MutWriter},
+    ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;
+const INITIAL_HEAD_CAPACITY: usize = 256;
+const COLON_SPACE_LEN: usize = 2;
+const CRLF_LEN: usize = 2;
+const HEADER_DELIMITER_LEN: usize = COLON_SPACE_LEN + CRLF_LEN;
+const ASCII_TO_UPPERCASE_MASK: u8 = 0b1101_1111;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
@@ -71,8 +78,8 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // see https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.1
-                    // and https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
+                    // see https://www.rfc-editor.org/info/rfc7230/#section-3.3.1
+                    // and https://www.rfc-editor.org/info/rfc7230/#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
                 }
@@ -80,7 +87,7 @@ pub(crate) trait MessageType: Sized {
                 StatusCode::NOT_MODIFIED => {
                     // 304 responses should never have a body but should retain a manually set
                     // content-length header
-                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+                    // see https://www.rfc-editor.org/info/rfc7232/#section-4.1
                     skip_len = false;
                     length = BodySize::None;
                 }
@@ -110,16 +117,39 @@ pub(crate) trait MessageType: Sized {
         }
 
         // Connection
-        match conn_type {
-            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
-            ConnectionType::KeepAlive if version < Version::HTTP_11 => {
+        // Response upgrade advertisements need a connection option (RFC 9110, Section 7.8).
+        let has_upgrade = self.status().is_some() && self.headers().contains_key(UPGRADE);
+
+        match (conn_type, has_upgrade) {
+            (ConnectionType::Close, true) if version >= Version::HTTP_11 => {
+                if camel_case {
+                    dst.put_slice(b"Connection: close, upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: close, upgrade\r\n")
+                }
+            }
+            (ConnectionType::KeepAlive, true) if version < Version::HTTP_11 => {
+                if camel_case {
+                    dst.put_slice(b"Connection: keep-alive, upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: keep-alive, upgrade\r\n")
+                }
+            }
+            (ConnectionType::Upgrade, _) | (_, true) => {
+                if camel_case {
+                    dst.put_slice(b"Connection: Upgrade\r\n")
+                } else {
+                    dst.put_slice(b"connection: upgrade\r\n")
+                }
+            }
+            (ConnectionType::KeepAlive, false) if version < Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: keep-alive\r\n")
                 } else {
                     dst.put_slice(b"connection: keep-alive\r\n")
                 }
             }
-            ConnectionType::Close if version >= Version::HTTP_11 => {
+            (ConnectionType::Close, false) if version >= Version::HTTP_11 => {
                 if camel_case {
                     dst.put_slice(b"Connection: close\r\n")
                 } else {
@@ -157,7 +187,7 @@ pub(crate) trait MessageType: Sized {
                 let v_len = v.len();
 
                 // key length + value length + colon + space + \r\n
-                let len = k_len + v_len + 4;
+                let len = k_len + v_len + HEADER_DELIMITER_LEN;
 
                 if len > remaining {
                     // SAFETY: all the bytes written up to position "pos" are initialized
@@ -187,14 +217,14 @@ pub(crate) trait MessageType: Sized {
 
                     buf = buf.add(k_len);
 
-                    write_data(b": ", buf, 2);
-                    buf = buf.add(2);
+                    write_data(b": ", buf, COLON_SPACE_LEN);
+                    buf = buf.add(COLON_SPACE_LEN);
 
                     write_data(v, buf, v_len);
                     buf = buf.add(v_len);
 
-                    write_data(b"\r\n", buf, 2);
-                    buf = buf.add(2);
+                    write_data(b"\r\n", buf, CRLF_LEN);
+                    buf = buf.add(CRLF_LEN);
                 };
 
                 pos += len;
@@ -266,7 +296,9 @@ impl MessageType for Response<()> {
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
-        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len());
+        dst.reserve(
+            INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE + reason.len(),
+        );
 
         // status line
         helpers::write_status_line(head.version, head.status.as_u16(), dst);
@@ -298,26 +330,45 @@ impl MessageType for RequestHeadType {
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.as_ref();
-        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
-        write!(
-            helpers::MutWriter(dst),
-            "{} {} {}",
-            head.method,
-            head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-            match head.version {
-                Version::HTTP_09 => "HTTP/0.9",
-                Version::HTTP_10 => "HTTP/1.0",
-                Version::HTTP_11 => "HTTP/1.1",
-                Version::HTTP_2 => "HTTP/2.0",
-                Version::HTTP_3 => "HTTP/3.0",
-                _ => return Err(io::Error::other("Unsupported version")),
-            }
-        )
-        .map_err(io::Error::other)
+        dst.reserve(INITIAL_HEAD_CAPACITY + head.headers.len() * AVERAGE_HEADER_SIZE);
+
+        let method = &head.method;
+        let uri = head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/");
+
+        let version = match head.version {
+            Version::HTTP_09 => "HTTP/0.9",
+            Version::HTTP_10 => "HTTP/1.0",
+            Version::HTTP_11 => "HTTP/1.1",
+            Version::HTTP_2 => "HTTP/2.0",
+            Version::HTTP_3 => "HTTP/3.0",
+            _ => return Err(io::Error::other("Unsupported version")),
+        };
+
+        write!(MutWriter(dst), "{method} {uri} {version}")
     }
 }
 
 impl<T: MessageType> MessageEncoder<T> {
+    /// Returns a shared slice of `chunk` for direct writes.
+    ///
+    /// Limits the slice to the remaining body length, then reduces that stored length by the number
+    /// of bytes returned.
+    ///
+    /// Returns `None` unless fixed-length encoding is active and bytes remain. Use
+    /// [`Self::encode_chunk`] when it returns `None`.
+    pub(crate) fn try_take_chunk(&mut self, chunk: &Bytes) -> Option<Bytes> {
+        match self.te.kind {
+            TransferEncodingKind::Length { ref mut remaining } if *remaining > 0 => {
+                let capped_bytes_yielded = cmp::min(chunk.len() as u64, *remaining);
+                *remaining -= capped_bytes_yielded;
+                Some(chunk.slice(..capped_bytes_yielded as usize))
+            }
+
+            // Transfer is empty or unknown length.
+            _ => None,
+        }
+    }
+
     /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
@@ -363,12 +414,6 @@ impl<T: MessageType> MessageEncoder<T> {
     }
 }
 
-/// Encoders to handle different Transfer-Encodings.
-#[derive(Debug)]
-pub(crate) struct TransferEncoding {
-    kind: TransferEncodingKind,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
@@ -377,7 +422,7 @@ enum TransferEncodingKind {
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
-    Length(u64),
+    Length { remaining: u64 },
 
     /// An Encoder for when Content-Length is not known.
     ///
@@ -385,70 +430,76 @@ enum TransferEncodingKind {
     Eof,
 }
 
+/// Encoders to handle different Transfer-Encodings.
+#[derive(Debug)]
+pub(crate) struct TransferEncoding {
+    kind: TransferEncodingKind,
+}
+
 impl TransferEncoding {
-    #[inline]
-    pub fn empty() -> TransferEncoding {
+    pub(crate) fn empty() -> TransferEncoding {
         TransferEncoding {
-            kind: TransferEncodingKind::Length(0),
+            kind: TransferEncodingKind::Length { remaining: 0 },
         }
     }
 
-    #[inline]
-    pub fn eof() -> TransferEncoding {
+    pub(crate) fn eof() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Eof,
         }
     }
 
-    #[inline]
-    pub fn chunked() -> TransferEncoding {
+    pub(crate) fn chunked() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Chunked(false),
         }
     }
 
-    #[inline]
-    pub fn length(len: u64) -> TransferEncoding {
+    pub(crate) fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
-            kind: TransferEncodingKind::Length(len),
+            kind: TransferEncodingKind::Length { remaining: len },
         }
     }
 
-    /// Encode message. Return `EOF` state of encoder
-    #[inline]
-    pub fn encode(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
+    /// Encode `body` bytes into `buf`, returning true when the end of the body is reached.
+    ///
+    /// For fixed-length bodies, writes at most the remaining content length and returns `true`
+    /// when that length is exhausted. For chunked and EOF-delimited bodies, an empty `msg`
+    /// signals the end of the body. Chunked encoding also writes the final chunk once.
+    pub(crate) fn encode(&mut self, body: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
-                let eof = msg.is_empty();
-                buf.extend_from_slice(msg);
+                let eof = body.is_empty();
+                buf.extend_from_slice(body);
                 Ok(eof)
             }
+
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if *eof {
                     return Ok(true);
                 }
 
-                if msg.is_empty() {
+                if body.is_empty() {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
-                        .map_err(io::Error::other)?;
+                    writeln!(MutWriter(buf), "{:X}\r", body.len())?;
 
-                    buf.reserve(msg.len() + 2);
-                    buf.extend_from_slice(msg);
+                    buf.reserve(body.len() + 2);
+                    buf.extend_from_slice(body);
                     buf.extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
             }
-            TransferEncodingKind::Length(ref mut remaining) => {
+
+            TransferEncodingKind::Length { ref mut remaining } => {
                 if *remaining > 0 {
-                    if msg.is_empty() {
+                    if body.is_empty() {
                         return Ok(*remaining == 0);
                     }
-                    let len = cmp::min(*remaining, msg.len() as u64);
+                    let len = cmp::min(*remaining, body.len() as u64);
 
-                    buf.extend_from_slice(&msg[..len as usize]);
+                    buf.extend_from_slice(&body[..len as usize]);
 
                     *remaining -= len;
                     Ok(*remaining == 0)
@@ -459,12 +510,13 @@ impl TransferEncoding {
         }
     }
 
-    /// Encode eof. Return `EOF` state of encoder
-    #[inline]
-    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
+    /// Finish encoding the body, writing the final chunk for chunked encoding if needed.
+    ///
+    /// Returns an error if fewer bytes than the specified content length were encoded.
+    pub(crate) fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         match self.kind {
             TransferEncodingKind::Eof => Ok(()),
-            TransferEncodingKind::Length(rem) => {
+            TransferEncodingKind::Length { remaining: rem } => {
                 if rem != 0 {
                     Err(io::Error::new(io::ErrorKind::UnexpectedEof, ""))
                 } else {
@@ -476,6 +528,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 }
+
                 Ok(())
             }
         }
@@ -504,7 +557,7 @@ unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
 
     // first character should be uppercase
     if let Some(c @ b'a'..=b'z') = iter.next() {
-        buffer[0] = c & 0b1101_1111;
+        buffer[0] = c & ASCII_TO_UPPERCASE_MASK;
     }
 
     // track 1 ahead of the current position since that's the location being assigned to
@@ -515,7 +568,7 @@ unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
         if c == b'-' {
             // advance iter by one and uppercase if needed
             if let Some(c @ b'a'..=b'z') = iter.next() {
-                buffer[index] = c & 0b1101_1111;
+                buffer[index] = c & ASCII_TO_UPPERCASE_MASK;
             }
             index += 1;
         }
@@ -551,7 +604,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_camel_case() {
         let mut bytes = BytesMut::with_capacity(2048);
         let mut head = RequestHead::default();
@@ -579,6 +632,16 @@ mod tests {
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
         assert!(data.contains("Upgrade-Insecure-Requests: 1\r\n"));
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::None,
+            ConnectionType::Upgrade,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("Connection: Upgrade\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,
@@ -615,7 +678,7 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extra_headers() {
         let mut bytes = BytesMut::with_capacity(2048);
 
@@ -648,7 +711,7 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 

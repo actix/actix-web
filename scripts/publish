@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -Euo pipefail
+
+for dir in $@; do
+    cd "$dir"
+    
+    cargo publish --dry-run
+
+    read -p "Look okay? "
+    read -p "Sure? "
+    
+    cargo publish
+
+    if [ $? -ne 0 ]; then
+        echo
+        read -p "Was the above error caused by cyclic dev-deps? Choosing yes will publish without a git backreference. (y/N) " publish_no_dev_deps
+
+        if [[ "$publish_no_dev_deps" == "y" || "$publish_no_dev_deps" == "Y" ]]; then
+            cargo hack --no-dev-deps publish --allow-dirty
+        fi
+    fi
+
+    cd ..
+done

@@ -37,7 +37,7 @@ use crate::{
 ///     .insert_header(ContentLength(3_495));
 /// ```
 ///
-/// [RFC 9110 §8.6]: https://www.rfc-editor.org/rfc/rfc9110#name-content-length
+/// [RFC 9110 §8.6]: https://www.rfc-editor.org/info/rfc9110/#section-8.6
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut)]
 pub struct ContentLength(pub usize);
 
@@ -214,7 +214,11 @@ mod tests {
         assert_parse_eq::<ContentLength, _, _>([" 0"], ContentLength(0));
         assert_parse_eq::<ContentLength, _, _>(["0 "], ContentLength(0));
         assert_parse_eq::<ContentLength, _, _>([" 0 "], ContentLength(0));
+    }
 
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn good_header_max_usize() {
         // large value (2^64 - 1)
         assert_parse_eq::<ContentLength, _, _>(
             ["18446744073709551615"],

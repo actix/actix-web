@@ -47,7 +47,7 @@ use crate::{
 /// [appropriate Allow header][RFC 9110 §15.5.6]. This default behavior can be overridden using
 /// [`default_service()`](Self::default_service).
 ///
-/// [RFC 9110 §15.5.6]: https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6
+/// [RFC 9110 §15.5.6]: https://www.rfc-editor.org/info/rfc9110/#section-15.5.6
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
     rdef: Patterns,
@@ -401,6 +401,7 @@ where
     route_shortcut!(put, "PUT");
     route_shortcut!(patch, "PATCH");
     route_shortcut!(delete, "DELETE");
+    route_shortcut!(query, "QUERY");
     route_shortcut!(head, "HEAD");
     route_shortcut!(trace, "TRACE");
 }
@@ -417,6 +418,8 @@ where
     B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
+        let routes = std::mem::take(&mut self.routes);
+
         let guards = if self.guards.is_empty() {
             None
         } else {
@@ -428,13 +431,71 @@ where
         } else {
             ResourceDef::new(self.rdef.clone())
         };
+        #[cfg(feature = "experimental-introspection")]
+        {
+            use crate::http::Method;
+
+            let full_paths = crate::introspection::expand_patterns(&config.current_prefix, &rdef);
+            let patterns = rdef
+                .pattern_iter()
+                .map(|pattern| pattern.to_string())
+                .collect::<Vec<_>>();
+            let guards_routes = routes.iter().map(|r| r.guards()).collect::<Vec<_>>();
+            let scope_id = config.scope_id_stack.last().copied();
+            let resource_guards: &[Box<dyn Guard>] = guards.as_deref().unwrap_or(&[]);
+            let resource_name = self.name.clone();
+
+            for route_guards in guards_routes {
+                // Log the guards and methods for introspection
+                let mut guard_names = Vec::new();
+                let mut methods = Vec::new();
+
+                for guard in resource_guards.iter().chain(route_guards.iter()) {
+                    guard_names.push(guard.name());
+                    methods.extend(
+                        guard
+                            .details()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .flat_map(|d| {
+                                if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                                    v.into_iter()
+                                        .filter_map(|s| s.parse::<Method>().ok())
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    Vec::new()
+                                }
+                            }),
+                    );
+                }
+
+                let guard_details = crate::introspection::guard_reports_from_iter(
+                    resource_guards.iter().chain(route_guards.iter()),
+                );
+
+                for full_path in &full_paths {
+                    let info = crate::introspection::RouteInfo::new(
+                        full_path.clone(),
+                        methods.clone(),
+                        guard_names.clone(),
+                        guard_details.clone(),
+                        patterns.clone(),
+                        resource_name.clone(),
+                    );
+                    config
+                        .introspector
+                        .borrow_mut()
+                        .register_route(info, scope_id);
+                }
+            }
+        }
 
         if let Some(ref name) = self.name {
             rdef.set_name(name);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
-            routes: self.routes,
+            routes,
             default: self.default,
         });
 
@@ -536,10 +597,9 @@ impl ServiceFactory<ServiceRequest> for ResourceEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{future::ready, time::Duration};
 
-    use actix_rt::time::sleep;
-    use actix_utils::future::ok;
+    use tokio::time::sleep;
 
     use super::*;
     use crate::{
@@ -582,7 +642,7 @@ mod tests {
             .service(my_resource_3());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware() {
         let srv = init_service(
             App::new().service(
@@ -605,7 +665,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_fn() {
         let srv = init_service(
             App::new().service(
@@ -633,7 +693,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_to() {
         let srv = init_service(App::new().service(web::resource("/test").to(|| async {
             sleep(Duration::from_millis(100)).await;
@@ -645,7 +705,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_pattern() {
         let srv = init_service(App::new().service(
             web::resource(["/test", "/test2"]).to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
@@ -659,7 +719,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv = init_service(
             App::new()
@@ -669,7 +729,7 @@ mod tests {
                         .route(web::delete().to(HttpResponse::Ok)),
                 )
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::BadRequest()))
+                    ready(Ok(r.into_response(HttpResponse::BadRequest())))
                 }),
         )
         .await;
@@ -692,7 +752,7 @@ mod tests {
                 web::resource("/test")
                     .route(web::get().to(HttpResponse::Ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ready(Ok(r.into_response(HttpResponse::BadRequest())))
                     }),
             ),
         )
@@ -709,7 +769,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_resource_guards() {
         let srv = init_service(
             App::new()
@@ -750,9 +810,35 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
+    #[tokio::test(flavor = "local")]
+    async fn test_query_method() {
+        let srv = init_service(
+            App::new().service(web::resource("/test").route(web::query().to(HttpResponse::Ok))),
+        )
+        .await;
+
+        // a QUERY request is routed to the `web::query()` handler
+        let req = TestRequest::with_uri("/test")
+            .method(Method::from_bytes(b"QUERY").unwrap())
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // any other method is rejected with `405 Method Not Allowed`
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.headers().get(header::ALLOW).unwrap().as_bytes(),
+            b"QUERY"
+        );
+    }
+
     // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data() {
         let srv = init_service(
             App::new()
@@ -786,7 +872,7 @@ mod tests {
 
     // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_default_service() {
         let srv =
             init_service(
@@ -806,7 +892,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_app_data() {
         let srv = init_service(
             App::new().service(
@@ -841,7 +927,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_body_type() {
         let srv = init_service(
             App::new().service(

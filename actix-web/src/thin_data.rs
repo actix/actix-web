@@ -1,5 +1,6 @@
 use std::any::type_name;
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::{dev::Payload, error, FromRequest, HttpRequest};
@@ -50,6 +51,7 @@ impl_more::impl_as_ref!(ThinData<T> => T);
 impl_more::impl_as_mut!(ThinData<T> => T);
 impl_more::impl_deref_and_mut!(<T> in ThinData<T> => T);
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: Clone + 'static> FromRequest for ThinData<T> {
     type Error = crate::Error;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -86,7 +88,7 @@ mod tests {
 
     type TestT = Arc<Mutex<u32>>;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn thin_data() {
         let test_data = TestT::default();
 
@@ -107,7 +109,7 @@ mod tests {
         assert_eq!(*test_data.lock().unwrap(), 3);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn thin_data_missing() {
         let app = init_service(
             App::new().service(web::resource("/").to(|_: ThinData<u32>| HttpResponse::Ok())),

@@ -1,15 +1,20 @@
 use std::{
+    borrow::Cow,
     path::{Component, Path, PathBuf},
     str::FromStr,
 };
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
 
+/// Secure Path Traversal Guard
+///
+/// This struct parses a request-uri [`PathBuf`](std::path::PathBuf)
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct PathBufWrap(PathBuf);
+pub struct PathBufWrap(PathBuf);
 
 impl FromStr for PathBufWrap {
     type Err = UriSegmentError;
@@ -20,6 +25,37 @@ impl FromStr for PathBufWrap {
 }
 
 impl PathBufWrap {
+    /// Parse a safe path from the unprocessed tail of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::match_info`](actix_web::HttpRequest::match_info) and
+    /// [`Path::unprocessed`](actix_web::dev::Path::unprocessed), which returns the part of the
+    /// path not matched by route patterns. This is useful for mounted services (eg. `Files`),
+    /// where only the tail should be parsed.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_unprocessed_req(
+        req: &HttpRequest,
+        hidden_files: bool,
+    ) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.match_info().unprocessed(), hidden_files)
+    }
+
+    /// Parse a safe path from the full request path of a supplied
+    /// [`HttpRequest`](actix_web::HttpRequest), given the choice of allowing hidden files to be
+    /// considered valid segments.
+    ///
+    /// This uses [`HttpRequest::path`](actix_web::HttpRequest::path), and is more appropriate
+    /// for non-mounted handlers that want the entire request path.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_req_path(req: &HttpRequest, hidden_files: bool) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.path(), hidden_files)
+    }
+
     /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
     ///
     /// Path traversal is guarded by this method.
@@ -36,12 +72,16 @@ impl PathBufWrap {
             .map_err(|_| UriSegmentError::NotValidUtf8)?;
 
         // disallow decoding `%2F` into `/`
-        if segment_count != path.matches('/').count() + 1 {
-            return Err(UriSegmentError::BadChar('/'));
+        if let Cow::Owned(ref path) = path {
+            if segment_count != path.matches('/').count() + 1 {
+                return Err(UriSegmentError::BadChar('/'));
+            }
         }
 
         for segment in path.split('/') {
-            if segment == ".." {
+            if segment == "." {
+                return Err(UriSegmentError::BadStart('.'));
+            } else if segment == ".." {
                 segment_count -= 1;
                 buf.pop();
             } else if !hidden_files && segment.starts_with('.') {
@@ -86,11 +126,13 @@ impl AsRef<Path> for PathBufWrap {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // Uses the unprocessed tail of the request path and disallows hidden files.
         ready(req.match_info().unprocessed().parse())
     }
 }
@@ -142,6 +184,11 @@ mod tests {
             PathBufWrap::parse_path("/test/.tt", true).unwrap().0,
             PathBuf::from_iter(vec!["test", ".tt"])
         );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/test/./file.txt", true).map(|t| t.0),
+            Err(UriSegmentError::BadStart('.'))
+        );
     }
 
     #[test]
@@ -161,6 +208,14 @@ mod tests {
                 .unwrap()
                 .0,
             PathBuf::from_iter(vec!["etc/passwd"])
+        );
+    }
+
+    #[test]
+    fn encoded_slash_is_rejected() {
+        assert_eq!(
+            PathBufWrap::parse_path("/test%2Ffile.txt", false),
+            Err(UriSegmentError::BadChar('/'))
         );
     }
 

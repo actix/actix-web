@@ -1,7 +1,11 @@
 use std::{
     convert::Infallible,
+    future::ready,
     io::{Read, Write},
-    net, thread,
+    net,
+    pin::pin,
+    sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -10,16 +14,23 @@ use actix_http::{
     header, Error, HttpService, KeepAlive, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::{net::TcpStream, time::sleep};
+use actix_rt::{
+    net::TcpStream,
+    time::{sleep, timeout},
+};
 use actix_service::fn_service;
-use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
-use rand::Rng as _;
+use rand::RngExt as _;
 use regex::Regex;
+use tokio::{
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    time::interval,
+};
+use tokio_util::future::FutureExt as _;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_basic() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -28,7 +39,7 @@ async fn h1_basic() {
             .client_disconnect_timeout(Duration::from_secs(1))
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
@@ -40,7 +51,7 @@ async fn h1_basic() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_2() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -50,13 +61,31 @@ async fn h1_2() {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
     .await;
 
     let response = srv.get("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn h1_query() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                ready(Ok::<_, Infallible>(Response::ok()))
+            })
+            .tcp()
+    })
+    .await;
+
+    let response = srv.query("/").send().await.unwrap();
     assert!(response.status().is_success());
 
     srv.stop().await;
@@ -72,30 +101,32 @@ impl From<ExpectFailed> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_continue() {
     let mut srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
                 if req.head().uri.query() == Some("yes=") {
-                    ok(req)
+                    ready(Ok(req))
                 } else {
-                    err(ExpectFailed)
+                    ready(Err(ExpectFailed))
                 }
             }))
-            .finish(|_| ok::<_, Infallible>(Response::ok()))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let _ =
+        stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let _ = stream
+        .write_all(b"GET /test?yes= HTTP/1.1\r\nHost: localhost\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
@@ -103,32 +134,34 @@ async fn expect_continue() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_continue_h1() {
     let mut srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
                 sleep(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
-                        ok(req)
+                        ready(Ok(req))
                     } else {
-                        err(ExpectFailed)
+                        ready(Err(ExpectFailed))
                     }
                 })
             }))
-            .h1(fn_service(|_| ok::<_, Infallible>(Response::ok())))
+            .h1(fn_service(|_| ready(Ok::<_, Infallible>(Response::ok()))))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let _ =
+        stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let _ = stream
+        .write_all(b"GET /test?yes= HTTP/1.1\r\nHost: localhost\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
@@ -136,7 +169,7 @@ async fn expect_continue_h1() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn chunked_payload() {
     let chunk_sizes = [32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
@@ -161,7 +194,9 @@ async fn chunked_payload() {
 
     let returned_size = {
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
+        let _ = stream.write_all(
+            b"POST /test HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n",
+        );
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
@@ -196,13 +231,150 @@ async fn chunked_payload() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+async fn send_pipelined_chunked_requests(last_chunk: &[u8]) -> (Vec<String>, Vec<u8>) {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+
+    // Test server which does not read payloads but does store all obvserved request paths.
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(fn_service(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                }))
+                .tcp()
+        }
+    })
+    .await;
+
+    let mut input = b"POST /test HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\r\n\
+          5\r\nhello\r\n0\r\n"
+        .to_vec();
+    input.extend_from_slice(last_chunk);
+
+    let smuggle_attempt = b"GET /smuggled-1 HTTP/1.1\r\nHost: localhost\r\n\r\n\
+                            GET /smuggled-2 HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+    input.extend_from_slice(
+        format!(
+            "POST /front HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Content-Length: {}\r\n\r\n",
+            smuggle_attempt.len()
+        )
+        .as_bytes(),
+    );
+    input.extend_from_slice(smuggle_attempt);
+    input.extend_from_slice(b"GET /third HTTP/1.1\r\nHost: localhost\r\n\r\n");
+
+    let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+    conn.write_all(&input).await.unwrap();
+
+    // Responses must arrive while the client keeps the connection open.
+    let mut raw = Vec::new();
+    let _ = timeout(Duration::from_secs(5), conn.read_to_end(&mut raw)).await;
+
+    srv.stop().await;
+
+    let seen = seen.lock().unwrap().clone();
+    (seen, raw)
+}
+
+#[tokio::test(flavor = "local")]
+async fn chunked_well_formed_last_chunk_keeps_pipelined_requests_aligned() {
+    let (seen, _) = send_pipelined_chunked_requests(b"\r\n").await;
+
+    assert_eq!(seen, ["/test", "/front", "/third"]);
+}
+
+#[tokio::test(flavor = "local")]
+async fn chunked_bare_lf_last_chunk_can_not_smuggle_pipelined_request() {
+    let (seen, raw) = send_pipelined_chunked_requests(b"\n").await;
+
+    let raw = String::from_utf8_lossy(&raw);
+
+    // Whatever the parser decides about the bare LF, the pipelined request must
+    // not be split so that its body is dispatched as separate requests.
+    assert!(
+        !seen.iter().any(|path| path.starts_with("/smuggled")),
+        "smuggled request was dispatched as a separate request; dispatched: {seen:?}, raw response: {raw}"
+    );
+
+    assert_eq!(seen.first().map(String::as_str), Some("/test"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn chunked_bare_lf_trailer_is_rejected() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+
+    let mut srv = test_server({
+        let seen = seen.clone();
+
+        move || {
+            let seen = seen.clone();
+
+            HttpService::build()
+                .keep_alive(Duration::from_secs(30))
+                .h1(move |req: Request| {
+                    seen.lock().unwrap().push(req.path().to_owned());
+
+                    // Leave the payload unread so the dispatcher must validate the trailer.
+                    ready(Ok::<_, Infallible>(Response::ok()))
+                })
+                .tcp()
+        }
+    })
+    .await;
+
+    // Cover both no follow-up bytes and a request pipelined after the invalid trailer.
+    for next_request in [
+        b"".as_slice(),
+        b"POST /second HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+    ] {
+        // The last chunk is valid; its trailer ends with bare LF instead of CRLF.
+        let mut input = b"POST /first HTTP/1.1\r\n\
+                          Host: localhost\r\n\
+                          Transfer-Encoding: chunked\r\n\r\n\
+                          0\r\nX\n"
+            .to_vec();
+        input.extend_from_slice(next_request);
+
+        let mut conn = TcpStream::connect(srv.addr()).await.unwrap();
+        conn.write_all(&input).await.unwrap();
+
+        // Keep the client write side open so rejection cannot depend on EOF.
+        // The parser error must close the connection before the keep-alive timeout.
+        let mut raw = Vec::new();
+        conn.read_to_end(&mut raw)
+            .timeout(Duration::from_secs(5))
+            .await
+            .expect("connection remained open after a bare LF in a trailer")
+            .unwrap();
+    }
+
+    srv.stop().await;
+
+    // Both first requests reach the service; the pipelined second request must not.
+    assert_eq!(*seen.lock().unwrap(), ["/first", "/first"]);
+}
+
+#[tokio::test(flavor = "local")]
 async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
             .client_request_timeout(Duration::from_millis(200))
             .keep_alive(Duration::from_secs(2))
-            .finish(|_| ok::<_, Infallible>(Response::ok()))
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -224,19 +396,19 @@ async fn slow_request_408() {
     if diff < Duration::from_secs(1) {
         // test success
     } else if diff < Duration::from_secs(3) {
-        panic!("request seems to have wrongly timed-out according to keep-alive");
+        panic!("Request seems to have wrongly timed-out according to keep-alive");
     } else {
-        panic!("request took way too long to time out");
+        panic!("Request took way too long to time out");
     }
 
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_malformed_request() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -250,22 +422,22 @@ async fn http1_malformed_request() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
 
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
@@ -273,19 +445,19 @@ async fn http1_keepalive() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_timeout() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(Duration::from_secs(1))
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
 
-    let _ = stream.write_all(b"GET /test HTTP/1.1\r\n\r\n");
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let mut data = vec![0; 256];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
@@ -299,17 +471,19 @@ async fn http1_keepalive_timeout() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_close() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nconnection: close\r\n\r\n");
+    let _ = stream.write_all(
+        b"GET /test/tests/test HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\n\r\n",
+    );
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
@@ -321,11 +495,275 @@ async fn http1_keepalive_close() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+/// Reads the socket until EOF and returns everything received. Panics if EOF does not arrive
+/// within `timeout`.
+fn read_to_end_with_deadline(mut stream: net::TcpStream, timeout: Duration) -> String {
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    thread::spawn(move || {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 256];
+
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            }
+        }
+
+        let _ = tx.send(String::from_utf8_lossy(&buf).into_owned());
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(response) => response,
+        Err(_) => panic!("Connection should close within {timeout:?}"),
+    }
+}
+
+/// Sends `probe` as the start of a second request on an idle keep-alive connection and checks
+/// that the connection is eventually closed.
+async fn keepalive_partial_second_request_probe(probe: &'static [u8]) {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(1))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let mut data = vec![0; 256];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let _ = stream.write_all(probe);
+
+    let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+    assert!(
+        response.is_empty() || response.contains("408"),
+        "Connection should close or time out; got: {response:?}"
+    );
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_partial_second_request_timeout() {
+    keepalive_partial_second_request_probe(b"G").await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_crlf_probe_timeout() {
+    keepalive_partial_second_request_probe(b"\r\n").await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_pipelined_then_partial_timeout() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let mut data = vec![0; 256];
+    let _ = stream.read(&mut data);
+
+    // pipelined second request followed by one byte of a third request, then silence
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\nG");
+
+    let response = read_to_end_with_deadline(stream, Duration::from_secs(5));
+
+    assert!(
+        response.contains("408"),
+        "Connection should time out; got: {response:?}"
+    );
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_is_not_renewed_by_incoming_bytes() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream.write_all(b"G").await.unwrap();
+
+        let (mut reader, mut writer) = stream.split();
+        let mut response = String::new();
+
+        async {
+            let mut read = pin!(reader.read_to_string(&mut response));
+
+            let mut interval = interval(Duration::from_millis(150));
+
+            loop {
+                tokio::select! {
+                    result = &mut read => {
+                        result.unwrap();
+                        break;
+                    }
+
+                    _ = interval.tick() => {
+                        let _ = writer.write_all(b"E").await;
+                    }
+                }
+            }
+        }
+        .timeout(Duration::from_secs(2))
+        .await
+        .expect("Request head deadline should not be renewed by incoming bytes");
+
+        assert!(response.starts_with("HTTP/1.1 408 Request Timeout"));
+    }
+
+    srv.stop().await;
+}
+
+/// Reads a complete response head from a service with an empty response body.
+async fn read_http1_response_head(stream: &mut TcpStream) -> String {
+    async {
+        let mut response = Vec::new();
+        let mut chunk = [0; 256];
+
+        while !response.ends_with(b"\r\n\r\n") {
+            let len = stream.read(&mut chunk).await.unwrap();
+            assert_ne!(
+                len, 0,
+                "Connection should remain open until the response head is complete"
+            );
+
+            response.extend_from_slice(&chunk[..len]);
+        }
+
+        String::from_utf8(response).unwrap()
+    }
+    .timeout(Duration::from_secs(5))
+    .await
+    .expect("Response head should arrive within 5 seconds")
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_request_head_timeout_does_not_limit_uploads() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_secs(30))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|mut req: Request| async move {
+                let mut payload = req.take_payload();
+
+                while let Some(chunk) = payload.next().await {
+                    chunk.unwrap();
+                }
+
+                Ok::<_, Infallible>(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    for follow_up in [false, true] {
+        let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+
+        if follow_up {
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .unwrap();
+
+            assert!(read_http1_response_head(&mut stream)
+                .await
+                .contains("200 OK"));
+        }
+
+        stream
+            .write_all(b"POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nd")
+            .await
+            .unwrap();
+
+        sleep(Duration::from_millis(1300)).await;
+
+        stream.write_all(b"ata").await.unwrap();
+
+        assert!(read_http1_response_head(&mut stream)
+            .await
+            .contains("200 OK"));
+    }
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn http1_keepalive_pipelined_partial_head_uses_request_timeout() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(Duration::from_millis(200))
+            .client_request_timeout(Duration::from_secs(1))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp()
+    })
+    .await;
+
+    let mut stream = TcpStream::connect(srv.addr()).await.unwrap();
+    stream
+        // note the trailing "G"
+        .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\nG")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
+
+    sleep(Duration::from_millis(600)).await;
+
+    stream
+        // note that the "G" of GET was pipelined earlier
+        .write_all(b"ET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .await
+        .unwrap();
+
+    assert!(read_http1_response_head(&mut stream)
+        .await
+        .contains("200 OK"));
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
 async fn http10_keepalive_default_close() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -343,11 +781,11 @@ async fn http10_keepalive_default_close() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http10_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -371,18 +809,18 @@ async fn http10_keepalive() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn http1_keepalive_disabled() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .h1(|_| ok::<_, Infallible>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
@@ -394,7 +832,7 @@ async fn http1_keepalive_disabled() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn content_length() {
     use actix_http::{
         header::{HeaderName, HeaderValue},
@@ -413,7 +851,7 @@ async fn content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, Infallible>(Response::new(statuses[idx]))
+                ready(Ok::<_, Infallible>(Response::new(statuses[idx])))
             })
             .tcp()
     })
@@ -443,7 +881,63 @@ async fn content_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn content_length_truncated() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|mut req: Request| async move {
+                let expected_length: usize = req.uri().path()[1..].parse().unwrap();
+                let mut payload = req.take_payload();
+
+                let mut length = 0;
+                let mut seen_error = false;
+                while let Some(chunk) = payload.next().await {
+                    match chunk {
+                        Ok(b) => length += b.len(),
+                        Err(_) => {
+                            seen_error = true;
+                            break;
+                        }
+                    }
+                }
+                if seen_error {
+                    return Result::<_, Infallible>::Ok(Response::bad_request());
+                }
+
+                assert_eq!(length, expected_length, "length must match when no error");
+                Result::<_, Infallible>::Ok(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    let addr = srv.addr();
+    let mut buf = [0; 12];
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(
+        b"POST /10000 HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10000\r\n\r\ndata_truncated",
+    )
+    .await
+    .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 400");
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(b"POST /4 HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\ndata")
+        .await
+        .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 200");
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
 async fn h1_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
@@ -471,7 +965,7 @@ async fn h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
                 }
-                ok::<_, Infallible>(builder.body(data.clone()))
+                ready(Ok::<_, Infallible>(builder.body(data.clone())))
             })
             .tcp()
     })
@@ -509,11 +1003,11 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -528,11 +1022,11 @@ async fn h1_body() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -555,11 +1049,11 @@ async fn h1_head_empty() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -582,11 +1076,11 @@ async fn h1_head_binary() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_head_binary2() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
+            .h1(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
             .tcp()
     })
     .await;
@@ -605,15 +1099,15 @@ async fn h1_head_binary2() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
-                )
+                ))
             })
             .tcp()
     })
@@ -629,17 +1123,17 @@ async fn h1_body_length() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_chunked_explicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .body(BodyStream::new(body)),
-                )
+                ))
             })
             .tcp()
     })
@@ -666,13 +1160,15 @@ async fn h1_body_chunked_explicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_body_chunked_implicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(Response::build(StatusCode::OK).body(BodyStream::new(body)))
+                let body = once(ready(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
+                    Response::build(StatusCode::OK).body(BodyStream::new(body)),
+                ))
             })
             .tcp()
     })
@@ -697,17 +1193,17 @@ async fn h1_body_chunked_implicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_response_http_error_handling() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, Infallible>(
+                ready(Ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((http::header::CONTENT_TYPE, broken_header))
                         .body(STR),
-                )
+                ))
             }))
             .tcp()
     })
@@ -720,7 +1216,7 @@ async fn h1_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
 
     srv.stop().await;
@@ -736,11 +1232,11 @@ impl From<BadRequest> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response<()>, _>(BadRequest))
+            .h1(|_| ready(Err::<Response<()>, _>(BadRequest)))
             .tcp()
     })
     .await;
@@ -755,7 +1251,7 @@ async fn h1_service_error() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_on_connect() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -764,7 +1260,7 @@ async fn h1_on_connect() {
             })
             .h1(|req: Request| {
                 assert!(req.conn_data::<isize>().is_some());
-                ok::<_, Infallible>(Response::ok())
+                ready(Ok::<_, Infallible>(Response::ok()))
             })
             .tcp()
     })
@@ -777,13 +1273,9 @@ async fn h1_on_connect() {
 }
 
 /// Tests compliance with 304 Not Modified spec in RFC 7232 §4.1.
-/// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
-#[actix_rt::test]
+/// https://www.rfc-editor.org/info/rfc7232/#section-4.1
+#[tokio::test(flavor = "local")]
 async fn not_modified_spec_h1() {
-    // TODO: this test needing a few seconds to complete reveals some weirdness with either the
-    // dispatcher or the client, though similar hangs occur on other tests in this file, only
-    // succeeding, it seems, because of the keepalive timer
-
     static CL: header::HeaderName = header::CONTENT_LENGTH;
 
     let mut srv = test_server(|| {
@@ -816,10 +1308,10 @@ async fn not_modified_spec_h1() {
                         res.map_into_boxed_body()
                     }
 
-                    _ => panic!("unknown route"),
+                    _ => panic!("Unknown route"),
                 };
 
-                ok::<_, Infallible>(res)
+                ready(Ok::<_, Infallible>(res))
             })
             .tcp()
     })
@@ -849,17 +1341,15 @@ async fn not_modified_spec_h1() {
         res.headers().get(&CL),
         Some(&header::HeaderValue::from_static("4")),
     );
-    // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug in the client, especially since CL header can differ in length
-    // from the body
-    assert!(!srv.load_body(res).await.unwrap().is_empty());
+    // RFC 9112 §6.3: the client must not read a body for a 304 response.
+    assert!(srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
 
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2c_auto() {
     let mut srv = test_server(|| {
         HttpService::build()
@@ -870,7 +1360,7 @@ async fn h2c_auto() {
                     Version::HTTP_2 => "h2",
                     _ => unreachable!(),
                 };
-                ok::<_, Infallible>(Response::ok().set_body(body))
+                ready(Ok::<_, Infallible>(Response::ok().set_body(body)))
             })
             .tcp_auto_h2c()
     })
@@ -898,4 +1388,139 @@ async fn h2c_auto() {
     assert_eq!(body, &b"h2"[..]);
 
     srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn h2_flow_control_window_sizes() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(KeepAlive::Disabled)
+            .finish(|mut req: Request| async move {
+                while let Some(item) = req.take_payload().next().await {
+                    item?;
+                }
+
+                Ok::<_, Error>(Response::ok())
+            })
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+
+    let mut builder = h2::client::Builder::new();
+    builder.max_send_buffer_size(4 * 1024 * 1024);
+
+    let (h2, connection) = builder.handshake(tcp).await.unwrap();
+    tokio::spawn(async move { connection.await.unwrap() });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let request = ::http::Request::builder()
+        .method("POST")
+        .uri("/")
+        .body(())
+        .unwrap();
+
+    let (response, mut send) = h2.send_request(request, false).unwrap();
+
+    // request more than the default 64KiB. if server is advertising larger flow control windows,
+    // we should get at least 1MiB assigned.
+    send.reserve_capacity(2 * 1024 * 1024);
+
+    let cap = timeout(Duration::from_secs(2), async {
+        loop {
+            let cap = std::future::poll_fn(|cx| send.poll_capacity(cx))
+                .await
+                .expect("Request stream closed before flow control capacity became available")
+                .expect("Failed polling flow control capacity");
+
+            if cap >= 1024 * 1024 {
+                break cap;
+            }
+        }
+    })
+    .await
+    .expect("Timed out waiting for flow control capacity");
+
+    assert!(
+        cap >= 1024 * 1024,
+        "expected >= 1MiB send capacity, got {cap}"
+    );
+
+    send.send_data(Bytes::new(), true).unwrap();
+
+    let res = response.await.unwrap();
+    assert!(res.status().is_success());
+
+    srv.stop().await;
+}
+
+#[cfg(feature = "http2")]
+#[tokio::test(flavor = "local")]
+async fn h2_graceful_shutdown_sends_goaway() {
+    use actix_web::{web, App, HttpResponse, HttpServer};
+    use tokio::sync::Notify;
+
+    let started = Arc::new(Notify::new());
+    let handler_started = started.clone();
+    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::from(handler_started.clone()))
+            .route(
+                "/slow",
+                web::get().to(|started: web::Data<Notify>| async move {
+                    started.notify_one();
+                    sleep(Duration::from_millis(500)).await;
+                    HttpResponse::Ok().finish()
+                }),
+            )
+    })
+    .workers(1)
+    .disable_signals()
+    .shutdown_timeout(30)
+    .listen(listener)
+    .unwrap()
+    .run();
+
+    let handle = server.handle();
+    let server = tokio::spawn(server);
+    let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let (client, conn) = h2::client::handshake(stream).await.unwrap();
+    let conn = tokio::spawn(conn);
+
+    let mut client = client.ready().await.unwrap();
+    let request = http::Request::get("http://localhost/slow")
+        .body(())
+        .unwrap();
+    let (slow, _) = client.send_request(request, true).unwrap();
+    started.notified().await;
+
+    let stopping = Instant::now();
+    let stop = tokio::spawn(async move { handle.stop(true).await });
+
+    assert_eq!(
+        slow.await.unwrap().status(),
+        200,
+        "in-flight stream failed on shutdown"
+    );
+
+    conn.await.unwrap().unwrap();
+    stop.await.unwrap();
+    let stopped_after = stopping.elapsed();
+
+    assert!(
+        client.ready().await.is_err(),
+        "closed connection accepted a new stream"
+    );
+
+    server.await.unwrap().unwrap();
+
+    // Without GOAWAY the client keeps the connection open and actix waits the full 30s.
+    assert!(
+        stopped_after < Duration::from_secs(5),
+        "shutdown waited for the timeout: {stopped_after:?}"
+    );
 }

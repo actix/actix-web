@@ -5,11 +5,16 @@ use crate::http::header;
 
 common_header! {
     /// `Accept-Encoding` header, defined
-    /// in [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.4)
+    /// in [RFC 7231](https://www.rfc-editor.org/info/rfc7231/#section-5.3.4)
     ///
     /// The `Accept-Encoding` header field can be used by user agents to indicate what response
     /// content-codings are acceptable in the response. An `identity` token is used as a synonym
     /// for "no encoding" in order to communicate when no encoding is preferred.
+    ///
+    /// # Note
+    /// This is a request header. Servers should not send `Accept-Encoding` in responses; use the
+    /// `Content-Encoding` header (or middleware like compression) to describe any content-coding
+    /// applied to the response body.
     ///
     /// # ABNF
     /// ```plain
@@ -26,26 +31,26 @@ common_header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, Preference, QualityItem};
+    /// use actix_web::{http::header::{AcceptEncoding, Encoding, Preference, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptEncoding(vec![QualityItem::max(Preference::Specific(Encoding::gzip()))])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptEncoding(vec![
+    ///         QualityItem::max(Preference::Specific(Encoding::gzip())),
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem};
+    /// use actix_web::{http::header::{AcceptEncoding, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptEncoding(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptEncoding(vec![
     ///         "gzip".parse().unwrap(),
     ///         "br".parse().unwrap(),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (AcceptEncoding, header::ACCEPT_ENCODING) => (QualityItem<Preference<Encoding>>)*
 
@@ -158,7 +163,7 @@ impl AcceptEncoding {
     /// If `None` is returned, it means that the client has signalled that no representations
     /// are acceptable. This should never occur for a well behaved user-agent.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn preference(&self) -> Option<Preference<Encoding>> {
         // empty header indicates no preference
         if self.0.is_empty() {
@@ -210,7 +215,7 @@ impl AcceptEncoding {
     ///
     /// If no q-factors are provided, we prefer brotli > zstd > gzip.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn ranked(&self) -> Vec<Preference<Encoding>> {
         self.ranked_items().map(|q| q.item).collect()
     }

@@ -2,7 +2,58 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.75.
+## 0.8.9
+
+- Respond with `413 Payload Too Large` for `MultipartError::Payload(PayloadError::Overflow)` errors.
+
+## 0.8.8
+
+- Significant performance improvement when reading fields.
+
+## 0.8.7
+
+- Add `MultipartFormConfig::max_parts()` with a default global limit of 100 parts per form.
+- Add `MultipartCollect::max_parts()` and support the derive attribute `#[multipart(max_parts = 10)]`. The lower of the form limit and the global limit applies.
+
+## 0.8.6
+
+- Accept transport padding (spaces and tabs) after boundary delimiters, as allowed by RFC 2046.
+- Keep a bare CR followed by `--` and the boundary as field data instead of ending the field there.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 0.8.5
+
+- No significant changes since `0.8.4`.
+
+## 0.8.4
+
+- No significant changes since `0.8.3`.
+
+## 0.8.3
+
+- Field data that is similar to boundaries is now yielded in the `Field` stream before returning an incomplete error.
+
+## 0.8.2
+
+- Fix multipart field parsing hanging at EOF with missing or incomplete boundaries by returning `MultipartError::Incomplete`.
+
+## 0.8.1
+
+- Fix multipart field parsing when boundary delimiter is split across payload chunks.
+- Improve detail in some error messages.
+
+## 0.8.0
+
+- Add multi-field multipart payload builders to `actix_multipart::test`. [#3575]
+- Add `MultipartForm` support for `Option<Vec<T>>` fields. [#3577]
+- Bound internal multipart parser buffering to prevent unbounded memory growth on malformed bodies.
+  - behavior change notice: There's now a cap for buffering (64KB). It can be changed with `MultipartConfig::buffer_limit`.
+- Fix user-triggerable panic when parsing multipart boundaries.
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Update `rand` dependency to `0.10`.
+
+[#3577]: https://github.com/actix/actix-web/pull/3577
+[#3575]: https://github.com/actix/actix-web/issues/3575
 
 ## 0.7.2
 

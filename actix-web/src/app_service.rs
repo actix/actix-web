@@ -11,14 +11,15 @@ use crate::{
     config::{AppConfig, AppService},
     data::FnDataFactory,
     dev::Extensions,
-    guard::Guard,
+    guard::{Guard, RegisteredMethods},
+    http::header,
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
     service::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, HttpResponse,
+    Error, HttpMessage as _, HttpResponse,
 };
 
 /// Service factory to convert [`Request`] to a [`ServiceRequest<S>`].
@@ -41,6 +42,8 @@ where
     pub(crate) default: Option<Rc<BoxedHttpServiceFactory>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) introspector: Rc<RefCell<crate::introspection::IntrospectionCollector>>,
 }
 
 impl<T, B> ServiceFactory<Request> for AppInit<T, B>
@@ -62,16 +65,31 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
-        // set AppService's default service to 404 NotFound
-        // if no user defined default service exists.
-        let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(HttpResponse::NotFound()))
-            })))
-        });
+        async fn default_handler(req: ServiceRequest) -> Result<ServiceResponse, Error> {
+            let allowed = req.extensions().get::<RegisteredMethods>().cloned();
+
+            let response = match allowed {
+                Some(methods) => HttpResponse::MethodNotAllowed()
+                    .insert_header(header::Allow(methods.0))
+                    .finish(),
+                None => HttpResponse::NotFound().finish(),
+            };
+
+            Ok(req.into_response(response))
+        }
+
+        // Use the built-in routing fallback if no user-defined default service exists.
+        let default = self
+            .default
+            .clone()
+            .unwrap_or_else(|| Rc::new(boxed::factory(fn_service(default_handler))));
 
         // create App config to pass to child services
         let mut config = AppService::new(config, Rc::clone(&default));
+        #[cfg(feature = "experimental-introspection")]
+        {
+            config.introspector = Rc::clone(&self.introspector);
+        }
 
         // register services
         mem::take(&mut *self.services.borrow_mut())
@@ -80,6 +98,9 @@ where
 
         let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
 
+        #[cfg(feature = "experimental-introspection")]
+        let (config, services, _) = config.into_services();
+        #[cfg(not(feature = "experimental-introspection"))]
         let (config, services) = config.into_services();
 
         // complete pipeline creation.
@@ -98,6 +119,10 @@ where
 
         // external resources
         for mut rdef in mem::take(&mut *self.external.borrow_mut()) {
+            #[cfg(feature = "experimental-introspection")]
+            {
+                self.introspector.borrow_mut().register_external(&rdef, "/");
+            }
             rmap.add(&mut rdef, None);
         }
 
@@ -110,6 +135,8 @@ where
 
         // construct app service and middleware service factory future.
         let endpoint_fut = self.endpoint.new_service(());
+        #[cfg(feature = "experimental-introspection")]
+        let introspector = Rc::clone(&self.introspector);
 
         // take extensions or create new one as app data container.
         let mut app_data = self.extensions.borrow_mut().take().unwrap_or_default();
@@ -128,6 +155,12 @@ where
             // populate app data container from (async) data factories.
             for factory in &async_data_factories {
                 factory.create(&mut app_data);
+            }
+
+            #[cfg(feature = "experimental-introspection")]
+            {
+                let tree = introspector.borrow_mut().finalize();
+                app_data.insert(crate::web::Data::new(tree));
             }
 
             Ok(AppInitService {
@@ -166,6 +199,13 @@ impl AppInitServiceState {
             config,
             pool: HttpRequestPool::default(),
         })
+    }
+
+    /// Constructs state for requests that do not have a service lifecycle to reuse the pool.
+    pub(crate) fn new_without_pool(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
+        let state = Self::new(rmap, config);
+        state.pool().disable();
+        state
     }
 
     /// Returns a reference to the application's resource map.
@@ -207,6 +247,8 @@ where
                 let inner = Rc::get_mut(&mut req.inner).unwrap();
                 inner.path.get_mut().update(&head.uri);
                 inner.path.reset();
+                inner.resource_path.clear();
+                inner.resource_path_matched = false;
                 inner.head = head;
                 inner.conn_data = conn_data;
                 inner.extensions = extensions;
@@ -232,7 +274,7 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.app_state.pool().clear();
+        self.app_state.pool().disable();
     }
 }
 
@@ -311,7 +353,15 @@ impl Service<ServiceRequest> for AppRouting {
             guards.iter().all(|guard| guard.check(&guard_ctx))
         });
 
-        if let Some((srv, _info)) = res {
+        if let Some((srv, info)) = res {
+            req.push_resource_id(info.0);
+
+            let matched = req
+                .resource_map()
+                .is_resource_path_match(req.resource_id_path());
+
+            req.mark_resource_path(matched);
+
             srv.call(req)
         } else {
             self.default.call(req)
@@ -367,7 +417,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));
 
@@ -382,5 +432,109 @@ mod tests {
             let _ = app.call(req).await.unwrap();
         }
         assert!(data.load(Ordering::Relaxed));
+    }
+
+    #[cfg(feature = "macros")]
+    mod macro_routing {
+        use crate::{
+            get,
+            http::{header, Method, StatusCode},
+            post,
+            test::{call_service, init_service, TestRequest},
+            web, App, HttpResponse,
+        };
+
+        #[get("/items")]
+        async fn get_items() -> HttpResponse {
+            HttpResponse::Ok().finish()
+        }
+
+        #[post("/items")]
+        async fn post_items() -> HttpResponse {
+            HttpResponse::Created().finish()
+        }
+
+        #[tokio::test(flavor = "local")]
+        async fn macro_routes_allow_methods_in_any_order() {
+            for reverse_registration in [false, true] {
+                for scoped in [false, true] {
+                    let app = App::new().configure(|cfg| {
+                        let mut services = web::scope(if scoped { "/api" } else { "" });
+
+                        services = if reverse_registration {
+                            services.service(post_items).service(get_items)
+                        } else {
+                            services.service(get_items).service(post_items)
+                        };
+
+                        if scoped {
+                            cfg.service(services);
+                        } else if reverse_registration {
+                            cfg.service(post_items).service(get_items);
+                        } else {
+                            cfg.service(get_items).service(post_items);
+                        }
+                    });
+                    let app = init_service(app).await;
+                    let path = if scoped { "/api/items" } else { "/items" };
+
+                    for methods in [
+                        [Method::DELETE, Method::GET, Method::POST],
+                        [Method::DELETE, Method::POST, Method::GET],
+                        [Method::POST, Method::GET, Method::DELETE],
+                        [Method::POST, Method::DELETE, Method::GET],
+                        [Method::GET, Method::DELETE, Method::POST],
+                        [Method::GET, Method::POST, Method::DELETE],
+                    ] {
+                        for method in methods {
+                            let expected = match method {
+                                Method::GET => StatusCode::OK,
+                                Method::POST => StatusCode::CREATED,
+                                _ => StatusCode::METHOD_NOT_ALLOWED,
+                            };
+                            let req = TestRequest::with_uri(path).method(method).to_request();
+                            let res = call_service(&app, req).await;
+
+                            assert_eq!(res.status(), expected);
+
+                            if expected == StatusCode::METHOD_NOT_ALLOWED {
+                                let mut allowed: Vec<_> = res
+                                    .headers()
+                                    .get(header::ALLOW)
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .split(", ")
+                                    .collect();
+                                allowed.sort_unstable();
+
+                                assert_eq!(allowed, ["GET", "POST"]);
+                            }
+                        }
+                    }
+
+                    let res =
+                        call_service(&app, TestRequest::with_uri("/missing").to_request()).await;
+                    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+                    assert!(!res.headers().contains_key(header::ALLOW));
+                }
+            }
+        }
+
+        #[tokio::test(flavor = "local")]
+        async fn macro_routes_preserve_custom_default() {
+            let app = init_service(
+                App::new()
+                    .service(get_items)
+                    .service(post_items)
+                    .default_service(web::to(HttpResponse::BadRequest)),
+            )
+            .await;
+
+            let req = TestRequest::delete().uri("/items").to_request();
+            let res = call_service(&app, req).await;
+
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        }
     }
 }

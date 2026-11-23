@@ -7,8 +7,6 @@ mod client;
 mod codec;
 mod decoder;
 mod dispatcher;
-#[cfg(test)]
-mod dispatcher_tests;
 mod encoder;
 mod expect;
 mod payload;
@@ -71,14 +69,14 @@ mod tests {
         pub fn message(self) -> Request {
             match self {
                 Message::Item(req) => req,
-                _ => panic!("error"),
+                _ => panic!("Error"),
             }
         }
 
         pub fn chunk(self) -> Bytes {
             match self {
                 Message::Chunk(Some(data)) => data,
-                _ => panic!("error"),
+                _ => panic!("Error"),
             }
         }
 
@@ -86,7 +84,7 @@ mod tests {
             match self {
                 Message::Chunk(None) => true,
                 Message::Chunk(Some(_)) => false,
-                _ => panic!("error"),
+                _ => panic!("Error"),
             }
         }
     }

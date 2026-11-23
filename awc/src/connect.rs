@@ -10,6 +10,7 @@ use actix_codec::Framed;
 use actix_http::{h1::ClientCodec, Payload, RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
 use crate::{
     any_body::AnyBody,
@@ -121,7 +122,7 @@ where
     }
 }
 
-pin_project_lite::pin_project! {
+pin_project! {
     #[project = ConnectRequestProj]
     pub enum ConnectRequestFuture<Fut, Io>
     where

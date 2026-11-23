@@ -1,11 +1,17 @@
+# This workflow is managed by gh actions-lock.
+
 name: Coverage
 
 on:
   push:
-    branches: [master]
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
+  code-quality: write
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,28 +19,30 @@ concurrency:
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: nightly
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@v2.56.19
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 
       - name: Generate code coverage
-        run: just test-coverage-codecov
+        run: just test-coverage-cobertura
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.4.3
+      - name: Upload coverage to GitHub
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-code-coverage@v1.4.4
         with:
-          files: codecov.json
-          fail_ci_if_error: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          file: cobertura.xml
+          language: Rust
+          label: code-coverage/cargo-llvm-cov

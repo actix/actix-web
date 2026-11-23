@@ -1,3 +1,5 @@
+# This workflow is managed by gh actions-lock.
+
 name: Lint
 
 on:
@@ -12,13 +14,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fmt:
-    runs-on: ubuntu-latest
+  zizmor:
+    name: zizmor
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-slim
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
+
+      - name: Verify action lockfile
+        run: |
+          gh extension install github/gh-actions-lock --pin v0.3.0
+          gh actions-lock --verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: zizmorcore/zizmor-action@v0.8.1
+        with:
+          advanced-security: false
+          annotations: true
+          version: v1.24.1
+
+  deny:
+    name: deny
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+
+    steps:
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
+
+      - name: deny check
+        uses: EmbarkStudios/cargo-deny-action@v2.1.1
+
+  fmt:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: nightly
           components: rustfmt
@@ -31,12 +72,14 @@ jobs:
       contents: read
       checks: write # to add clippy checks to PR diffs
 
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           components: clippy
 
@@ -50,12 +93,14 @@ jobs:
             -A unknown_lints -D clippy::todo -D clippy::dbg_macro
 
   lint-docs:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: nightly
           components: rust-docs
@@ -67,24 +112,28 @@ jobs:
 
   check-external-types:
     if: false # rustdoc mismatch currently
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.56.19
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v2.2.0
+        uses: taiki-e/cache-cargo-install-action@v3.0.8
         with:
           tool: cargo-check-external-types
 
       - name: check external types
-        run: just check-external-types-all +${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
+        run: just check-external-types-all +"${RUST_VERSION_EXTERNAL_TYPES}"
+        env:
+          RUST_VERSION_EXTERNAL_TYPES: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}

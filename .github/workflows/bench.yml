@@ -1,8 +1,10 @@
+# This workflow is managed by gh actions-lock.
+
 name: Benchmark
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -13,10 +15,12 @@ concurrency:
 
 jobs:
   check_benchmark:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         run: |

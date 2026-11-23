@@ -1,6 +1,7 @@
 use std::{convert::Infallible, net::SocketAddr};
 
-use actix_utils::future::{err, ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use derive_more::{Display, Error};
 
 use crate::{
@@ -70,9 +71,9 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 /// If the older, related headers are also present (eg. `X-Forwarded-For`), then `Forwarded`
 /// is preferred.
 ///
-/// [rfc7239]: https://datatracker.ietf.org/doc/html/rfc7239
-/// [rfc7239-62]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.2
-/// [rfc7239-63]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.3
+/// [rfc7239]: https://www.rfc-editor.org/info/rfc7239
+/// [rfc7239-62]: https://www.rfc-editor.org/info/rfc7239/#section-6.2
+/// [rfc7239-63]: https://www.rfc-editor.org/info/rfc7239/#section-6.3
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
     host: String,
@@ -111,14 +112,14 @@ impl ConnectionInfo {
             // > In a chain of proxy servers where this is fully utilized, the first
             // > "for" parameter will disclose the client where the request was first
             // > made, followed by any subsequent proxy identifiers.
-            // --- https://datatracker.ietf.org/doc/html/rfc7239#section-5.2
+            // --- https://www.rfc-editor.org/info/rfc7239/#section-5.2
 
             match name.trim().to_lowercase().as_str() {
                 "for" => realip_remote_addr.get_or_insert_with(|| bare_address(unquote(val))),
                 "proto" => scheme.get_or_insert_with(|| unquote(val)),
                 "host" => host.get_or_insert_with(|| unquote(val)),
                 "by" => {
-                    // TODO: implement https://datatracker.ietf.org/doc/html/rfc7239#section-5.1
+                    // TODO: implement https://www.rfc-editor.org/info/rfc7239/#section-5.1
                     continue;
                 }
                 _ => continue,
@@ -128,7 +129,7 @@ impl ConnectionInfo {
         let scheme = scheme
             .or_else(|| first_header_value(req, &X_FORWARDED_PROTO))
             .or_else(|| req.uri.scheme().map(Scheme::as_str))
-            .or_else(|| Some("https").filter(|_| cfg.secure()))
+            .or_else(|| cfg.secure().then_some("https"))
             .unwrap_or("http")
             .to_owned();
 
@@ -210,12 +211,13 @@ impl ConnectionInfo {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for ConnectionInfo {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.connection_info().clone())
+        ready(Ok(req.connection_info().clone()))
     }
 }
 
@@ -252,16 +254,17 @@ pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for PeerAddr {
     type Error = MissingPeerAddr;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         match req.peer_addr() {
-            Some(addr) => ok(PeerAddr(addr)),
+            Some(addr) => ready(Ok(PeerAddr(addr))),
             None => {
                 log::error!("Missing peer address.");
-                err(MissingPeerAddr)
+                ready(Err(MissingPeerAddr))
             }
         }
     }
@@ -441,7 +444,7 @@ mod tests {
         assert_eq!(info.host(), "actix.rs");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn conn_info_extract() {
         let req = TestRequest::default()
             .uri("https://actix.rs/test")
@@ -451,7 +454,7 @@ mod tests {
         assert_eq!(conn_info.host(), "actix.rs");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn peer_addr_extract() {
         let req = TestRequest::default().to_http_request();
         let res = PeerAddr::extract(&req).await;
@@ -463,7 +466,7 @@ mod tests {
         assert_eq!(peer_addr, PeerAddr(addr));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn remote_address() {
         let req = TestRequest::default().to_http_request();
         let res = ConnectionInfo::extract(&req).await.unwrap();
@@ -475,7 +478,7 @@ mod tests {
         assert_eq!(conn_info.peer_addr().unwrap(), "127.0.0.1");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn real_ip_from_socket_addr() {
         let req = TestRequest::default().to_http_request();
         let res = ConnectionInfo::extract(&req).await.unwrap();

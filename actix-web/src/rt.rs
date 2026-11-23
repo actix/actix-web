@@ -64,7 +64,7 @@
 //! [`actix-rt`]: https://docs.rs/actix-rt
 //! [`tokio`]: https://docs.rs/tokio
 //! [Tokio]: https://docs.rs/tokio
-//! [`spawn`]: https://docs.rs/tokio/1/tokio/fn.spawn.html
+//! [`spawn`]: https://docs.rs/tokio/1/tokio/task/fn.spawn.html
 //! [`block_in_place`]: https://docs.rs/tokio/1/tokio/task/fn.block_in_place.html
 
 // In particular:

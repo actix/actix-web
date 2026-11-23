@@ -1,7 +1,8 @@
-/// Test Module for checking the drop state of certain async tasks that are spawned
-/// with `actix_rt::spawn`
-///
-/// The target task must explicitly generate `NotifyOnDrop` when spawn the task
+//! Test module for checking the drop state of certain async tasks that are spawned with
+//! `tokio::task::spawn_local`.
+//!
+//! The target task must explicitly generate `NotifyOnDrop` when spawning the task.
+
 use std::cell::RefCell;
 
 thread_local! {

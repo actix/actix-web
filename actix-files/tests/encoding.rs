@@ -8,7 +8,7 @@ use actix_web::{
     web, App,
 };
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
 async fn test_utf8_file_contents() {
     // use default ISO-8859-1 encoding
     let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
@@ -36,10 +36,178 @@ async fn test_utf8_file_contents() {
     );
 }
 
-#[actix_web::test]
+#[tokio::test(flavor = "local")]
+async fn test_compression_encodings() {
+    use actix_web::body::MessageBody;
+
+    let utf8_txt_len = std::fs::metadata("./tests/utf8.txt").unwrap().len();
+    let utf8_txt_br_len = std::fs::metadata("./tests/utf8.txt.br").unwrap().len();
+    let utf8_txt_gz_len = std::fs::metadata("./tests/utf8.txt.gz").unwrap().len();
+
+    let srv =
+        test::init_service(App::new().service(Files::new("/", "./tests").try_compressed())).await;
+
+    // Select the requested encoding when present
+    let mut req = TestRequest::with_uri("/utf8.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("gzip"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(
+        res.headers().get(header::CONTENT_ENCODING),
+        Some(&HeaderValue::from_static("gzip")),
+    );
+    assert_eq!(
+        res.headers().get(header::VARY),
+        Some(&HeaderValue::from_static("accept-encoding")),
+    );
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(utf8_txt_gz_len),
+    );
+
+    // Select the highest priority encoding
+    let mut req = TestRequest::with_uri("/utf8.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("gzip;q=0.6,br;q=0.8,*"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(
+        res.headers().get(header::CONTENT_ENCODING),
+        Some(&HeaderValue::from_static("br")),
+    );
+    assert_eq!(
+        res.headers().get(header::VARY),
+        Some(&HeaderValue::from_static("accept-encoding")),
+    );
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(utf8_txt_br_len),
+    );
+
+    // Request encoding that doesn't exist on disk and fallback to no encoding
+    let mut req = TestRequest::with_uri("/utf8.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("zstd"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING), None,);
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(utf8_txt_len),
+    );
+
+    // Do not select an encoding explicitly refused via q=0
+    let mut req = TestRequest::with_uri("/utf8.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("zstd;q=1, gzip;q=0"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING), None,);
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(utf8_txt_len),
+    );
+
+    // Can still request a compressed file directly
+    let req = TestRequest::with_uri("/utf8.txt.gz").to_request();
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("application/gzip")),
+    );
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING), None,);
+
+    // Don't try compressed files
+    let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
+
+    let mut req = TestRequest::with_uri("/utf8.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("gzip"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING), None);
+}
+
+#[tokio::test(flavor = "local")]
+async fn test_compression_encodings_multiple_directories() {
+    use actix_web::body::MessageBody;
+
+    let first_dir = tempfile::tempdir().unwrap();
+    let second_dir = tempfile::tempdir().unwrap();
+
+    let compressed_path = second_dir.path().join("fallback.txt.gz");
+    std::fs::write(&compressed_path, b"compressed").unwrap();
+    let compressed_len = std::fs::metadata(compressed_path).unwrap().len();
+
+    let srv = test::init_service(
+        App::new().service(Files::new("/", [first_dir.path(), second_dir.path()]).try_compressed()),
+    )
+    .await;
+
+    let mut req = TestRequest::with_uri("/fallback.txt").to_request();
+    req.headers_mut().insert(
+        header::ACCEPT_ENCODING,
+        header::HeaderValue::from_static("gzip"),
+    );
+    let res = test::call_service(&srv, req).await;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+    );
+    assert_eq!(
+        res.headers().get(header::CONTENT_ENCODING),
+        Some(&HeaderValue::from_static("gzip")),
+    );
+    assert_eq!(
+        res.into_body().size(),
+        actix_web::body::BodySize::Sized(compressed_len),
+    );
+}
+
+#[tokio::test(flavor = "local")]
 async fn partial_range_response_encoding() {
     let srv = test::init_service(App::new().default_service(web::to(|| async {
-        NamedFile::open_async("./tests/test.binary").await.unwrap()
+        NamedFile::open("./tests/test.binary").unwrap()
     })))
     .await;
 
@@ -51,15 +219,12 @@ async fn partial_range_response_encoding() {
     assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
     assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
 
-    // range request with accept-encoding returns a content-encoding header
+    // range request with accept-encoding still returns no content-encoding header
     let req = TestRequest::with_uri("/")
         .append_header((header::RANGE, "bytes=10-20"))
-        .append_header((header::ACCEPT_ENCODING, "identity"))
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
         .to_request();
     let res = test::call_service(&srv, req).await;
     assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-    assert_eq!(
-        res.headers().get(header::CONTENT_ENCODING).unwrap(),
-        "identity"
-    );
+    assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
 }

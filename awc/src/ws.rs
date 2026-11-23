@@ -125,13 +125,9 @@ impl WebsocketsRequest {
     /// Set a cookie
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies
+            .get_or_insert_with(CookieJar::new)
+            .add(cookie.into_owned());
         self
     }
 
@@ -247,6 +243,21 @@ impl WebsocketsRequest {
         T: fmt::Display,
     {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
+    }
+
+    /// Returns whether headers should be sent in Camel-Case.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn camel_case_headers(&self) -> bool {
+        self.head.camel_case_headers()
+    }
+
+    /// Sets whether to send headers formatted as Camel-Case.
+    #[inline]
+    pub fn set_camel_case_headers(mut self, val: bool) -> Self {
+        self.head.set_camel_case_headers(val);
+        self
     }
 
     /// Complete request construction and connect to a WebSocket server.
@@ -374,19 +385,27 @@ impl WebsocketsRequest {
         }
 
         // Check for "CONNECTION" header
-        if let Some(conn) = head.headers.get(&header::CONNECTION) {
-            if let Ok(s) = conn.to_str() {
-                if !s.to_ascii_lowercase().contains("upgrade") {
-                    log::trace!("Invalid connection header: {}", s);
-                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+        let mut upgrade = false;
+        for conn in head.headers.get_all(header::CONNECTION) {
+            if let Ok(value) = conn.to_str() {
+                for option in value.split(',').map(str::trim) {
+                    if option.eq_ignore_ascii_case("close") {
+                        log::trace!("Invalid connection header: {:?}", conn);
+                        return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                    } else if option.eq_ignore_ascii_case("upgrade") {
+                        upgrade = true;
+                    }
                 }
-            } else {
+            }
+        }
+        if !upgrade {
+            if let Some(conn) = head.headers.get(header::CONNECTION) {
                 log::trace!("Invalid connection header: {:?}", conn);
                 return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+            } else {
+                log::trace!("Missing connection header");
+                return Err(WsClientError::MissingConnectionHeader);
             }
-        } else {
-            log::trace!("Missing connection header");
-            return Err(WsClientError::MissingConnectionHeader);
         }
 
         if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
@@ -394,9 +413,7 @@ impl WebsocketsRequest {
 
             if hdr_key.as_bytes() != encoded {
                 log::trace!(
-                    "Invalid challenge response: expected: {:?} received: {:?}",
-                    &encoded,
-                    key
+                    "Invalid challenge response: expected: {encoded:?} received: {hdr_key:?}",
                 );
 
                 return Err(WsClientError::InvalidChallengeResponse(
@@ -462,7 +479,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_debug() {
         let request = Client::new().ws("/").header("x-test", "111");
         let repr = format!("{:?}", request);
@@ -470,7 +487,7 @@ mod tests {
         assert!(repr.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_header_override() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -489,7 +506,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn basic_auth() {
         let req = Client::new()
             .ws("/")
@@ -516,7 +533,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn bearer_auth() {
         let req = Client::new().ws("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
@@ -533,7 +550,13 @@ mod tests {
         let _ = req.connect();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn camel_case_headers() {
+        let req = Client::new().ws("/").set_camel_case_headers(true);
+        assert!(req.camel_case_headers());
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn basics() {
         let req = Client::new()
             .ws("http://localhost/")

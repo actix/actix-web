@@ -21,7 +21,8 @@
 //! There is a macro to set up a handler for each of the most common HTTP methods that also define
 //! additional guards and route-specific middleware.
 //!
-//! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
+//! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [QUERY], [HEAD], [CONNECT], [OPTIONS],
+//! [TRACE]
 //!
 //! ```
 //! # use actix_web::HttpResponse;
@@ -62,20 +63,21 @@
 //! ```
 //!
 //! [actix-web attributes docs]: https://docs.rs/actix-web/latest/actix_web/#attributes
+//! [CONNECT]: macro@macro@connect
+//! [DELETE]: macro@delete
 //! [GET]: macro@get
+//! [HEAD]: macro@head
+//! [OPTIONS]: macro@options
+//! [PATCH]: macro@patch
 //! [POST]: macro@post
 //! [PUT]: macro@put
-//! [HEAD]: macro@head
-//! [CONNECT]: macro@macro@connect
-//! [OPTIONS]: macro@options
+//! [QUERY]: macro@query
 //! [TRACE]: macro@trace
-//! [PATCH]: macro@patch
-//! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -97,6 +99,7 @@ mod scope;
 /// - `method = "HTTP_METHOD"`: Registers HTTP method to provide guard for. Upper-case string,
 ///   "GET", "POST" for example.
 /// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+/// - `guard_obj = expression`: Registers a guard object that implements `actix_web::guard::Guard`.
 /// - `wrap = "Middleware"`: Registers a resource middleware.
 ///
 /// # Notes
@@ -164,6 +167,7 @@ macro_rules! method_macro {
         /// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the
         ///   function name of handler is used.
         /// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+        /// - `guard_obj = expression`: Registers a guard object that implements `actix_web::guard::Guard`.
         /// - `wrap = "Middleware"`: Registers a resource middleware.
         ///
         /// # Notes
@@ -186,15 +190,16 @@ macro_rules! method_macro {
     };
 }
 
+method_macro!(Connect, connect);
+method_macro!(Delete, delete);
 method_macro!(Get, get);
+method_macro!(Head, head);
+method_macro!(Options, options);
+method_macro!(Patch, patch);
 method_macro!(Post, post);
 method_macro!(Put, put);
-method_macro!(Delete, delete);
-method_macro!(Head, head);
-method_macro!(Connect, connect);
-method_macro!(Options, options);
+method_macro!(Query, query);
 method_macro!(Trace, trace);
-method_macro!(Patch, patch);
 
 /// Prepends a path prefix to all handlers using routing macros inside the attached module.
 ///
@@ -261,7 +266,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Examples
 /// ```
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test() {
 ///     assert_eq!(async { "Hello world" }.await, "Hello world");
 /// }

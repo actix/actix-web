@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.7.2"
+version = "0.8.9"
 authors = [
   "Nikolay Kim <fafhrd91@gmail.com>",
   "Jacob Halsey <jacob@jhalsey.com>",
@@ -12,10 +12,14 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
+
+[[test]]
+name = "trybuild"
+required-features = ["derive", "tempfile"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
@@ -38,7 +42,7 @@ derive = ["actix-multipart-derive"]
 tempfile = ["dep:tempfile", "tokio/fs"]
 
 [dependencies]
-actix-multipart-derive = { version = "=0.7.0", optional = true }
+actix-multipart-derive = { version = "=0.8.2", optional = true }
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 
@@ -50,7 +54,7 @@ local-waker = "0.1"
 log = "0.4"
 memchr = "2.5"
 mime = "0.3"
-rand = "0.9"
+rand = "0.10.1"
 serde = "1"
 serde_json = "1"
 serde_plain = "1"
@@ -60,17 +64,19 @@ tokio = { version = "1.38.2", features = ["sync", "io-util"] }
 [dev-dependencies]
 actix-http = "3"
 actix-multipart-rfc7578 = "0.11"
-actix-rt = "2.2"
 actix-test = "0.1"
 actix-web = "4"
 assert_matches = "1"
 awc = "3"
+err-report = "0.1"
 env_logger = "0.11"
 futures-test = "0.3"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 multer = "3"
-tokio = { version = "1.38.2", features = ["sync"] }
+rustversion-msrv = "0.100"
+tokio = { version = "1.51", features = ["macros", "rt", "sync", "time"] }
 tokio-stream = "0.1"
+trybuild = "1"
 
 [lints]
 workspace = true

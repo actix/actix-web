@@ -9,12 +9,12 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
+use tokio::net::TcpStream;
 use tracing::error;
 
 use crate::{
@@ -24,15 +24,25 @@ use crate::{
     h1, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
-/// A [`ServiceFactory`] for HTTP/1.1 and HTTP/2 connections.
+#[inline]
+fn desired_nodelay(tcp_nodelay: Option<bool>) -> Option<bool> {
+    tcp_nodelay
+}
+
+#[inline]
+fn set_nodelay(stream: &TcpStream, nodelay: bool) {
+    let _ = stream.set_nodelay(nodelay);
+}
+
+/// A [`ServiceFactory`] for HTTP/1.1 and, when enabled, HTTP/2 connections.
 ///
 /// Use [`build`](Self::build) to begin constructing service. Also see [`HttpServiceBuilder`].
 ///
 /// # Automatic HTTP Version Selection
 /// There are two ways to select the HTTP version of an incoming connection:
-/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); both versions
-///   are supported automatically when using either of the `.rustls()` or `.openssl()` finalizing
-///   methods.
+/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); HTTP/1.x is
+///   always supported, and HTTP/2 is supported when the `http2` feature is enabled. Use either of
+///   the `.rustls()` or `.openssl()` finalizing methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
 ///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
 ///   the `.tcp_auto_h2c()` finalizing method to enable this behavior.
@@ -129,8 +139,8 @@ where
 {
     /// Sets service for `Expect: 100-Continue` handling.
     ///
-    /// An expect service is called with requests that contain an `Expect` header. A successful
-    /// response type is also a request which will be forwarded to the main service.
+    /// An expect service is called with requests that contain an `Expect: 100-Continue` header. A
+    /// successful response type is also a request which will be forwarded to the main service.
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
@@ -202,7 +212,13 @@ where
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
     {
-        fn_service(|io: TcpStream| async {
+        let tcp_nodelay = self.cfg.tcp_nodelay();
+
+        fn_service(move |io: TcpStream| async move {
+            if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                set_nodelay(&io, nodelay);
+            }
+
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
         })
@@ -216,6 +232,8 @@ where
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
     {
+        let tcp_nodelay = self.cfg.tcp_nodelay();
+
         fn_service(move |io: TcpStream| async move {
             // subset of HTTP/2 preface defined by RFC 9113 §3.4
             // this subset was chosen to maximize likelihood that peeking only once will allow us to
@@ -232,6 +250,10 @@ where
             } else {
                 Protocol::Http1
             };
+
+            if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                set_nodelay(&io, nodelay);
+            }
 
             let peer_addr = io.peer_addr().ok();
             Ok((io, proto, peer_addr))
@@ -260,7 +282,6 @@ impl TlsAcceptorConfig {
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         openssl::{
             reexports::{Error as SslError, SslAcceptor},
@@ -322,6 +343,7 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
+            let tcp_nodelay = self.cfg.tcp_nodelay();
             let mut acceptor = Acceptor::new(acceptor);
 
             if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
@@ -333,7 +355,7 @@ mod openssl {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
                     let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -343,6 +365,10 @@ mod openssl {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref(), nodelay);
+                    }
 
                     let peer_addr = io.get_ref().peer_addr().ok();
                     (io, proto, peer_addr)
@@ -356,7 +382,6 @@ mod openssl {
 mod rustls_0_20 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_20::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -415,7 +440,10 @@ mod rustls_0_20 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let tcp_nodelay = self.cfg.tcp_nodelay();
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -430,7 +458,7 @@ mod rustls_0_20 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -440,6 +468,11 @@ mod rustls_0_20 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -452,7 +485,6 @@ mod rustls_0_20 {
 mod rustls_0_21 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_21::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -511,7 +543,10 @@ mod rustls_0_21 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let tcp_nodelay = self.cfg.tcp_nodelay();
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -526,7 +561,7 @@ mod rustls_0_21 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -536,6 +571,11 @@ mod rustls_0_21 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -548,7 +588,6 @@ mod rustls_0_21 {
 mod rustls_0_22 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_22::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -607,7 +646,10 @@ mod rustls_0_22 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let tcp_nodelay = self.cfg.tcp_nodelay();
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -622,7 +664,7 @@ mod rustls_0_22 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -632,6 +674,11 @@ mod rustls_0_22 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })
@@ -644,7 +691,6 @@ mod rustls_0_22 {
 mod rustls_0_23 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_23::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -703,7 +749,10 @@ mod rustls_0_23 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            let tcp_nodelay = self.cfg.tcp_nodelay();
+            let mut protos = vec![b"http/1.1".to_vec()];
+            #[cfg(feature = "http2")]
+            protos.insert(0, b"h2".to_vec());
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
@@ -718,7 +767,7 @@ mod rustls_0_23 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .and_then(move |io: TlsStream<TcpStream>| async move {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -728,6 +777,11 @@ mod rustls_0_23 {
                     } else {
                         Protocol::Http1
                     };
+
+                    if let Some(nodelay) = desired_nodelay(tcp_nodelay) {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
+
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     Ok((io, proto, peer_addr))
                 })

@@ -2,6 +2,7 @@
 
 use std::{fmt, ops};
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 
 use crate::{
@@ -56,6 +57,7 @@ where
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T> FromRequest for Header<T>
 where
     T: ParseHeader,
@@ -80,7 +82,7 @@ mod tests {
         test::TestRequest,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_header_extract() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))

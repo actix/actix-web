@@ -1,15 +1,185 @@
 use std::{
-    net,
+    fmt,
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
     rc::Rc,
     time::{Duration, Instant},
 };
 
 use bytes::BytesMut;
 
-use crate::{date::DateService, KeepAlive};
+use crate::{
+    date::{DateService, DATE_VALUE_LENGTH},
+    KeepAlive,
+};
+
+pub(crate) type GracefulShutdownFuture = Pin<Box<dyn Future<Output = ()>>>;
+
+#[derive(Clone)]
+pub(crate) struct GracefulShutdownSignal(Rc<dyn Fn() -> GracefulShutdownFuture>);
+
+impl GracefulShutdownSignal {
+    pub(crate) fn new<F, Fut>(signal: F) -> Self
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = ()> + 'static,
+    {
+        Self(Rc::new(move || Box::pin(signal())))
+    }
+
+    fn notified(&self) -> GracefulShutdownFuture {
+        (self.0)()
+    }
+}
+
+impl fmt::Debug for GracefulShutdownSignal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GracefulShutdownSignal")
+            .finish_non_exhaustive()
+    }
+}
+
+/// Default HTTP/2 initial connection-level flow control window size.
+///
+/// Matches awc's defaults to avoid poor throughput on high-BDP links.
+pub(crate) const DEFAULT_H2_CONN_WINDOW_SIZE: u32 = 1024 * 1024 * 2; // 2MiB
+
+/// Default HTTP/2 initial stream-level flow control window size.
+///
+/// Matches awc's defaults to avoid poor throughput on high-BDP links.
+pub(crate) const DEFAULT_H2_STREAM_WINDOW_SIZE: u32 = 1024 * 1024; // 1MiB
+
+/// Default HTTP/1 response write buffer size.
+pub(crate) const DEFAULT_H1_WRITE_BUFFER_SIZE: usize = 32_768;
+
+/// A builder for creating a [`ServiceConfig`]
+#[derive(Default, Debug)]
+pub struct ServiceConfigBuilder {
+    inner: Inner,
+}
+
+impl ServiceConfigBuilder {
+    /// Creates a new, default, [`ServiceConfigBuilder`]
+    ///
+    /// It uses the following default values:
+    ///
+    /// - [`KeepAlive::default`] for the connection keep-alive setting
+    /// - 5 seconds for the client request timeout
+    /// - 0 seconds for the client shutdown timeout
+    /// - secure value of `false`
+    /// - [`None`] for the local address setting
+    /// - Allow for half closed HTTP/1 connections
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the `secure` attribute for this configuration
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.inner.secure = secure;
+        self
+    }
+
+    /// Sets the local address for this configuration
+    pub fn local_addr(mut self, local_addr: Option<SocketAddr>) -> Self {
+        self.inner.local_addr = local_addr;
+        self
+    }
+
+    /// Sets connection keep-alive setting
+    pub fn keep_alive(mut self, keep_alive: KeepAlive) -> Self {
+        self.inner.keep_alive = keep_alive;
+        self
+    }
+
+    /// Sets the timeout for the client to finish sending a request head.
+    pub fn client_request_timeout(mut self, timeout: Duration) -> Self {
+        self.inner.client_request_timeout = timeout;
+        self
+    }
+
+    /// Sets the timeout for cleanly disconnecting from the client after connection shutdown has
+    /// started
+    pub fn client_disconnect_timeout(mut self, timeout: Duration) -> Self {
+        self.inner.client_disconnect_timeout = timeout;
+        self
+    }
+
+    /// Sets `TCP_NODELAY` preference for accepted TCP connections.
+    ///
+    /// Defaults to `Some(true)`. Use `None` to keep the socket setting unchanged.
+    pub fn tcp_nodelay(mut self, nodelay: Option<bool>) -> Self {
+        self.inner.tcp_nodelay = nodelay;
+        self
+    }
+
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client
+    pub fn h1_allow_half_closed(mut self, allow: bool) -> Self {
+        self.inner.h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(mut self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.inner.h1_write_buffer_size = size;
+        self
+    }
+
+    pub(crate) fn graceful_shutdown_signal(
+        mut self,
+        signal: Option<GracefulShutdownSignal>,
+    ) -> Self {
+        self.inner.graceful_shutdown_signal = signal;
+        self
+    }
+
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 1MiB.
+    pub fn h2_initial_window_size(mut self, size: u32) -> Self {
+        self.inner.h2_stream_window_size = size;
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 2MiB.
+    pub fn h2_initial_connection_window_size(mut self, size: u32) -> Self {
+        self.inner.h2_conn_window_size = size;
+        self
+    }
+
+    /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
+    pub fn build(self) -> ServiceConfig {
+        ServiceConfig(Rc::new(self.inner))
+    }
+}
 
 /// HTTP service configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ServiceConfig(Rc<Inner>);
 
 #[derive(Debug)]
@@ -18,19 +188,32 @@ struct Inner {
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     secure: bool,
-    local_addr: Option<std::net::SocketAddr>,
+    local_addr: Option<SocketAddr>,
+    tcp_nodelay: Option<bool>,
     date_service: DateService,
+    h1_allow_half_closed: bool,
+    h1_write_buffer_size: usize,
+    h2_conn_window_size: u32,
+    h2_stream_window_size: u32,
+    graceful_shutdown_signal: Option<GracefulShutdownSignal>,
 }
 
-impl Default for ServiceConfig {
+impl Default for Inner {
     fn default() -> Self {
-        Self::new(
-            KeepAlive::default(),
-            Duration::from_secs(5),
-            Duration::ZERO,
-            false,
-            None,
-        )
+        Self {
+            keep_alive: KeepAlive::default(),
+            client_request_timeout: Duration::from_secs(5),
+            client_disconnect_timeout: Duration::ZERO,
+            secure: false,
+            local_addr: None,
+            tcp_nodelay: Some(true),
+            date_service: DateService::new(),
+            h1_allow_half_closed: true,
+            h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            graceful_shutdown_signal: None,
+        }
     }
 }
 
@@ -41,7 +224,7 @@ impl ServiceConfig {
         client_request_timeout: Duration,
         client_disconnect_timeout: Duration,
         secure: bool,
-        local_addr: Option<net::SocketAddr>,
+        local_addr: Option<SocketAddr>,
     ) -> ServiceConfig {
         ServiceConfig(Rc::new(Inner {
             keep_alive: keep_alive.normalize(),
@@ -49,7 +232,13 @@ impl ServiceConfig {
             client_disconnect_timeout,
             secure,
             local_addr,
+            tcp_nodelay: Some(true),
             date_service: DateService::new(),
+            h1_allow_half_closed: true,
+            h1_write_buffer_size: DEFAULT_H1_WRITE_BUFFER_SIZE,
+            h2_conn_window_size: DEFAULT_H2_CONN_WINDOW_SIZE,
+            h2_stream_window_size: DEFAULT_H2_STREAM_WINDOW_SIZE,
+            graceful_shutdown_signal: None,
         }))
     }
 
@@ -63,7 +252,7 @@ impl ServiceConfig {
     ///
     /// Returns `None` for connections via UDS (Unix Domain Socket).
     #[inline]
-    pub fn local_addr(&self) -> Option<net::SocketAddr> {
+    pub fn local_addr(&self) -> Option<SocketAddr> {
         self.0.local_addr
     }
 
@@ -85,8 +274,8 @@ impl ServiceConfig {
         }
     }
 
-    /// Creates a time object representing the deadline for the client to finish sending the head of
-    /// its first request.
+    /// Creates a time object representing the deadline for the client to finish sending a request
+    /// head.
     ///
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     pub fn client_request_deadline(&self) -> Option<Instant> {
@@ -100,6 +289,42 @@ impl ServiceConfig {
         (timeout != Duration::ZERO).then(|| self.now() + timeout)
     }
 
+    /// Whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. If this configuration is `false`, the
+    /// server will abort the connection handling as soon as it detects an EOF from the client
+    pub fn h1_allow_half_closed(&self) -> bool {
+        self.0.h1_allow_half_closed
+    }
+
+    /// HTTP/1 response write buffer size (in bytes).
+    pub fn h1_write_buffer_size(&self) -> usize {
+        self.0.h1_write_buffer_size
+    }
+
+    pub(crate) fn graceful_shutdown(&self) -> Option<GracefulShutdownFuture> {
+        self.0
+            .graceful_shutdown_signal
+            .as_ref()
+            .map(GracefulShutdownSignal::notified)
+    }
+
+    /// Returns configured `TCP_NODELAY` setting for accepted TCP connections.
+    pub fn tcp_nodelay(&self) -> Option<bool> {
+        self.0.tcp_nodelay
+    }
+
+    /// HTTP/2 initial stream-level flow control window size (in bytes).
+    pub fn h2_initial_window_size(&self) -> u32 {
+        self.0.h2_stream_window_size
+    }
+
+    /// HTTP/2 initial connection-level flow control window size (in bytes).
+    pub fn h2_initial_connection_window_size(&self) -> u32 {
+        self.0.h2_conn_window_size
+    }
+
     pub(crate) fn now(&self) -> Instant {
         self.0.date_service.now()
     }
@@ -110,15 +335,19 @@ impl ServiceConfig {
     /// than normal. Note that a CRLF (`\r\n`) is included in what is written.
     #[doc(hidden)]
     pub fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
-        let mut buf: [u8; 37] = [0; 37];
+        const PREFIX_LEN: usize = 6;
+        const CRLF_LEN: usize = 2;
+        const DATE_HEADER_LEN: usize = PREFIX_LEN + DATE_VALUE_LENGTH + CRLF_LEN;
 
-        buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
+        let mut buf: [u8; DATE_HEADER_LEN] = [0; DATE_HEADER_LEN];
 
-        self.0
-            .date_service
-            .with_date(|date| buf[6..35].copy_from_slice(&date.bytes));
+        buf[..PREFIX_LEN].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
 
-        buf[35..].copy_from_slice(b"\r\n");
+        self.0.date_service.with_date(|date| {
+            buf[PREFIX_LEN..PREFIX_LEN + DATE_VALUE_LENGTH].copy_from_slice(&date.bytes)
+        });
+
+        buf[PREFIX_LEN + DATE_VALUE_LENGTH..].copy_from_slice(b"\r\n");
         dst.extend_from_slice(&buf);
     }
 
@@ -132,16 +361,16 @@ impl ServiceConfig {
 
 #[cfg(test)]
 mod tests {
-    use actix_rt::{
+    use memchr::memmem;
+    use tokio::{
         task::yield_now,
         time::{sleep, sleep_until},
     };
-    use memchr::memmem;
 
     use super::*;
     use crate::{date::DATE_VALUE_LENGTH, notify_on_drop};
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_update() {
         let settings =
             ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
@@ -174,7 +403,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_service_drop() {
         let service = Rc::new(DateService::new());
 
@@ -208,7 +437,7 @@ mod tests {
         assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date() {
         let settings = ServiceConfig::default();
 
@@ -221,7 +450,7 @@ mod tests {
         assert_eq!(buf1, buf2);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_date_camel_case() {
         let settings = ServiceConfig::default();
 

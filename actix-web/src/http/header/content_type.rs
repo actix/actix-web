@@ -39,7 +39,7 @@ crate::http::header::common_header! {
     ///     .insert_header(ContentType(mime::TEXT_HTML));
     /// ```
     ///
-    /// [RFC 9110 §8.3]: https://datatracker.ietf.org/doc/html/rfc9110#section-8.3
+    /// [RFC 9110 §8.3]: https://www.rfc-editor.org/info/rfc9110/#section-8.3
     (ContentType, CONTENT_TYPE) => [Mime]
 
     test_parse_and_format {

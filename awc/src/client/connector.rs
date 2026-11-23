@@ -448,10 +448,12 @@ where
 
                 #[cfg(feature = "dangerous-h2c")]
                 {
-                    use std::io;
+                    use std::{
+                        future::{ready, Ready},
+                        io,
+                    };
 
                     use actix_tls::connect::Connection;
-                    use actix_utils::future::{ready, Ready};
 
                     #[allow(non_local_definitions)]
                     impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
@@ -1037,7 +1039,7 @@ where
     }
 }
 
-#[cfg(not(feature = "trust-dns"))]
+#[cfg(not(feature = "hickory-dns"))]
 mod resolver {
     use super::*;
 
@@ -1046,24 +1048,25 @@ mod resolver {
     }
 }
 
-#[cfg(feature = "trust-dns")]
+#[cfg(feature = "hickory-dns")]
 mod resolver {
-    use std::{cell::RefCell, net::SocketAddr};
+    use std::{cell::OnceCell, net::SocketAddr};
 
     use actix_tls::connect::Resolve;
-    use trust_dns_resolver::{
+    use hickory_resolver::{
         config::{ResolverConfig, ResolverOpts},
+        net::runtime::TokioRuntimeProvider,
         system_conf::read_system_conf,
-        TokioAsyncResolver,
+        TokioResolver,
     };
 
     use super::*;
 
     pub(super) fn resolver() -> Resolver {
         // new type for impl Resolve trait for TokioAsyncResolver.
-        struct TrustDnsResolver(TokioAsyncResolver);
+        struct HickoryDnsResolver(TokioResolver);
 
-        impl Resolve for TrustDnsResolver {
+        impl Resolve for HickoryDnsResolver {
             fn lookup<'a>(
                 &'a self,
                 host: &'a str,
@@ -1085,34 +1088,30 @@ mod resolver {
 
         // resolver struct is cached in thread local so new clients can reuse the existing instance
         thread_local! {
-            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = const { RefCell::new(None) };
+            static HICKORY_DNS_RESOLVER: OnceCell<Resolver> = const { OnceCell::new() };
         }
 
-        // get from thread local or construct a new trust-dns resolver.
-        TRUST_DNS_RESOLVER.with(|local| {
-            let resolver = local.borrow().as_ref().map(Clone::clone);
-
-            match resolver {
-                Some(resolver) => resolver,
-
-                None => {
+        // get from thread local or construct a new hickory dns resolver.
+        HICKORY_DNS_RESOLVER.with(|local| {
+            local
+                .get_or_init(|| {
                     let (cfg, opts) = match read_system_conf() {
                         Ok((cfg, opts)) => (cfg, opts),
                         Err(err) => {
-                            log::error!("Trust-DNS can not load system config: {err}");
+                            log::error!("Hickory DNS can not load system config: {err}");
                             (ResolverConfig::default(), ResolverOpts::default())
                         }
                     };
 
-                    let resolver = TokioAsyncResolver::tokio(cfg, opts);
+                    let resolver =
+                        TokioResolver::builder_with_config(cfg, TokioRuntimeProvider::default())
+                            .with_options(opts)
+                            .build()
+                            .expect("Failed to build Hickory DNS resolver");
 
-                    // box trust dns resolver and put it in thread local.
-                    let resolver = Resolver::custom(TrustDnsResolver(resolver));
-                    *local.borrow_mut() = Some(resolver.clone());
-
-                    resolver
-                }
-            }
+                    Resolver::custom(HickoryDnsResolver(resolver))
+                })
+                .clone()
         })
     }
 }
@@ -1129,7 +1128,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn h2c_connector() {
         let mut srv = test_server(|| {
             HttpService::build()

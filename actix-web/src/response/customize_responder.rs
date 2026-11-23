@@ -138,6 +138,12 @@ impl<R: Responder> CustomizeResponder<R> {
         }
     }
 
+    /// Appends a cookie (v0.18) Set-Cookie header.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn add_cookie_0_18(self, cookie: &cookie_0_18::Cookie<'_>) -> Self {
+        self.append_header((actix_http::header::SET_COOKIE, cookie.to_string()))
+    }
+
     /// Appends a `cookie` to the final response.
     ///
     /// # Errors
@@ -203,7 +209,7 @@ mod tests {
         test::TestRequest,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn customize_responder() {
         let req = TestRequest::default().to_http_request();
         let res = "test"
@@ -251,7 +257,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn tuple_responder_with_status_code() {
         let req = TestRequest::default().to_http_request();
         let res = ("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req);

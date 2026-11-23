@@ -13,10 +13,10 @@ use openssl::{
 };
 
 fn tls_config() -> SslAcceptor {
-    let rcgen::CertifiedKey { cert, key_pair } =
+    let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
     let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
+    let key_file = signing_key.serialize_pem();
 
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
@@ -38,7 +38,7 @@ fn tls_config() -> SslAcceptor {
     builder.build()
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_connection_window_size() {
     let srv = test_server(|| {
         HttpService::build()

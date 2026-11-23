@@ -6,8 +6,8 @@ use std::{
 };
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
-use percent_encoding::{utf8_percent_encode, CONTROLS};
-use v_htmlescape::escape as escape_html_entity;
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
+use v_htmlescape::escape_fmt;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -45,10 +45,26 @@ impl Directory {
 pub(crate) type DirectoryRenderer =
     dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
 
-/// Returns percent encoded file URL path.
+// Leave only RFC 3986 unreserved characters unencoded within each path segment.
+const PATH_SEGMENT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
+
+/// Returns a percent encoded file URL path escaped for an HTML attribute.
 macro_rules! encode_file_url {
     ($path:ident) => {
-        utf8_percent_encode(&$path, CONTROLS)
+        escape_fmt(
+            &$path
+                .split('/')
+                .map(|segment| utf8_percent_encode(segment, PATH_SEGMENT).to_string())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
+        .to_string()
+        // Slashes are safe in a quoted attribute. Keep path separators literal.
+        .replace("&#x2f;", "/")
     };
 }
 
@@ -64,7 +80,7 @@ macro_rules! encode_file_url {
 /// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy())
+        escape_fmt(&$entry.file_name().to_string_lossy())
     };
 }
 

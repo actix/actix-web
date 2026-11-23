@@ -2,7 +2,7 @@
 //! properties and pass them to a handler through request-local data.
 //!
 //! For an example of extracting a client TLS certificate, see:
-//! <https://github.com/actix/examples/tree/master/https-tls/rustls-client-cert>
+//! <https://github.com/actix/examples/tree/main/https-tls/rustls-client-cert>
 
 use std::{any::Any, io, net::SocketAddr};
 
@@ -39,16 +39,16 @@ fn get_conn_info(connection: &dyn Any, data: &mut Extensions) {
     }
 }
 
-#[actix_web::main]
+#[tokio::main(flavor = "local")]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let bind = ("127.0.0.1", 8080);
-    log::info!("staring server at http://{}:{}", &bind.0, &bind.1);
+    log::info!("staring server at http://{}:{}", bind.0, bind.1);
 
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
-        .bind_auto_h2c(bind)?
+        .bind(bind)?
         .workers(2)
         .run()
         .await

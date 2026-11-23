@@ -5,7 +5,7 @@ use crate::http::header;
 
 common_header! {
     /// `Cache-Control` header, defined
-    /// in [RFC 7234 §5.2](https://datatracker.ietf.org/doc/html/rfc7234#section-5.2).
+    /// in [RFC 7234 §5.2](https://www.rfc-editor.org/info/rfc7234/#section-5.2).
     ///
     /// The `Cache-Control` header field is used to specify directives for
     /// caches along the request/response chain.  Such cache directives are

@@ -21,6 +21,7 @@ use std::{borrow::Cow, future::Future};
 
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
+use tokio::task::spawn_blocking;
 
 pub use crate::{
     config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData,
@@ -38,7 +39,7 @@ use crate::{
 ///
 /// A dynamic segment is specified in the form `{identifier}`, where the identifier can be used
 /// later in a request handler to access the matched value for that segment. This is done by looking
-/// up the identifier in the `Path` object returned by [`HttpRequest.match_info()`] method.
+/// up the identifier in the `Path` object returned by [`HttpRequest::match_info()`](crate::HttpRequest::match_info) method.
 ///
 /// By default, each segment matches the regular expression `[^{}/]+`.
 ///
@@ -128,6 +129,48 @@ method_route!(delete, DELETE);
 method_route!(head, HEAD);
 method_route!(trace, TRACE);
 
+/// Creates a new route with `QUERY` method guard.
+///
+/// # Examples
+///
+/// In this example, one `QUERY /{project_id}` route is set up:
+///
+///  ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::query().to(|| HttpResponse::Ok()))
+/// );
+/// ```
+///
+/// If you have registered an equivalent `GET` route using query parameters, it is recommended to
+/// add an `Accept-Query` header to its response.
+///
+/// ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// # type T = String;
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .get(|query: web::Query<T>| async move {
+///             // ... use query ...
+///
+///             HttpResponse::Ok()
+///                 .insert_header(("Accept-Query", "application/json"))
+///                 .finish()
+///         })
+///         .query(|query: web::Json<T>| async move {
+///             // ... use query ...
+///
+///             HttpResponse::Ok().finish()
+///         })
+/// );
+/// ```
+pub fn query() -> Route {
+    method(Method::from_bytes(b"QUERY").unwrap())
+}
+
 /// Creates a new route with specified method guard.
 ///
 /// # Examples
@@ -210,6 +253,6 @@ where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
-    let fut = actix_rt::task::spawn_blocking(f);
+    let fut = spawn_blocking(f);
     async { fut.await.map_err(|_| BlockingError) }
 }

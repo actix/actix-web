@@ -9,6 +9,7 @@ use std::{
 };
 
 use actix_http::error::PayloadError;
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
@@ -129,6 +130,7 @@ impl Stream for Payload {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Payload {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -155,6 +157,7 @@ impl FromRequest for Payload {
 ///     format!("Body {:?}!", body)
 /// }
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Bytes {
     type Error = Error;
     type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
@@ -202,6 +205,7 @@ impl Future for BytesExtractFut {
 /// async fn index(text: String) -> String {
 ///     format!("Body {}!", text)
 /// }
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for String {
     type Error = Error;
     type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
@@ -382,6 +386,7 @@ impl HttpMessageBody {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "__compress")] {
                     dev::Decompress::from_headers(payload.take(), req.headers())
+                        .limit(DEFAULT_CONFIG_LIMIT)
                 } else {
                     payload.take()
                 }
@@ -407,6 +412,12 @@ impl HttpMessageBody {
             };
         }
         self.limit = limit;
+
+        #[cfg(feature = "__compress")]
+        {
+            self.stream = self.stream.limit(limit);
+        }
+
         self
     }
 }
@@ -447,7 +458,7 @@ mod tests {
         App, Responder,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn payload_to_bytes() {
         async fn payload_handler(pl: Payload) -> crate::Result<impl Responder> {
             pl.to_bytes().await
@@ -490,7 +501,7 @@ mod tests {
         assert_eq!(body, "12345");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_payload_config() {
         let req = TestRequest::default().to_http_request();
         let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
@@ -509,7 +520,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {
             "payload is probably json bytes"
@@ -585,7 +596,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_bytes() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "11"))
@@ -596,7 +607,7 @@ mod tests {
         assert_eq!(s, Bytes::from_static(b"hello=world"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_string() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "11"))
@@ -607,7 +618,7 @@ mod tests {
         assert_eq!(s, "hello=world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_message_body() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_LENGTH, "xxxx"))

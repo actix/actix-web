@@ -30,7 +30,7 @@ pub struct Codec {
 
     // encoder part
     flags: Flags,
-    encoder: encoder::MessageEncoder<Response<()>>,
+    pub(in crate::h1) encoder: encoder::MessageEncoder<Response<()>>,
 }
 
 impl Default for Codec {
@@ -199,14 +199,53 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::HttpMessage as _;
+    use crate::{
+        header::{HeaderValue, UPGRADE},
+        HttpMessage as _, StatusCode,
+    };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn upgrade_advertisement_preserves_keep_alive() {
+        for (version, camel_case, connection) in [
+            ("HTTP/1.1", false, "connection: upgrade\r\n"),
+            ("HTTP/1.1", true, "Connection: Upgrade\r\n"),
+            ("HTTP/1.0", false, "connection: keep-alive, upgrade\r\n"),
+            ("HTTP/1.0", true, "Connection: keep-alive, upgrade\r\n"),
+        ] {
+            let mut codec = Codec::default();
+            let mut request = BytesMut::from(
+                format!("GET / {version}\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n")
+                    .as_bytes(),
+            );
+            codec.decode(&mut request).unwrap().unwrap();
+
+            let mut response = Response::with_body(StatusCode::OK, ());
+            response.head_mut().set_camel_case_headers(camel_case);
+            response
+                .headers_mut()
+                .insert(UPGRADE, HeaderValue::from_static("websocket"));
+
+            let mut output = BytesMut::new();
+            codec
+                .encode(Message::Item((response, BodySize::Sized(0))), &mut output)
+                .unwrap();
+            let output = std::str::from_utf8(&output).unwrap();
+
+            assert!(
+                output.contains(connection),
+                "missing {connection:?}: {output}"
+            );
+            assert!(codec.keep_alive());
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_http_request_chunked_payload_and_next_message() {
         let mut codec = Codec::default();
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
         let item = codec.decode(&mut buf).unwrap().unwrap();
@@ -218,6 +257,7 @@ mod tests {
         buf.extend(
             b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
                POST /test2 HTTP/1.1\r\n\
+               Host: localhost\r\n\
                transfer-encoding: chunked\r\n\r\n"
                 .iter(),
         );
@@ -236,5 +276,21 @@ mod tests {
         let req = item.message();
         assert_eq!(*req.method(), Method::POST);
         assert!(req.chunked().unwrap());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_http_request_rejects_content_length_and_chunked() {
+        let mut codec = Codec::default();
+        let mut buf = BytesMut::from(
+            "POST /test HTTP/1.1\r\n\
+             Host: localhost\r\n\
+             content-length: 11\r\n\
+             transfer-encoding: chunked\r\n\r\n\
+             0\r\n\r\n\
+             GET /test2 HTTP/1.1\r\n\
+             Host: localhost\r\n\r\n",
+        );
+
+        assert!(codec.decode(&mut buf).is_err());
     }
 }

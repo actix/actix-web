@@ -390,7 +390,7 @@ mod test {
 
     use super::*;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_h2_connection_drop() {
         env_logger::try_init().ok();
 
@@ -412,6 +412,7 @@ mod test {
 
         drop(conn);
 
+        /// Periodically polls a retained sender until it observes the closed H2 connection.
         struct DropCheck {
             sender: h2::client::SendRequest<Bytes>,
             interval: Interval,
@@ -426,12 +427,13 @@ mod test {
                 match futures_core::ready!(this.sender.poll_ready(cx)) {
                     Ok(()) => {
                         if this.start_from.elapsed() > Duration::from_secs(10) {
-                            panic!("connection should be gone and can not be ready");
+                            panic!("Connection should be gone and can not be ready");
                         } else {
                             match this.interval.poll_tick(cx) {
                                 Poll::Ready(_) => {
-                                    // prevents spurious test hang
                                     this.interval.reset();
+                                    // `reset` does not register this task's waker. Poll again.
+                                    cx.waker().wake_by_ref();
 
                                     Poll::Pending
                                 }

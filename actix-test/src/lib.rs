@@ -14,7 +14,7 @@
 //!     Ok(HttpResponse::Ok())
 //! }
 //!
-//! #[actix_rt::test]
+//! #[tokio::test(flavor = "local")]
 //! async fn test_example() {
 //!     let srv = actix_test::start(||
 //!         App::new().service(my_handler)
@@ -29,7 +29,7 @@
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
@@ -66,7 +66,7 @@ use tokio::sync::mpsc;
 ///     Ok(HttpResponse::Ok())
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_example() {
 ///     let srv = actix_test::start(||
 ///         App::new().service(my_handler)
@@ -105,7 +105,7 @@ where
 ///     Ok(HttpResponse::Ok())
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// async fn test_example() {
 ///     let srv = actix_test::start_with(actix_test::config().h1(), ||
 ///         App::new().service(my_handler)
@@ -417,7 +417,7 @@ where
                     }),
                 },
             }
-            .expect("test server could not be created");
+            .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx
@@ -695,6 +695,11 @@ impl TestServer {
     /// Create `PATCH` request.
     pub fn patch(&self, path: impl AsRef<str>) -> ClientRequest {
         self.client.patch(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create `QUERY` request.
+    pub fn query(&self, path: impl AsRef<str>) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
     }
 
     /// Create `DELETE` request.

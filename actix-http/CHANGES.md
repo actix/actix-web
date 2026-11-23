@@ -2,6 +2,181 @@
 
 ## Unreleased
 
+- Store up to two values for each header name inline in `HeaderMap`, which makes it smaller and faster to clone, update and drain.
+
+## 3.22.0
+
+- Allow `InfallibleStream` to wrap streams with any item type.
+- Add `InfallibleStream::new()` constructor.
+- The `header::from_comma_delimited()` helper now correctly splits headers containing quoted strings.
+
+## 3.21.3
+
+- Handle quoted-pairs in chunk extensions and reject invalid control bytes inside quoted strings. [GHSA-9543-cj4x-h76q](https://github.com/actix/actix-web/security/advisories/GHSA-9543-cj4x-h76q)
+
+## 3.21.2
+
+- Apply the request head timeout to pipelined HTTP/1.1 partial requests on keep-alive connections. [GHSA-54pm-2wm5-hpmg](https://github.com/actix/actix-web/security/advisories/GHSA-54pm-2wm5-hpmg)
+
+## 3.21.1
+
+- Reject bare LF as trailer terminator after chunked encodings. [GHSA-9w4r-xc43-v236](https://github.com/actix/actix-web/security/advisories/GHSA-9w4r-xc43-v236)
+
+## 3.21.0
+
+- Enable `TCP_NODELAY` by default.
+- Add `BodyStream::from_infallible()` constructor.
+- Add `SizedStream::from_infallible()` constructor.
+- Significant improvements to HTTP/1.x memory use.
+
+## 3.20.5
+
+- Send GOAWAY to HTTP/2 connections during graceful server shutdown and close them once their in-flight streams finish.
+
+## 3.20.4
+
+- Fix HTTP/1 client response framing for informational, 204, and 304 responses to prevent consumption of the next response.
+
+## 3.20.3
+
+- Disable large-window Brotli decompression. [GHSA-7p9w-p5qm-5gc5](https://github.com/actix/actix-web/security/advisories/GHSA-7p9w-p5qm-5gc5)
+
+## 3.20.2
+
+- Reject bare LF as last chunk terminator in chunked encodings. [GHSA-2q7f-mf9f-5qhr](https://github.com/actix/actix-web/security/advisories/GHSA-2q7f-mf9f-5qhr)
+
+## 3.20.1
+
+- Add `encoding::Decoder::limit()` to stop decompression with `PayloadError::Overflow` when decoded output exceeds the limit. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
+
+## 3.20.0
+
+- Release oversized HTTP/1 write buffers after flushing to reduce memory retained by idle connections.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 3.19.0
+
+- Fix `QualityItem` parsing to recognize quality parameters before other parameters and ignore semicolons inside quoted values.
+- Parse header quality values as exact decimals and reject invalid numeric syntax.
+- Round float quality conversions to the nearest thousandth to preserve all three decimal places.
+- Reject WebSocket frames whose 64-bit payload length has the most significant bit set, or whose length does not fit in `usize` on 32-bit targets, using `ws::ProtocolError::Overflow`.
+- Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
+
+## 3.18.13
+
+- Emit required `Connection` options for HTTP/1 response upgrade advertisements without changing connection state.
+- Parse all HTTP/1 `Connection` header options consistently.
+- Only treat `Expect: 100-continue` as a continue expectation in HTTP/1.1 requests.
+- Reject WebSocket handshakes with a `Sec-WebSocket-Key` value that is not valid Base64 or does not decode to 16 bytes.
+- Reject WebSocket Close frames with payloads larger than 125 bytes.
+- Return a 426 Upgrade Required response when an unsupported WebSocket version is requested.
+
+## 3.18.12
+
+- Flush compressed response bodies when the source is pending.
+
+## 3.18.11
+
+- Reject requests with a missing or duplicate `Host` header in HTTP/1.1 requests.
+
+## 3.18.10
+
+- Allow trailer fields after chunked bodies.
+
+## 3.18.9
+
+- Reject empty chunked size lines.
+
+## 3.13.8
+
+- Ensure "chunked" declaration is final part of Transfer-Encoding header.
+
+## 3.13.7
+
+- Fix `Removed::len()` panicking when inserting a new header or removing an absent header.
+
+## 3.13.6
+
+- Removes `h2` from the TLS ALPN offer list when `http2` crate feature is disabled.
+
+## 3.13.5
+
+- Reject invalid WebSocket close-frame status codes, malformed payloads, and invalid UTF-8 close reasons.
+- Deprecate the `Parser::parse_close_payload()` method in favor of `Parser::try_parse_close_payload()`.
+
+## 3.13.4
+
+- Reject WebSocket frames with reserved bits.
+- Reject new WebSocket text or binary frames during a continuation.
+
+## 3.13.3
+
+- Close idle HTTP/1 keep-alive connections during graceful server shutdown and close active connections after their current request finishes.
+
+## 3.13.2
+
+- Fix `MessageBody` implementation for `ByteString` to signal completion after yielding its contents. [#4177]
+
+[#4177]: https://github.com/actix/actix-web/issues/4177
+
+## 3.13.1
+
+- Fix HTTP/1 WebSocket upgrade responses being overwritten with `Connection: close` when the upgraded request payload remains open. [#4115]
+
+[#4115]: https://github.com/actix/actix-web/issues/4115
+
+## 3.13.0
+
+- When configured, gracefully close HTTP/1 connections after early responses to unread request bodies. [#3967]
+- Wake HTTP/1 payload receivers with an incomplete-payload error when the sender is dropped before EOF. [#3100]
+- Update `foldhash` dependency to `0.2`.
+
+[#3967]: https://github.com/actix/actix-web/issues/3967
+[#3100]: https://github.com/actix/actix-web/issues/3100
+
+## 3.12.1
+
+**Notice: This release contains a security fix. Users are encouraged to update to this version ASAP.**
+
+- SECURITY: Reject HTTP/1 requests with ambiguous request framing from `Content-Length` and `Transfer-Encoding` headers to prevent request smuggling.
+- Encode the HTTP/1 `Connection: Upgrade` header in Camel-Case when camel-case header formatting is enabled.[#3953]
+- Fix `HeaderMap` iterators' `len()` and `size_hint()` implementations for multi-value headers.
+- Update `rand` dependency to `0.10`.
+- Update `sha1` dependency to `0.11`.
+- Add `ServiceConfigBuilder::h1_write_buffer_size()` and `HttpServiceBuilder::h1_write_buffer_size()`.
+
+[#3953]: https://github.com/actix/actix-web/pull/3953
+
+## 3.12.0
+
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Increase default HTTP/2 flow control window sizes. [#3638]
+- Expose configuration methods to improve upload throughput. [#3638]
+- Fix truncated body ending without error when connection closed abnormally. [#3067]
+- Add config/method for `TCP_NODELAY`. [#3918]
+- Do not compress 206 Partial Content responses. [#3191]
+- Fix lingering sockets and client stalls when responding early to dropped chunked request payloads. [#2972]
+
+[#3638]: https://github.com/actix/actix-web/issues/3638
+[#3067]: https://github.com/actix/actix-web/pull/3067
+[#3918]: https://github.com/actix/actix-web/pull/3918
+[#3191]: https://github.com/actix/actix-web/issues/3191
+[#2972]: https://github.com/actix/actix-web/issues/2972
+
+## 3.11.2
+
+- Properly wake Payload receivers when feeding errors or EOF.
+- Add `ServiceConfigBuilder` type to facilitate future configuration extensions.
+- Add a configuration option to allow/disallow half closed connections in HTTP/1. This defaults to allow, reverting the change made in 3.11.1.
+- Shutdown connections when HTTP Responses are written without reading full Requests.
+
+## 3.11.1
+
+- Prevent more hangs after client disconnects.
+- More malformed WebSocket frames are now gracefully rejected.
+- Using `TestRequest::set_payload()` now sets a Content-Length header.
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.

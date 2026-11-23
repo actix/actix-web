@@ -1,7 +1,8 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
 use actix_http::Extensions;
-use actix_utils::future::{err, ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::{de, Serialize};
 
@@ -157,6 +158,7 @@ where
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T: ?Sized + 'static> FromRequest for Data<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
@@ -164,7 +166,7 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         if let Some(st) = req.app_data::<Data<T>>() {
-            ok(st.clone())
+            ready(Ok(st.clone()))
         } else {
             log::debug!(
                 "Failed to extract `Data<{}>` for `{}` handler. For the Data extractor to work \
@@ -174,10 +176,10 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
                 req.match_name().unwrap_or_else(|| req.path())
             );
 
-            err(error::ErrorInternalServerError(
+            ready(Err(error::ErrorInternalServerError(
                 "Requested application data is not configured correctly. \
                 View/enable debug logs for more details.",
-            ))
+            )))
         }
     }
 }
@@ -201,7 +203,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_extractor() {
         let srv = init_service(
             App::new()
@@ -246,7 +248,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_app_data_extractor() {
         let srv = init_service(
             App::new()
@@ -272,7 +274,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_route_data_extractor() {
         let srv = init_service(
             App::new().service(
@@ -303,7 +305,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_override_data() {
         let srv = init_service(
             App::new()
@@ -322,14 +324,14 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_from_arc() {
         let data_new = Data::new(String::from("test-123"));
         let data_from_arc = Data::from(Arc::new(String::from("test-123")));
         assert_eq!(data_new.0, data_from_arc.0);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_from_dyn_arc() {
         trait TestTrait {
             fn get_num(&self) -> i32;
@@ -349,7 +351,7 @@ mod tests {
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_dyn_data_into_arc() {
         trait TestTrait {
             fn get_num(&self) -> i32;
@@ -366,7 +368,7 @@ mod tests {
         assert_eq!(data_arc.get_num(), arc_from_data.get_num())
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_get_ref_from_dyn_data() {
         trait TestTrait {
             fn get_num(&self) -> i32;

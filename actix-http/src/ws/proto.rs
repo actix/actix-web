@@ -1,11 +1,10 @@
 use std::fmt;
 
 use base64::prelude::*;
-use tracing::error;
 
 /// Operation codes defined in [RFC 6455 §11.8].
 ///
-/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
+/// [RFC 6455]: https://www.rfc-editor.org/info/rfc6455/#section-11.8
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
@@ -34,15 +33,15 @@ impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use OpCode::*;
 
-        match self {
-            Continue => write!(f, "CONTINUE"),
-            Text => write!(f, "TEXT"),
-            Binary => write!(f, "BINARY"),
-            Close => write!(f, "CLOSE"),
-            Ping => write!(f, "PING"),
-            Pong => write!(f, "PONG"),
-            Bad => write!(f, "BAD"),
-        }
+        f.write_str(match self {
+            Continue => "CONTINUE",
+            Text => "TEXT",
+            Binary => "BINARY",
+            Close => "CLOSE",
+            Ping => "PING",
+            Pong => "PONG",
+            Bad => "BAD",
+        })
     }
 }
 
@@ -58,7 +57,7 @@ impl From<OpCode> for u8 {
             Ping => 9,
             Pong => 10,
             Bad => {
-                error!("Attempted to convert invalid opcode to u8. This is a bug.");
+                tracing::error!("Attempted to convert invalid opcode to u8. This is a bug.");
                 8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }
@@ -223,13 +222,16 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
 }
 
 /// The WebSocket GUID as stated in the spec.
-/// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
+/// See <https://www.rfc-editor.org/info/rfc6455/#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+/// Length of Base64 encoded SHA-1 hash for `Sec-WebSocket-Accept` (RFC 6455 §1.3, §4.2.2).
+const WS_ACCEPT_LEN: usize = 28;
 
 /// Hashes the `Sec-WebSocket-Key` header according to the WebSocket spec.
 ///
 /// Result is a Base64 encoded byte array. `base64(sha1(input))` is always 28 bytes.
-pub fn hash_key(key: &[u8]) -> [u8; 28] {
+pub fn hash_key(key: &[u8]) -> [u8; WS_ACCEPT_LEN] {
     let hash = {
         use sha1::Digest as _;
 
@@ -241,9 +243,9 @@ pub fn hash_key(key: &[u8]) -> [u8; 28] {
         hasher.finalize()
     };
 
-    let mut hash_b64 = [0; 28];
+    let mut hash_b64 = [0; WS_ACCEPT_LEN];
     let n = BASE64_STANDARD.encode_slice(hash, &mut hash_b64).unwrap();
-    assert_eq!(n, 28);
+    assert_eq!(n, WS_ACCEPT_LEN);
 
     hash_b64
 }

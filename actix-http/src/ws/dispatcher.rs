@@ -75,7 +75,10 @@ mod inner {
     use futures_core::stream::Stream;
     use local_channel::mpsc;
     use pin_project_lite::pin_project;
-    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::{
+        io::{AsyncRead, AsyncWrite},
+        task::spawn_local,
+    };
     use tokio_util::codec::{Decoder, Encoder};
     use tracing::debug;
 
@@ -319,7 +322,7 @@ mod inner {
 
                         let tx = this.tx.clone();
                         let fut = this.service.call(item);
-                        actix_rt::spawn(async move {
+                        spawn_local(async move {
                             let item = fut.await;
                             let _ = tx.send(item.map(Message::Item));
                         });

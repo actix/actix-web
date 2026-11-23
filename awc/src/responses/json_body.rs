@@ -137,7 +137,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn read_json_body() {
         let mut req = TestResponse::default().finish();
         let json = JsonBody::<_, MyObject>::new(&mut req).await;

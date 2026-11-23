@@ -9,11 +9,15 @@ use actix_http::{error::ParseError, header, HttpMessage};
 use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderValue, Writer};
 
 /// `Range` header, defined
-/// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
+/// in [RFC 7233 §3.1](https://www.rfc-editor.org/info/rfc7233/#section-3.1)
 ///
 /// The "Range" header field on a GET request modifies the method semantics to request transfer of
 /// only one or more sub-ranges of the selected representation data, rather than the entire selected
 /// representation data.
+///
+/// # Note
+/// This is a request header. Servers should not send `Range` in responses; use
+/// [`ContentRange`](super::ContentRange) / the `Content-Range` header for partial responses.
 ///
 /// # ABNF
 /// ```plain
@@ -42,16 +46,18 @@ use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderVa
 ///
 /// # Examples
 /// ```
-/// use actix_web::http::header::{Range, ByteRangeSpec};
-/// use actix_web::HttpResponse;
+/// use actix_web::{http::header::{ByteRangeSpec, Range}, test};
 ///
-/// let mut builder = HttpResponse::Ok();
-/// builder.insert_header(Range::Bytes(
-///     vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::From(200)]
-/// ));
-/// builder.insert_header(Range::Unregistered("letters".to_owned(), "a-f".to_owned()));
-/// builder.insert_header(Range::bytes(1, 100));
-/// builder.insert_header(Range::bytes_multi(vec![(1, 100), (200, 300)]));
+/// let req = test::TestRequest::default()
+///     .insert_header(Range::Bytes(vec![
+///         ByteRangeSpec::FromTo(1, 100),
+///         ByteRangeSpec::From(200),
+///     ]))
+///     .insert_header(Range::Unregistered("letters".to_owned(), "a-f".to_owned()))
+///     .insert_header(Range::bytes(1, 100))
+///     .insert_header(Range::bytes_multi(vec![(1, 100), (200, 300)]))
+///     .to_http_request();
+/// # let _ = req;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Range {
@@ -118,7 +124,7 @@ impl ByteRangeSpec {
     /// > of the representation (i.e., the server replaces the value of last-byte-pos with a value
     /// > that is one less than the current length of the selected representation).
     ///
-    /// [RFC 7233 §2.1]: https://datatracker.ietf.org/doc/html/rfc7233
+    /// [RFC 7233 §2.1]: https://www.rfc-editor.org/info/rfc7233/#section-2.1
     pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
         // If the full length is zero, there is no satisfiable end-inclusive range.
         if full_length == 0 {

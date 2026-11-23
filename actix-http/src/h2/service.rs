@@ -8,12 +8,13 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
+use tokio::net::TcpStream;
 use tracing::{error, trace};
 
 use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
@@ -24,6 +25,16 @@ use crate::{
     service::HttpFlow,
     ConnectCallback, OnConnectData, Request, Response,
 };
+
+#[inline]
+fn desired_nodelay(tcp_nodelay: Option<bool>) -> Option<bool> {
+    tcp_nodelay
+}
+
+#[inline]
+fn set_nodelay(stream: &TcpStream, nodelay: bool) {
+    let _ = stream.set_nodelay(nodelay);
+}
 
 /// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {
@@ -73,6 +84,7 @@ where
     B: MessageBody + 'static,
 {
     /// Create plain TCP based service
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<
@@ -82,8 +94,13 @@ where
         Error = DispatchError,
         InitError = S::InitError,
     > {
-        fn_factory(|| {
-            ready(Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
+        let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
+
+        fn_factory(move || {
+            ready(Ok::<_, S::InitError>(fn_service(move |io: TcpStream| {
+                if let Some(nodelay) = tcp_nodelay {
+                    set_nodelay(&io, nodelay);
+                }
                 let peer_addr = io.peer_addr().ok();
                 ready(Ok::<_, DispatchError>((io, peer_addr)))
             })))
@@ -94,7 +111,6 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         openssl::{
             reexports::{Error as SslError, SslAcceptor},
@@ -126,12 +142,17 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
+
             Acceptor::new(acceptor)
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref(), nodelay);
+                    }
                     let peer_addr = io.get_ref().peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -144,7 +165,6 @@ mod openssl {
 mod rustls_0_20 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -173,6 +193,7 @@ mod rustls_0_20 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -182,7 +203,10 @@ mod rustls_0_20 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -195,7 +219,6 @@ mod rustls_0_20 {
 mod rustls_0_21 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_21::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -224,6 +247,7 @@ mod rustls_0_21 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -233,7 +257,10 @@ mod rustls_0_21 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -246,7 +273,6 @@ mod rustls_0_21 {
 mod rustls_0_22 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_22::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -275,6 +301,7 @@ mod rustls_0_22 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -284,7 +311,10 @@ mod rustls_0_22 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })
@@ -297,7 +327,6 @@ mod rustls_0_22 {
 mod rustls_0_23 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_23::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -326,6 +355,7 @@ mod rustls_0_23 {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
+            let tcp_nodelay = desired_nodelay(self.cfg.tcp_nodelay());
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
@@ -335,7 +365,10 @@ mod rustls_0_23 {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
                 .map_err(TlsError::into_service_error)
-                .map(|io: TlsStream<TcpStream>| {
+                .map(move |io: TlsStream<TcpStream>| {
+                    if let Some(nodelay) = tcp_nodelay {
+                        set_nodelay(io.get_ref().0, nodelay);
+                    }
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     (io, peer_addr)
                 })

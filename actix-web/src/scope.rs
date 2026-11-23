@@ -384,14 +384,32 @@ where
 
         // register nested services
         let mut cfg = config.clone_config();
+
+        // Update the prefix for the nested scope
+        #[cfg(feature = "experimental-introspection")]
+        {
+            let scope_id = config.prepare_scope_id();
+            cfg.scope_id_stack.push(scope_id);
+            cfg.update_prefix(&self.rdef);
+        }
+
         self.services
             .into_iter()
             .for_each(|mut srv| srv.register(&mut cfg));
 
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
+        #[cfg(feature = "experimental-introspection")]
+        let origin_scope = cfg.current_prefix.clone();
+
         // external resources
         for mut rdef in mem::take(&mut self.external) {
+            #[cfg(feature = "experimental-introspection")]
+            {
+                cfg.introspector
+                    .borrow_mut()
+                    .register_external(&rdef, &origin_scope);
+            }
             rmap.add(&mut rdef, None);
         }
 
@@ -515,7 +533,15 @@ impl Service<ServiceRequest> for ScopeService {
             guards.iter().all(|guard| guard.check(&guard_ctx))
         });
 
-        if let Some((srv, _info)) = res {
+        if let Some((srv, info)) = res {
+            req.push_resource_id(info.0);
+
+            let matched = req
+                .resource_map()
+                .is_resource_path_match(req.resource_id_path());
+
+            req.mark_resource_path(matched);
+
             srv.call(req)
         } else {
             self.default.call(req)
@@ -549,7 +575,8 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use actix_utils::future::ok;
+    use std::future::ready;
+
     use bytes::Bytes;
 
     use super::*;
@@ -598,7 +625,7 @@ mod tests {
             .service(my_scope_3());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope() {
         let srv = init_service(
             App::new()
@@ -611,7 +638,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_root() {
         let srv = init_service(
             App::new().service(
@@ -631,7 +658,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_root2() {
         let srv = init_service(
             App::new().service(web::scope("/app/").service(web::resource("").to(HttpResponse::Ok))),
@@ -647,7 +674,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_root3() {
         let srv = init_service(
             App::new()
@@ -664,7 +691,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_route() {
         let srv = init_service(
             App::new().service(
@@ -689,10 +716,10 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_route_without_leading_slash() {
         let srv = init_service(
             App::new().service(
@@ -722,7 +749,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_guard() {
         let srv = init_service(
             App::new().service(
@@ -737,7 +764,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::GET)
@@ -746,7 +773,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_variable_segment() {
         let srv = init_service(App::new().service(web::scope("/ab-{project}").service(
             web::resource("/path1").to(|r: HttpRequest| {
@@ -765,7 +792,7 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested_scope() {
         let srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/t1").service(web::resource("/path1").to(HttpResponse::Created)),
@@ -777,7 +804,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested_scope_no_slash() {
         let srv =
             init_service(App::new().service(web::scope("/app").service(
@@ -790,7 +817,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested_scope_root() {
         let srv = init_service(
             App::new().service(
@@ -812,7 +839,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested_scope_filter() {
         let srv = init_service(
             App::new().service(
@@ -829,7 +856,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::GET)
@@ -838,7 +865,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested_scope_with_variable_segment() {
         let srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project_id}").service(web::resource("/path1").to(|r: HttpRequest| {
@@ -853,7 +880,7 @@ mod tests {
         assert_body_eq!(res, b"project: project_1");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_nested2_scope_with_variable_segment() {
         let srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project}").service(web::scope("/{id}").service(
@@ -878,14 +905,14 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv = init_service(
             App::new().service(
                 web::scope("/app")
                     .service(web::resource("/path1").to(HttpResponse::Ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ready(Ok(r.into_response(HttpResponse::BadRequest())))
                     }),
             ),
         )
@@ -900,14 +927,14 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource_propagation() {
         let srv = init_service(
             App::new()
                 .service(web::scope("/app1").default_service(web::to(HttpResponse::BadRequest)))
                 .service(web::scope("/app2"))
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    ready(Ok(r.into_response(HttpResponse::MethodNotAllowed())))
                 }),
         )
         .await;
@@ -925,7 +952,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware() {
         let srv = init_service(
             App::new().service(
@@ -948,7 +975,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_body_type() {
         // Compile test that Scope accepts any body type; test for `EitherBody`
         let srv = init_service(
@@ -971,7 +998,7 @@ mod tests {
         assert_eq!(body.try_into_bytes().unwrap(), b"hello".as_ref());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_fn() {
         let srv = init_service(
             App::new().service(
@@ -999,7 +1026,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_middleware_app_data() {
         let srv = init_service(
             App::new().service(
@@ -1036,7 +1063,7 @@ mod tests {
 
     // allow deprecated {App, Scope}::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_override_data() {
         let srv = init_service(App::new().data(1usize).service(
             web::scope("app").data(10usize).route(
@@ -1056,7 +1083,7 @@ mod tests {
 
     // allow deprecated `{App, Scope}::data`
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_override_data_default_service() {
         let srv =
             init_service(App::new().data(1usize).service(
@@ -1074,7 +1101,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_override_app_data() {
         let srv = init_service(App::new().app_data(web::Data::new(1usize)).service(
             web::scope("app").app_data(web::Data::new(10usize)).route(
@@ -1092,7 +1119,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_config() {
         let srv = init_service(App::new().service(web::scope("/app").configure(|s| {
             s.route("/path1", web::get().to(HttpResponse::Ok));
@@ -1104,7 +1131,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_scope_config_2() {
         let srv = init_service(App::new().service(web::scope("/app").configure(|s| {
             s.service(web::scope("/v1").configure(|s| {
@@ -1118,7 +1145,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_url_for_external() {
         let srv = init_service(App::new().service(web::scope("/app").configure(|s| {
             s.service(web::scope("/v1").configure(|s| {
@@ -1141,7 +1168,7 @@ mod tests {
         assert_eq!(body, &b"https://youtube.com/watch/xxxxxx"[..]);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_url_for_nested() {
         let srv = init_service(App::new().service(web::scope("/a").service(
             web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(web::get().to(
@@ -1162,7 +1189,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn dynamic_scopes() {
         let srv = init_service(
             App::new().service(

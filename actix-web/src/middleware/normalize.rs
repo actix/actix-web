@@ -1,7 +1,9 @@
 //! For middleware documentation, see [`NormalizePath`].
 
 use actix_http::uri::{PathAndQuery, Uri};
+use actix_router::Url;
 use actix_service::{Service, Transform};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 #[cfg(feature = "unicode")]
@@ -13,6 +15,28 @@ use crate::{
     service::{ServiceRequest, ServiceResponse},
     Error,
 };
+
+fn build_byte_index_map(old_path: &str, new_path: &str) -> Vec<u16> {
+    let old_path = old_path.as_bytes();
+    let new_path = new_path.as_bytes();
+
+    let mut map = Vec::with_capacity(old_path.len() + 1);
+    map.push(0);
+
+    let mut old_idx = 0usize;
+    let mut new_idx = 0usize;
+
+    while old_idx < old_path.len() {
+        if new_idx < new_path.len() && old_path[old_idx] == new_path[new_idx] {
+            new_idx += 1;
+        }
+
+        old_idx += 1;
+        map.push(new_idx.min(u16::MAX as usize) as u16);
+    }
+
+    map
+}
 
 /// Determines the behavior of the [`NormalizePath`] middleware.
 ///
@@ -111,6 +135,7 @@ impl NormalizePath {
     }
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, B> Transform<S, ServiceRequest> for NormalizePath
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -183,6 +208,7 @@ where
             // Both of the paths have the same length,
             // so the change can not be deduced from the length comparison
             if path != original_path {
+                let reindex = build_byte_index_map(original_path, path);
                 let mut parts = head.uri.clone().into_parts();
                 let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
 
@@ -193,7 +219,11 @@ where
                 parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
 
                 let uri = Uri::from_parts(parts).unwrap();
-                req.match_info_mut().get_mut().update(&uri);
+                req.match_info_mut()
+                    .update_with_reindex(Url::new(uri.clone()), |idx| {
+                        let idx = usize::from(idx).min(reindex.len() - 1);
+                        reindex[idx]
+                    });
                 req.head_mut().uri = uri;
             }
         }
@@ -203,17 +233,19 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_http::StatusCode;
     use actix_service::IntoService;
 
     use super::*;
     use crate::{
         guard::fn_guard,
-        test::{call_service, init_service, TestRequest},
+        test::{call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap() {
         let app = init_service(
             App::new()
@@ -249,7 +281,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn trim_trailing_slashes() {
         let app = init_service(
             App::new()
@@ -286,7 +318,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn trim_root_trailing_slashes_with_query() {
         let app = init_service(
             App::new().wrap(NormalizePath(TrailingSlash::Trim)).service(
@@ -306,7 +338,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn ensure_trailing_slash() {
         let app = init_service(
             App::new()
@@ -343,7 +375,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn ensure_root_trailing_slash_with_query() {
         let app = init_service(
             App::new()
@@ -365,7 +397,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn keep_trailing_slash_unchanged() {
         let app = init_service(
             App::new()
@@ -406,7 +438,46 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn scope_dynamic_tail_path_is_reindexed() {
+        async fn handler(path: web::Path<String>) -> HttpResponse {
+            HttpResponse::Ok().body(path.into_inner())
+        }
+
+        let app = init_service(
+            App::new().service(
+                web::scope("{tail:.*}")
+                    .wrap(NormalizePath::trim())
+                    .default_service(web::to(handler)),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/uaie//iuaei").to_request();
+        let res = call_service(&app, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(read_body(res).await, Bytes::from_static(b"uaie/iuaei"));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn scope_static_prefix_skip_is_reindexed() {
+        let app = init_service(
+            App::new().service(
+                web::scope("/api")
+                    .wrap(NormalizePath::trim())
+                    .service(web::resource("/v1").to(HttpResponse::Ok)),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/api//v1").to_request();
+        let res = call_service(&app, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn no_path() {
         let app = init_service(
             App::new()
@@ -416,13 +487,13 @@ mod tests {
         .await;
 
         // This URI will be interpreted as an authority form, i.e. there is no path nor scheme
-        // (https://datatracker.ietf.org/doc/html/rfc7230#section-5.3.3)
+        // (https://www.rfc-editor.org/info/rfc7230/#section-5.3.3)
         let req = TestRequest::with_uri("eh").to_request();
         let res = call_service(&app, req).await;
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_in_place_normalization() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());
@@ -448,7 +519,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn should_normalize_nothing() {
         const URI: &str = "/v1/something";
 
@@ -467,7 +538,7 @@ mod tests {
         assert!(res.status().is_success());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn should_normalize_no_trail() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());

@@ -82,7 +82,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -159,7 +161,9 @@ where
     ) -> Self::Future {
         if state.contains_key(&field.form_field_name) {
             match duplicate_field {
-                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+                DuplicateField::Ignore => {
+                    return Box::pin(async move { discard_field(field, limits).await });
+                }
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
@@ -187,10 +191,56 @@ where
     }
 }
 
+impl<'t, T> FieldGroupReader<'t> for Option<Vec<T>>
+where
+    T: FieldReader<'t>,
+{
+    type Future = LocalBoxFuture<'t, Result<(), MultipartError>>;
+
+    fn handle_field(
+        req: &'t HttpRequest,
+        field: Field,
+        limits: &'t mut Limits,
+        state: &'t mut State,
+        _duplicate_field: DuplicateField,
+    ) -> Self::Future {
+        let field_name = field.name().unwrap().to_string();
+
+        Box::pin(async move {
+            let vec = state
+                .entry(field_name)
+                .or_insert_with(|| Box::<Vec<T>>::default())
+                .downcast_mut::<Vec<T>>()
+                .unwrap();
+
+            let item = T::read_field(req, field, limits).await?;
+            vec.push(item);
+
+            Ok(())
+        })
+    }
+
+    fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
+        if let Some(boxed_vec) = state.remove(name) {
+            let vec = *boxed_vec.downcast::<Vec<T>>().unwrap();
+            Ok(Some(vec))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 /// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor.
 ///
 /// You should use the [`macro@MultipartForm`] macro to derive this for your struct.
 pub trait MultipartCollect: Sized {
+    /// An optional maximum number of parts for this form.
+    ///
+    /// The extractor also applies the limit from [`MultipartFormConfig`]. The lower limit wins.
+    fn max_parts() -> Option<usize> {
+        None
+    }
+
     /// An optional limit in bytes to be applied a given field name. Note this limit will be shared
     /// across all fields sharing the same name.
     fn limit(field_name: &str) -> Option<usize>;
@@ -273,6 +323,16 @@ impl Limits {
     }
 }
 
+/// Drain a field that will not be retained while still accounting for form limits.
+#[doc(hidden)]
+pub async fn discard_field(mut field: Field, limits: &mut Limits) -> Result<(), MultipartError> {
+    while let Some(chunk) = field.try_next().await? {
+        limits.try_consume_limits(chunk.len(), false)?;
+    }
+
+    Ok(())
+}
+
 /// Typed `multipart/form-data` extractor.
 ///
 /// To extract typed data from a multipart stream, the inner type `T` must implement the
@@ -283,6 +343,110 @@ impl Limits {
 /// `multipart/related`, or non-multipart media types.
 ///
 /// Add a [`MultipartFormConfig`] to your app data to configure extraction.
+///
+/// # Basic Use
+///
+/// Each field type should implement the [`FieldReader`] trait:
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct ImageUpload {
+///     description: Text<String>,
+///     timestamp: Text<i64>,
+///     image: TempFile,
+/// }
+/// ```
+///
+/// # Optional and List Fields
+///
+/// You can also use [`Vec<T>`](Vec) and [`Option<T>`](Option) provided that `T: FieldReader`.
+///
+/// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
+/// name](https://www.rfc-editor.org/info/rfc7578/#section-4.3).
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     category: Option<Text<String>>,
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Field Renaming
+///
+/// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(rename = "files[]")]
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Field Limits
+///
+/// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
+/// string is parsed using [`bytesize`].
+///
+/// Note: the form is also subject to the global limits configured using [`MultipartFormConfig`].
+/// Use `#[multipart(max_parts = 10)]` on the struct to limit the number of parts for that form.
+/// The lower of this limit and [`MultipartFormConfig::max_parts()`] applies. Empty, unknown,
+/// and duplicate parts all count. A limit of zero rejects all parts.
+///
+/// ```rust
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+///
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(limit = "2 KiB")]
+///     description: Text<String>,
+///
+///     #[multipart(limit = "512 MiB")]
+///     files: Vec<TempFile>,
+/// }
+/// ```
+///
+/// # Unknown Fields
+///
+/// By default fields with an unknown name are ignored. They can be rejected using the
+/// `#[multipart(deny_unknown_fields)]` attribute:
+///
+/// ```rust
+/// use actix_multipart::form::MultipartForm;
+///
+/// #[derive(MultipartForm)]
+/// #[multipart(deny_unknown_fields)]
+/// struct Form {}
+/// ```
+///
+/// # Duplicate Fields
+///
+/// The behaviour for when multiple fields with the same name are received can be changed using the
+/// `#[multipart(duplicate_field = "<behavior>")]` attribute:
+///
+/// - "ignore": (default) Extra fields are ignored. I.e., the first one is persisted.
+/// - "deny": A [`MultipartError::DuplicateField`] error response is returned.
+/// - "replace": Each field is processed, but only the last one is persisted.
+///
+/// Note that [`Vec`] fields will ignore this option.
+///
+/// ```rust
+/// use actix_multipart::form::MultipartForm;
+///
+/// #[derive(MultipartForm)]
+/// #[multipart(duplicate_field = "deny")]
+/// struct Form {}
+/// ```
+///
+/// [`bytesize`]: https://docs.rs/bytesize/2
+/// [`MultipartError::DuplicateField`]: crate::MultipartError::DuplicateField
 #[derive(Deref, DerefMut)]
 pub struct MultipartForm<T: MultipartCollect>(pub T);
 
@@ -316,6 +480,8 @@ where
 
         let config = MultipartFormConfig::from_req(req);
         let mut limits = Limits::new(config.total_limit, config.memory_limit);
+        let mut parts_remaining =
+            T::max_parts().map_or(config.max_parts, |limit| limit.min(config.max_parts));
 
         let req = req.clone();
         let req2 = req.clone();
@@ -329,6 +495,10 @@ where
                 let mut field_limits = HashMap::<String, Option<usize>>::new();
 
                 while let Some(field) = multipart.try_next().await? {
+                    parts_remaining = parts_remaining
+                        .checked_sub(1)
+                        .ok_or(MultipartError::TooManyParts)?;
+
                     debug_assert!(
                         !field.form_field_name.is_empty(),
                         "multipart form fields should have names",
@@ -371,10 +541,26 @@ type MultipartFormErrorHandler =
 pub struct MultipartFormConfig {
     total_limit: usize,
     memory_limit: usize,
+    max_parts: usize,
     err_handler: MultipartFormErrorHandler,
 }
 
 impl MultipartFormConfig {
+    /// Sets the global maximum number of parts accepted for every form.
+    ///
+    /// Specific forms can override to a lower limit, but **not a higher one**.
+    ///
+    /// Every part counts toward this maximum, including empty parts, unknown fields, and duplicate
+    /// fields. A limit of zero rejects all parts.
+    ///
+    /// Exceeding the limit returns [`MultipartError::TooManyParts`].
+    ///
+    /// Default is 100.
+    pub fn max_parts(mut self, max_parts: usize) -> Self {
+        self.max_parts = max_parts;
+        self
+    }
+
     /// Sets maximum accepted payload size for the entire form. By default this limit is 50MiB.
     pub fn total_limit(mut self, total_limit: usize) -> Self {
         self.total_limit = total_limit;
@@ -408,6 +594,7 @@ impl MultipartFormConfig {
 const DEFAULT_CONFIG: MultipartFormConfig = MultipartFormConfig {
     total_limit: 52_428_800, // 50 MiB
     memory_limit: 2_097_152, // 2 MiB
+    max_parts: 100,
     err_handler: None,
 };
 
@@ -423,7 +610,11 @@ mod tests {
     use actix_multipart_rfc7578::client::multipart;
     use actix_test::TestServer;
     use actix_web::{
-        dev::Payload, http::StatusCode, web, App, HttpRequest, HttpResponse, Resource, Responder,
+        dev::Payload,
+        http::StatusCode,
+        post,
+        test::{call_service, init_service, TestRequest},
+        web, App, HttpRequest, HttpResponse, Responder,
     };
     use awc::{Client, ClientResponse};
     use futures_core::future::LocalBoxFuture;
@@ -434,6 +625,7 @@ mod tests {
         form::{
             bytes::Bytes, tempfile::TempFile, text::Text, FieldReader, Limits, MultipartFormConfig,
         },
+        test::create_form_data_payload_and_headers,
         Field, MultipartError,
     };
 
@@ -463,7 +655,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_options() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_options_route)));
 
@@ -493,9 +685,43 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_vec() {
         let srv = actix_test::start(|| App::new().route("/", web::post().to(test_vec_route)));
+
+        let mut form = multipart::Form::default();
+        form.add_text("list1", "value1");
+        form.add_text("list1", "value2");
+        form.add_text("list1", "value3");
+
+        let response = send_form(&srv, form, "/").await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// Test `Option<Vec>` fields.
+    #[derive(MultipartForm)]
+    struct TestOptionVec {
+        list1: Option<Vec<Text<String>>>,
+        list2: Option<Vec<Text<String>>>,
+    }
+
+    async fn test_option_vec_route(form: MultipartForm<TestOptionVec>) -> impl Responder {
+        let form = form.into_inner();
+        let strings = form
+            .list1
+            .unwrap()
+            .into_iter()
+            .map(|s| s.into_inner())
+            .collect::<Vec<_>>();
+        assert_eq!(strings, vec!["value1", "value2", "value3"]);
+        assert!(form.list2.is_none());
+        HttpResponse::Ok().finish()
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_option_vec() {
+        let srv =
+            actix_test::start(|| App::new().route("/", web::post().to(test_option_vec_route)));
 
         let mut form = multipart::Form::default();
         form.add_text("list1", "value1");
@@ -523,7 +749,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_field_renaming() {
         let srv =
             actix_test::start(|| App::new().route("/", web::post().to(test_field_renaming_route)));
@@ -553,7 +779,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_deny_unknown() {
         let srv = actix_test::start(|| {
             App::new()
@@ -609,7 +835,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_duplicate_field() {
         let srv = actix_test::start(|| {
             App::new()
@@ -637,7 +863,188 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test the Limits.
+    #[tokio::test(flavor = "local")]
+    async fn test_discarded_fields_count_towards_total_limit() {
+        let srv = actix_test::start(|| {
+            App::new()
+                .route("/unknown", web::post().to(test_upload_limits_memory))
+                .route("/duplicate", web::post().to(test_duplicate_ignore_route))
+                .app_data(
+                    MultipartFormConfig::default()
+                        .memory_limit(usize::MAX)
+                        .total_limit(20),
+                )
+        });
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "7 bytes");
+        form.add_text("unknown", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/unknown").await;
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let mut form = multipart::Form::default();
+        form.add_text("field", "first_value");
+        form.add_text("field", "this string is 28 bytes long");
+        let response = send_form(&srv, form, "/duplicate").await;
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_default_max_parts() {
+        #[derive(MultipartForm)]
+        struct Upload {
+            files: Vec<Bytes>,
+        }
+
+        let app = init_service(App::new().route(
+            "/",
+            web::post().to(|form: MultipartForm<Upload>| async move {
+                HttpResponse::Ok().body(form.files.len().to_string())
+            }),
+        ))
+        .await;
+
+        for (count, status) in [(100, StatusCode::OK), (101, StatusCode::BAD_REQUEST)] {
+            let body = format!(
+                "{}--test-boundary--\r\n",
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                    .repeat(count)
+            );
+            let req = TestRequest::post()
+                .uri("/")
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(call_service(&app, req).await.status(), status);
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_derived_max_parts() {
+        #[derive(MultipartForm)]
+        #[multipart(max_parts = 2)]
+        struct Upload {
+            files: Vec<Bytes>,
+        }
+
+        for (config_limit, count, status) in [
+            (100, 2, StatusCode::OK),
+            (100, 3, StatusCode::BAD_REQUEST),
+            (1, 1, StatusCode::OK),
+            (1, 2, StatusCode::BAD_REQUEST),
+        ] {
+            let app = init_service(
+                App::new()
+                    .app_data(MultipartFormConfig::default().max_parts(config_limit))
+                    .route(
+                        "/",
+                        web::post().to(|form: MultipartForm<Upload>| async move {
+                            HttpResponse::Ok().body(form.files.len().to_string())
+                        }),
+                    ),
+            )
+            .await;
+
+            let body = format!(
+                "{}--test-boundary--\r\n",
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                    .repeat(count)
+            );
+            let req = TestRequest::post()
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(call_service(&app, req).await.status(), status);
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_configured_max_parts() {
+        #[derive(MultipartForm)]
+        struct Upload {
+            files: Vec<TempFile>,
+        }
+
+        for limit in [0, 2, 101] {
+            let app = init_service(
+                App::new()
+                    .app_data(web::Data::new(
+                        MultipartFormConfig::default()
+                            .max_parts(limit)
+                            .error_handler(|err, _| {
+                                assert!(matches!(err, MultipartError::TooManyParts));
+                                actix_web::error::ErrorPayloadTooLarge(err)
+                            }),
+                    ))
+                    .route(
+                        "/",
+                        web::post().to(|form: MultipartForm<Upload>| async move {
+                            HttpResponse::Ok().body(form.files.len().to_string())
+                        }),
+                    ),
+            )
+            .await;
+
+            for (count, status) in [
+                (limit, StatusCode::OK),
+                (limit + 1, StatusCode::PAYLOAD_TOO_LARGE),
+            ] {
+                let body = format!(
+                    "{}--test-boundary--\r\n",
+                    "--test-boundary\r\nContent-Disposition: form-data; name=\"files\"\r\n\r\n\r\n"
+                        .repeat(count)
+                );
+                let req = TestRequest::post()
+                    .insert_header((
+                        "content-type",
+                        "multipart/form-data; boundary=test-boundary",
+                    ))
+                    .set_payload(body)
+                    .to_request();
+
+                assert_eq!(call_service(&app, req).await.status(), status);
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_discarded_fields_count_towards_max_parts() {
+        let app = init_service(
+            App::new()
+                .app_data(MultipartFormConfig::default().max_parts(1))
+                .route("/", web::post().to(test_duplicate_ignore_route)),
+        )
+        .await;
+
+        for name in ["field", "unknown"] {
+            let body = format!(
+                "--test-boundary\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\nfirst_value\r\n\
+                 --test-boundary\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n\r\n\
+                 --test-boundary--\r\n"
+            );
+            let req = TestRequest::post()
+                .insert_header((
+                    "content-type",
+                    "multipart/form-data; boundary=test-boundary",
+                ))
+                .set_payload(body)
+                .to_request();
+
+            assert_eq!(
+                call_service(&app, req).await.status(),
+                StatusCode::BAD_REQUEST
+            );
+        }
+    }
+
     #[derive(MultipartForm)]
     struct TestMemoryUploadLimits {
         field: Bytes,
@@ -660,7 +1067,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_memory_limits() {
         let srv = actix_test::start(|| {
             App::new()
@@ -677,7 +1084,7 @@ mod tests {
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/text").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Memory limit should not apply when the data is being streamed to disk
         let mut form = multipart::Form::default();
@@ -686,7 +1093,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_total_limit() {
         let srv = actix_test::start(|| {
             App::new()
@@ -709,13 +1116,13 @@ mod tests {
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/text").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Exceeds the 20 byte overall limit
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/file").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[derive(MultipartForm)]
@@ -731,7 +1138,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_field_level_limits() {
         let srv = actix_test::start(|| {
             App::new()
@@ -749,11 +1156,11 @@ mod tests {
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Exceeds the the 30 byte limit
+        // Exceeds the 30 byte limit
         let mut form = multipart::Form::default();
         form.add_text("field", "this string is more than 30 bytes long");
         let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
         // Total of values (14 bytes) is within 30 byte limit for "field"
         let mut form = multipart::Form::default();
@@ -767,10 +1174,10 @@ mod tests {
         form.add_text("field", "this string is 28 bytes long");
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn non_multipart_form_data() {
         #[derive(MultipartForm)]
         struct TestNonMultipartFormData {
@@ -805,8 +1212,8 @@ mod tests {
         assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Connect(Disconnected)")]
-    #[actix_web::test]
+    #[should_panic(expected = "Field should not be polled after completion")]
+    #[tokio::test(flavor = "local")]
     async fn field_try_next_panic() {
         #[derive(Debug)]
         struct NullSink;
@@ -837,16 +1244,27 @@ mod tests {
             foo: NullSink,
         }
 
-        async fn null_sink(_form: MultipartForm<NullSinkForm>) -> impl Responder {
-            "unreachable"
+        #[post("/")]
+        async fn null_sink(_form: MultipartForm<NullSinkForm>) -> HttpResponse {
+            unreachable!("form should panic before reaching this point");
         }
 
-        let srv = actix_test::start(|| App::new().service(Resource::new("/").post(null_sink)));
+        let app = init_service(App::new().service(null_sink)).await;
 
-        let mut form = multipart::Form::default();
-        form.add_text("foo", "data is not important to this test");
+        let (body, headers) = create_form_data_payload_and_headers(
+            "foo",
+            None,
+            None,
+            web::Bytes::from_static(b"test data"),
+        );
 
-        // panics with Err(Connect(Disconnected)) due to form NullSink panic
-        let _res = send_form(&srv, form, "/").await;
+        let req = headers
+            .into_iter()
+            .fold(TestRequest::post(), |req, header| req.insert_header(header))
+            .set_payload(body)
+            .to_request();
+
+        // Run in this task so the test observes the field panic directly.
+        let _res = call_service(&app, req).await;
     }
 }

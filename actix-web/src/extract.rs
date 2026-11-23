@@ -9,7 +9,8 @@ use std::{
 };
 
 use actix_http::{Method, Uri};
-use actix_utils::future::{ok, Ready};
+#[expect(deprecated, reason = "preserve the public ready future type")]
+use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
@@ -104,7 +105,7 @@ pub trait FromRequest: Sized {
 /// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures_util::future::{ok, err, Ready};
+/// use std::future::{ready, Ready};
 /// use serde::Deserialize;
 /// use rand;
 ///
@@ -119,9 +120,9 @@ pub trait FromRequest: Sized {
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
-///             ok(Thing { name: "thingy".into() })
+///             ready(Ok(Thing { name: "thingy".into() }))
 ///         } else {
-///             err(ErrorBadRequest("no luck"))
+///             ready(Err(ErrorBadRequest("no luck")))
 ///         }
 ///
 ///     }
@@ -192,7 +193,7 @@ where
 /// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures_util::future::{ok, err, Ready};
+/// use std::future::{ready, Ready};
 /// use serde::Deserialize;
 /// use rand;
 ///
@@ -207,9 +208,9 @@ where
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
-///             ok(Thing { name: "thingy".into() })
+///             ready(Ok(Thing { name: "thingy".into() }))
 ///         } else {
-///             err(ErrorBadRequest("no luck"))
+///             ready(Err(ErrorBadRequest("no luck")))
 ///         }
 ///     }
 /// }
@@ -277,12 +278,13 @@ where
 ///
 /// let app = App::new().default_service(web::to(handler));
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Uri {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.uri().clone())
+        ready(Ok(req.uri().clone()))
     }
 }
 
@@ -298,12 +300,13 @@ impl FromRequest for Uri {
 ///
 /// let app = App::new().default_service(web::to(handler));
 /// ```
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl FromRequest for Method {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.method().clone())
+        ready(Ok(req.method().clone()))
     }
 }
 
@@ -395,12 +398,13 @@ mod tuple_from_req {
         }
     }
 
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     impl FromRequest for () {
         type Error = Infallible;
         type Future = Ready<Result<Self, Self::Error>>;
 
         fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-            ok(())
+            ready(Ok(()))
         }
     }
 
@@ -439,7 +443,7 @@ mod tests {
         hello: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_option() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -479,7 +483,7 @@ mod tests {
         assert_eq!(r, None);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_result() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
@@ -517,21 +521,21 @@ mod tests {
         assert!(r.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_uri() {
         let req = TestRequest::default().uri("/foo/bar").to_http_request();
         let uri = Uri::extract(&req).await.unwrap();
         assert_eq!(uri.path(), "/foo/bar");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let method = Method::extract(&req).await.unwrap();
         assert_eq!(method, Method::GET);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_concurrent() {
         let (req, mut pl) = TestRequest::default()
             .uri("/foo/bar")

@@ -1,3 +1,5 @@
+# This workflow is managed by gh actions-lock.
+
 name: CI
 
 on:
@@ -6,7 +8,7 @@ on:
   merge_group:
     types: [checks_requested]
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ concurrency:
 jobs:
   read_msrv:
     name: Read MSRV
-    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@v0.1.0
+    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@v0.1.3
 
   build_and_test:
     needs: read_msrv
@@ -28,9 +30,9 @@ jobs:
       matrix:
         # prettier-ignore
         target:
-          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
-          - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
-          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
+          - { name: Linux, os: blacksmith-2vcpu-ubuntu-2404, triple: x86_64-unknown-linux-gnu }
+          - { name: macOS, os: blacksmith-6vcpu-macos-latest, triple: x86_64-apple-darwin }
+          - { name: Windows, os: blacksmith-2vcpu-windows-2025, triple: x86_64-pc-windows-msvc }
         version:
           - { name: msrv, version: "${{ needs.read_msrv.outputs.msrv }}" }
           - { name: stable, version: stable }
@@ -39,32 +41,38 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install nasm
-        if: matrix.target.os == 'windows-latest'
+        if: matrix.target.name == 'Windows'
         uses: ilammy/setup-nasm@v1.5.2
 
-      - name: Install OpenSSL
-        if: matrix.target.os == 'windows-latest'
+      - name: Configure OpenSSL
+        if: matrix.target.name == 'Windows'
         shell: bash
         run: |
           set -e
-          choco install openssl --version=1.1.1.2100 -y --no-progress
-          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' >> $GITHUB_ENV
-          echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' >> "$GITHUB_ENV"
+          echo 'OPENSSL_LIB_DIR=C:\Program Files\OpenSSL\lib\VC\x64\MT' >> "$GITHUB_ENV"
+          echo 'OPENSSL_LIBS=libssl_static:libcrypto_static' >> "$GITHUB_ENV"
+          echo 'OPENSSL_STATIC=1' >> "$GITHUB_ENV"
+
+          # Use the static CRT to match the OpenSSL MT libraries.
+          echo 'RUSTFLAGS=-C target-feature=+crt-static' >> "$GITHUB_ENV"
 
       - name: Setup mold linker
-        if: matrix.target.os == 'ubuntu-latest'
+        if: matrix.target.name == 'Linux'
         uses: rui314/setup-mold@v1
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.56.19
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -79,41 +87,27 @@ jobs:
         run: just check-default
 
       - name: tests
-        timeout-minutes: 60
+        timeout-minutes: 30
         run: just test
 
       - name: CI cache clean
         run: cargo-ci-cache-clean
 
-  io-uring:
-    name: io-uring tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
-        with:
-          toolchain: nightly
-
-      - name: tests (io-uring)
-        timeout-minutes: 60
-        run: >
-          sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
-
   rustdoc:
     name: doc tests
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: useblacksmith/checkout@v1.8.3
+        with:
+          persist-credentials: false
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@v2.0.1
         with:
           toolchain: nightly
 
       - name: Install just
-        uses: taiki-e/install-action@v2.56.19
+        uses: taiki-e/install-action@v2.90.4
         with:
           tool: just
 

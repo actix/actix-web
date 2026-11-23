@@ -14,6 +14,10 @@ common_header! {
     /// small set of desired types, as in the case of a request for an
     /// in-line image
     ///
+    /// Quality parameters are recognized regardless of their position among media type parameters,
+    /// as described in [RFC 9110 §12.5.1](https://www.rfc-editor.org/info/rfc9110/#section-12.5.1).
+    /// Quoted parameter values are preserved without interpreting their contents as quality.
+    ///
     /// # ABNF
     /// ```plain
     /// Accept = #( media-range [ accept-params ] )
@@ -26,52 +30,52 @@ common_header! {
     /// accept-ext = OWS ";" OWS token [ "=" ( token / quoted-string ) ]
     /// ```
     ///
+    /// # Note
+    /// This is a request header. Servers should not send `Accept` in responses; to describe the
+    /// response body media type, use [`ContentType`](super::ContentType) / the `Content-Type`
+    /// header instead.
+    ///
     /// # Example Values
     /// * `audio/*; q=0.2, audio/basic`
     /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem};
+    /// use actix_web::{http::header::{Accept, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
-    ///         QualityItem::max(mime::TEXT_HTML),
-    ///     ])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![QualityItem::max(mime::TEXT_HTML)]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem};
+    /// use actix_web::{http::header::{Accept, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
-    ///         QualityItem::max(mime::APPLICATION_JSON),
-    ///     ])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![QualityItem::max(mime::APPLICATION_JSON)]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem, q};
+    /// use actix_web::{http::header::{Accept, Header as _, QualityItem, q}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     Accept(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(Accept(vec![
     ///         QualityItem::max(mime::TEXT_HTML),
     ///         QualityItem::max("application/xhtml+xml".parse().unwrap()),
     ///         QualityItem::new(mime::TEXT_XML, q(0.9)),
     ///         QualityItem::max("image/webp".parse().unwrap()),
     ///         QualityItem::new(mime::STAR_STAR, q(0.8)),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    ///
+    /// let accept = Accept::parse(&req).unwrap();
+    /// assert_eq!(accept.preference(), mime::TEXT_HTML);
     /// ```
     ///
-    /// [RFC 7231 §5.3.2]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [RFC 7231 §5.3.2]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.2
     (Accept, header::ACCEPT) => (QualityItem<Mime>)*
 
     test_parse_and_format {
@@ -158,7 +162,7 @@ impl Accept {
     /// As per the spec, will return [`mime::STAR_STAR`] (indicating no preference) if the contained
     /// list is empty.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn preference(&self) -> Mime {
         use actix_http::header::Quality;
 
@@ -183,7 +187,7 @@ impl Accept {
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn ranked(&self) -> Vec<Mime> {
         if self.is_empty() {
             return vec![];
@@ -235,6 +239,37 @@ impl Accept {
 mod tests {
     use super::*;
     use crate::http::header::q;
+
+    #[test]
+    fn quality_parameter_order_preserves_preferences() {
+        for first in [
+            "text/plain; q=0.2; charset=utf-8",
+            "text/plain; charset=utf-8; q=0.2",
+        ] {
+            let req = actix_http::test::TestRequest::default()
+                .append_header((header::ACCEPT, first))
+                .append_header((header::ACCEPT, "text/html; q=0.8"))
+                .finish();
+            let accept = <Accept as header::Header>::parse(&req).unwrap();
+            assert_eq!(accept.len(), 2);
+            assert_eq!(accept[0].item, mime::TEXT_PLAIN_UTF_8);
+            assert_eq!(accept[0].quality, q(0.2));
+            assert_eq!(accept.preference(), mime::TEXT_HTML);
+            assert_eq!(accept.ranked(), [mime::TEXT_HTML, mime::TEXT_PLAIN_UTF_8]);
+        }
+    }
+
+    #[test]
+    fn quoted_parameter_preserves_quality_and_media_type() {
+        let req = actix_http::test::TestRequest::default()
+            .insert_header((header::ACCEPT, r#"text/plain; note="x; q=0.8""#))
+            .finish();
+        let accept = <Accept as header::Header>::parse(&req).unwrap();
+        assert_eq!(accept.len(), 1);
+        assert_eq!(accept[0].quality, q(1.0));
+        assert_eq!(accept[0].item.get_param("note").unwrap(), "x; q=0.8");
+        assert_eq!(accept.preference(), accept[0].item);
+    }
 
     #[test]
     fn ranking_precedence() {

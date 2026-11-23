@@ -458,8 +458,12 @@ mod foreign_impls {
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-            let string = mem::take(self.get_mut());
-            Poll::Ready(Some(Ok(string.into_bytes())))
+            if self.is_empty() {
+                Poll::Ready(None)
+            } else {
+                let string = mem::take(self.get_mut());
+                Poll::Ready(Some(Ok(string.into_bytes())))
+            }
         }
 
         #[inline]
@@ -529,7 +533,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_rt::pin;
+    use std::pin::pin;
+
     use actix_utils::future::poll_fn;
     use futures_util::stream;
 
@@ -555,31 +560,31 @@ mod tests {
     }
 
     #[allow(unused_allocation)] // triggered by `Box::new(()).size()`
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn boxing_equivalence() {
         assert_eq!(().size(), BodySize::Sized(0));
         assert_eq!(().size(), Box::new(()).size());
         assert_eq!(().size(), Box::pin(()).size());
 
         let pl = Box::new(());
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let mut pl = Box::pin(());
         assert_poll_next_none!(pl);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn mut_equivalence() {
         assert_eq!(().size(), BodySize::Sized(0));
         assert_eq!(().size(), (&(&mut ())).size());
 
         let pl = &mut ();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let pl = &mut Box::new(());
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
 
         let mut body = body::SizedStream::new(
@@ -591,82 +596,91 @@ mod tests {
         );
         let body = &mut body;
         assert_eq!(body.size(), BodySize::Sized(8));
-        pin!(body);
+        let mut body = pin!(body);
         assert_poll_next!(body, Bytes::from_static(b"1234"));
         assert_poll_next!(body, Bytes::from_static(b"5678"));
         assert_poll_next_none!(body);
     }
 
     #[allow(clippy::let_unit_value)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_unit() {
         let pl = ();
         assert_eq!(pl.size(), BodySize::Sized(0));
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next_none!(pl);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_str() {
         assert_eq!("".size(), BodySize::Sized(0));
         assert_eq!("test".size(), BodySize::Sized(4));
 
         let pl = "test";
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_static_bytes() {
         assert_eq!(b"".as_ref().size(), BodySize::Sized(0));
         assert_eq!(b"test".as_ref().size(), BodySize::Sized(4));
 
         let pl = b"test".as_ref();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_vec() {
         assert_eq!(vec![0; 0].size(), BodySize::Sized(0));
         assert_eq!(Vec::from("test").size(), BodySize::Sized(4));
 
         let pl = Vec::from("test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_bytes() {
         assert_eq!(Bytes::new().size(), BodySize::Sized(0));
         assert_eq!(Bytes::from_static(b"test").size(), BodySize::Sized(4));
 
         let pl = Bytes::from_static(b"test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_bytes_mut() {
         assert_eq!(BytesMut::new().size(), BodySize::Sized(0));
         assert_eq!(BytesMut::from(b"test".as_ref()).size(), BodySize::Sized(4));
 
         let pl = BytesMut::from("test");
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_string() {
         assert_eq!(String::new().size(), BodySize::Sized(0));
         assert_eq!("test".to_owned().size(), BodySize::Sized(4));
 
         let pl = "test".to_owned();
-        pin!(pl);
+        let mut pl = pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
+    async fn test_byte_string() {
+        let pl = bytestring::ByteString::from_static("test");
+        assert_eq!(pl.size(), BodySize::Sized(4));
+        let mut pl = pin!(pl);
+        assert_poll_next!(pl, Bytes::from_static(b"test"));
+        assert_poll_next_none!(pl);
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn complete_body_combinators() {
         let body = Bytes::from_static(b"test");
         let body = BoxBody::new(body);
@@ -679,7 +693,7 @@ mod tests {
         assert_eq!(body.try_into_bytes().unwrap(), Bytes::from("test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn complete_body_combinators_poll() {
         let body = Bytes::from_static(b"test");
         let body = BoxBody::new(body);
@@ -692,7 +706,7 @@ mod tests {
         assert_poll_next_none!(Pin::new(&mut body));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn none_body_combinators() {
         fn none_body() -> BoxBody {
             let body = body::None;
@@ -709,7 +723,7 @@ mod tests {
 
     // down-casting used to be done with a method on MessageBody trait
     // test is kept to demonstrate equivalence of Any trait
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_body_casting() {
         let mut body = String::from("hello cast");
         // let mut resp_body: &mut dyn MessageBody<Error = Error> = &mut body;
@@ -724,7 +738,7 @@ mod tests {
         assert!(not_body.is_none());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn non_owning_to_bytes() {
         let mut body = BoxBody::new(());
         let bytes = body::to_bytes(&mut body).await.unwrap();

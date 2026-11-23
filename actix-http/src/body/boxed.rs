@@ -108,7 +108,7 @@ mod tests {
     assert_impl_all!(BoxBody: fmt::Debug, MessageBody, Unpin);
     assert_not_impl_any!(BoxBody: Send, Sync);
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn nested_boxed_body() {
         let body = Bytes::from_static(&[1, 2, 3]);
         let boxed_body = BoxBody::new(BoxBody::new(body));

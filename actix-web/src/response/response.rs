@@ -8,14 +8,15 @@ use actix_http::{
     header::HeaderMap,
     Extensions, Response, ResponseHead, StatusCode,
 };
-#[cfg(feature = "cookies")]
-use {
-    actix_http::{
-        error::HttpError,
-        header::{self, HeaderValue},
-    },
-    cookie::Cookie,
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+use actix_http::{
+    error::HttpError,
+    header::{self, HeaderValue},
 };
+#[cfg(feature = "cookies")]
+use cookie::Cookie;
+#[cfg(all(feature = "cookies-0_18", not(feature = "cookies")))]
+use cookie_0_18::Cookie;
 
 use crate::{error::Error, HttpRequest, HttpResponseBuilder, Responder};
 
@@ -103,6 +104,33 @@ impl<B> HttpResponse<B> {
         self.res.headers_mut()
     }
 
+    /// Iterates over the response cookies that cookie (v0.18) can parse.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_0_18(&self) -> impl Iterator<Item = cookie_0_18::Cookie<'_>> {
+        self.headers()
+            .get_all(header::SET_COOKIE)
+            .filter_map(|header| cookie_0_18::Cookie::parse_encoded(header.to_str().ok()?).ok())
+    }
+
+    /// Appends a cookie (v0.18) Set-Cookie header.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn add_cookie_0_18(&mut self, cookie: &cookie_0_18::Cookie<'_>) -> Result<(), HttpError> {
+        let value = HeaderValue::from_str(&cookie.to_string())?;
+        self.headers_mut().append(header::SET_COOKIE, value);
+        Ok(())
+    }
+
+    /// Appends a removal cookie with the given name, path, and domain using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn add_removal_cookie_0_18(
+        &mut self,
+        cookie: &cookie_0_18::Cookie<'_>,
+    ) -> Result<(), HttpError> {
+        let mut cookie = cookie.clone();
+        cookie.make_removal();
+        self.add_cookie_0_18(&cookie)
+    }
+
     /// Get an iterator for the cookies set by this response.
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> CookieIter<'_> {
@@ -149,24 +177,28 @@ impl<B> HttpResponse<B> {
             .map_err(Into::into)
     }
 
-    /// Remove all cookies with the given name from this response.
+    /// Removes all `Set-Cookie` headers for cookies with the given name.
     ///
     /// Returns the number of cookies removed.
     ///
-    /// This method can _not_ cause a browser/client to delete any of its stored cookies. Its only
-    /// purpose is to delete cookies that were added to this response using [`add_cookie`]
-    /// and [`add_removal_cookie`]. Use [`add_removal_cookie`] to send a "removal" cookie.
+    /// To remove a cookie stored by the client, send a removal cookie.
     ///
-    /// [`add_cookie`]: Self::add_cookie
-    /// [`add_removal_cookie`]: Self::add_removal_cookie
-    #[cfg(feature = "cookies")]
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    #[cfg_attr(
+        feature = "cookies",
+        doc = "- For cookie (v0.16), use [`add_removal_cookie()`](Self::add_removal_cookie)."
+    )]
+    #[cfg_attr(
+        feature = "cookies-0_18",
+        doc = "- For cookie (v0.18), use [`add_removal_cookie_0_18()`](Self::add_removal_cookie_0_18)."
+    )]
     pub fn del_cookie(&mut self, name: &str) -> usize {
         let headers = self.headers_mut();
 
-        let vals: Vec<HeaderValue> = headers
+        let vals = headers
             .get_all(header::SET_COOKIE)
             .map(|v| v.to_owned())
-            .collect();
+            .collect::<Vec<_>>();
 
         headers.remove(header::SET_COOKIE);
 

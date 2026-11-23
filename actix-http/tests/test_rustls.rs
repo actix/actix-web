@@ -1,11 +1,14 @@
 #![cfg(feature = "rustls-0_23")]
 
+extern crate tls_openssl as openssl;
 extern crate tls_rustls_023 as rustls;
 
 use std::{
     convert::Infallible,
-    io::{self, BufReader, Write},
+    future::ready,
+    io::{self, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
+    pin::pin,
     sync::Arc,
     task::Poll,
     time::Duration,
@@ -18,16 +21,17 @@ use actix_http::{
     Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::pin;
+use actix_rt::net::TcpStream as RtTcpStream;
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
-use actix_utils::future::{err, ok, poll_fn};
+use actix_tls::{accept::rustls_0_23::TlsStream, connect::rustls_0_23::webpki_roots_cert_store};
+use actix_utils::future::poll_fn;
+use awc::{Client, Connector};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::{ready, Stream};
 use futures_util::stream::once;
 use rustls::{pki_types::ServerName, ServerConfig as RustlsServerConfig};
-use rustls_pemfile::{certs, pkcs8_private_keys};
+use rustls_pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 
 async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -35,7 +39,7 @@ where
 {
     let mut buf = BytesMut::new();
 
-    pin!(stream);
+    let mut stream = pin!(stream);
 
     poll_fn(|cx| loop {
         let body = stream.as_mut();
@@ -51,32 +55,47 @@ where
     Ok(buf)
 }
 
-fn tls_config() -> RustlsServerConfig {
-    let rcgen::CertifiedKey { cert, key_pair } =
+fn tls_config_with_alpn(protocols: &[&[u8]]) -> RustlsServerConfig {
+    let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
-    let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
-
-    let cert_file = &mut BufReader::new(cert_file.as_bytes());
-    let key_file = &mut BufReader::new(key_file.as_bytes());
-
-    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
-    let mut keys = pkcs8_private_keys(key_file)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let cert_chain = vec![cert.der().clone()];
+    let key_der = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
 
     let mut config = RustlsServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(
-            cert_chain,
-            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
-        )
+        .with_single_cert(cert_chain, key_der)
         .unwrap();
 
-    config.alpn_protocols.push(HTTP1_1_ALPN_PROTOCOL.to_vec());
-    config.alpn_protocols.push(H2_ALPN_PROTOCOL.to_vec());
+    config.alpn_protocols = protocols.iter().map(|proto| proto.to_vec()).collect();
 
     config
+}
+
+fn tls_config() -> RustlsServerConfig {
+    tls_config_with_alpn(&[HTTP1_1_ALPN_PROTOCOL, H2_ALPN_PROTOCOL])
+}
+
+fn tls_config_h1() -> RustlsServerConfig {
+    tls_config_with_alpn(&[HTTP1_1_ALPN_PROTOCOL])
+}
+
+fn tls_config_h2() -> RustlsServerConfig {
+    tls_config_with_alpn(&[H2_ALPN_PROTOCOL])
+}
+
+fn h1_client() -> Client {
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    builder.set_alpn_protos(b"\x08http/1.1").unwrap();
+
+    let connector = Connector::new()
+        .conn_lifetime(Duration::from_secs(0))
+        .timeout(Duration::from_millis(30_000))
+        .openssl(builder.build());
+
+    Client::builder().connector(connector).finish()
 }
 
 pub fn get_negotiated_alpn_protocol(
@@ -104,63 +123,66 @@ pub fn get_negotiated_alpn_protocol(
     sess.alpn_protocol().map(|proto| proto.to_vec())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| ok::<_, Error>(Response::ok()))
-            .rustls_0_23(tls_config())
+            .h1(|_| ready(Ok::<_, Error>(Response::ok())))
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, Error>(Response::ok()))
-            .rustls_0_23(tls_config())
+            .h2(|_| ready(Ok::<_, Error>(Response::ok())))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_11);
-                ok::<_, Error>(Response::ok())
+                ready(Ok::<_, Error>(Response::ok()))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_2);
-                ok::<_, Error>(Response::ok())
+                ready(Ok::<_, Error>(Response::ok()))
             })
             .rustls_0_23_with_config(
-                tls_config(),
+                tls_config_h2(),
                 TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
             )
     })
@@ -168,10 +190,74 @@ async fn h2_1() -> io::Result<()> {
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn h2_squery() -> io::Result<()> {
+    let mut srv = test_server(move || {
+        HttpService::build()
+            .h2(|req: Request| {
+                assert_eq!(req.method().as_str(), "QUERY");
+                assert_eq!(req.version(), Version::HTTP_2);
+                ready(Ok::<_, Error>(Response::ok()))
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.squery("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    srv.stop().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "local")]
+async fn h2_tcp_nodelay_override_true() -> io::Result<()> {
+    let mut srv = test_server(move || {
+        HttpService::build()
+            .tcp_nodelay(true)
+            .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
+                data.insert(io.get_ref().0.nodelay().unwrap());
+            })
+            .h2(|req: Request| {
+                assert_eq!(req.conn_data::<bool>(), Some(&true));
+                ready(Ok::<_, Error>(Response::ok()))
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    srv.stop().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "local")]
+async fn h2_tcp_nodelay_override_false() -> io::Result<()> {
+    let mut srv = test_server(move || {
+        HttpService::build()
+            .tcp_nodelay(false)
+            .on_connect_ext(|io: &TlsStream<RtTcpStream>, data| {
+                data.insert(io.get_ref().0.nodelay().unwrap());
+            })
+            .h2(|req: Request| {
+                assert_eq!(req.conn_data::<bool>(), Some(&false));
+                ready(Ok::<_, Error>(Response::ok()))
+            })
+            .rustls_0_23(tls_config_h2())
+    })
+    .await;
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    srv.stop().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "local")]
 async fn h2_body1() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let mut srv = test_server(move || {
@@ -180,7 +266,7 @@ async fn h2_body1() -> io::Result<()> {
                 let body = load_body(req.take_payload()).await?;
                 Ok::<_, Error>(Response::ok().set_body(body))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -189,12 +275,13 @@ async fn h2_body1() -> io::Result<()> {
 
     let body = srv.load_body(response).await.unwrap();
     assert_eq!(&body, data.as_bytes());
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_content_length() {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
                 let indx: usize = req.uri().path()[1..].parse().unwrap();
@@ -204,9 +291,9 @@ async fn h2_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, Infallible>(Response::new(statuses[indx]))
+                ready(Ok::<_, Infallible>(Response::new(statuses[indx])))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -219,13 +306,19 @@ async fn h2_content_length() {
             let req = srv
                 .request(Method::HEAD, srv.surl(&format!("/{}", i)))
                 .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            actix_rt::time::timeout(Duration::from_secs(15), req)
+                .await
+                .expect("Request future stalled on recv 1xx frame")
+                .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
 
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            actix_rt::time::timeout(Duration::from_secs(15), req)
+                .await
+                .expect("Request future stalled on recv 1xx frame")
+                .expect_err("should timeout on recv 1xx frame");
             // assert_eq!(response.headers().get(&header), None);
         }
 
@@ -246,9 +339,11 @@ async fn h2_content_length() {
             assert_eq!(response.headers().get(&header), Some(&value));
         }
     }
+
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
@@ -276,9 +371,9 @@ async fn h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
                 }
-                ok::<_, Infallible>(config.body(data.clone()))
+                ready(Ok::<_, Infallible>(config.body(data.clone())))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -288,6 +383,7 @@ async fn h2_headers() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from(data2));
+    srv.stop().await;
 }
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -312,12 +408,12 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .h2(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -327,14 +423,15 @@ async fn h2_body2() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .finish(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -353,14 +450,15 @@ async fn h2_head_empty() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert!(bytes.is_empty());
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .h2(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -378,14 +476,15 @@ async fn h2_head_binary() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert!(bytes.is_empty());
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_head_binary2() {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
-            .rustls_0_23(tls_config())
+            .h2(|_| ready(Ok::<_, Infallible>(Response::ok().set_body(STR))))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -399,19 +498,21 @@ async fn h2_head_binary2() {
             .unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
+
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
-                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
-                )
+                ))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -421,21 +522,22 @@ async fn h2_body_length() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_body_chunked_explicit() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
-                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
+                let body = once(ready(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))));
+                ready(Ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .body(BodyStream::new(body)),
-                )
+                ))
             })
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -448,23 +550,24 @@ async fn h2_body_chunked_explicit() {
 
     // decode
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(fn_factory_with_config(|_: ()| {
-                ok::<_, Infallible>(fn_service(|_| {
+                ready(Ok::<_, Infallible>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
-                    ok::<_, Infallible>(
+                    ready(Ok::<_, Infallible>(
                         Response::build(StatusCode::OK)
                             .insert_header((http::header::CONTENT_TYPE, broken_header))
                             .body(STR),
-                    )
-                }))
+                    ))
+                })))
             }))
-            .rustls_0_23(tls_config())
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -475,8 +578,9 @@ async fn h2_response_http_error_handling() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+        Bytes::from_static(b"Error processing HTTP: failed to parse header value")
     );
+    srv.stop().await;
 }
 
 #[derive(Debug, Display, Error)]
@@ -489,12 +593,12 @@ impl From<BadRequest> for Response<BoxBody> {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
-            .rustls_0_23(tls_config())
+            .h2(|_| ready(Err::<Response<BoxBody>, _>(BadRequest)))
+            .rustls_0_23(tls_config_h2())
     })
     .await;
 
@@ -504,36 +608,38 @@ async fn h2_service_error() {
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
+    srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response<BoxBody>, _>(BadRequest))
-            .rustls_0_23(tls_config())
+            .h1(|_| ready(Err::<Response<BoxBody>, _>(BadRequest)))
+            .rustls_0_23(tls_config_h1())
     })
     .await;
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
+    srv.stop().await;
 }
 
 const H2_ALPN_PROTOCOL: &[u8] = b"h2";
 const HTTP1_1_ALPN_PROTOCOL: &[u8] = b"http/1.1";
 const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h1() -> io::Result<()> {
-    let srv = test_server(move || {
-        let mut config = tls_config();
+    let mut srv = test_server(move || {
+        let mut config = tls_config_h1();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
-            .h1(|_| ok::<_, Error>(Response::ok()))
+            .h1(|_| ready(Ok::<_, Error>(Response::ok())))
             .rustls_0_23(config)
     })
     .await;
@@ -543,19 +649,20 @@ async fn alpn_h1() -> io::Result<()> {
         Some(CUSTOM_ALPN_PROTOCOL.to_vec())
     );
 
-    let response = srv.sget("/").send().await.unwrap();
+    let response = h1_client().get(srv.surl("/")).send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h2() -> io::Result<()> {
-    let srv = test_server(move || {
-        let mut config = tls_config();
+    let mut srv = test_server(move || {
+        let mut config = tls_config_h2();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
-            .h2(|_| ok::<_, Error>(Response::ok()))
+            .h2(|_| ready(Ok::<_, Error>(Response::ok())))
             .rustls_0_23(config)
     })
     .await;
@@ -572,16 +679,17 @@ async fn alpn_h2() -> io::Result<()> {
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn alpn_h2_1() -> io::Result<()> {
-    let srv = test_server(move || {
+    let mut srv = test_server(move || {
         let mut config = tls_config();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
         HttpService::build()
-            .finish(|_| ok::<_, Error>(Response::ok()))
+            .finish(|_| ready(Ok::<_, Error>(Response::ok())))
             .rustls_0_23(config)
     })
     .await;
@@ -602,5 +710,6 @@ async fn alpn_h2_1() -> io::Result<()> {
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
 
+    srv.stop().await;
     Ok(())
 }

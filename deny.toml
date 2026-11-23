@@ -1,0 +1,65 @@
+[licenses]
+confidence-threshold = 0.90
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",
+    "ISC",
+    "CDLA-Permissive-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "OpenSSL",
+    "MPL-2.0"
+]
+private = { ignore = true }
+
+# FIXME: old rustls introduces old ring which is not set license field properly.
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 }
+]
+
+# FIXME: webpki is almost unmaintained and is not set license field properly.
+# rustls has its own fork now so removing old rustls should resolve the issue.
+[[licenses.clarify]]
+crate = "webpki"
+expression = "ISC"
+license-files = [
+    { path = "LICENSE", hash = 0x001c7e6c }
+]
+
+[bans]
+multiple-versions = "allow"
+
+# Keep the legacy advisory exceptions below from allowing affected modern TLS dependencies.
+deny = [
+    { crate = "rustls-webpki:>=0.103, <0.103.16", reason = "RUSTSEC-2026-0382" },
+    { crate = "webpki-roots:>=0.26, <0.26.11", reason = "RUSTSEC-2026-0381" },
+    { crate = "webpki-roots:>=0.27, <1.0.10", reason = "RUSTSEC-2026-0381" },
+]
+
+[bans.build]
+executables = "deny"
+
+[advisories]
+# because of old rustls support:
+ignore = [
+    "RUSTSEC-2024-0336",
+    "RUSTSEC-2025-0009",
+    "RUSTSEC-2025-0010",
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+    # FIXME: needs to update h2
+    "RUSTSEC-2026-0258",
+    # FIXME: needs to eliminate old rustls dependency
+    "RUSTSEC-2026-0346",
+    "RUSTSEC-2026-0349",
+    { id = "RUSTSEC-2026-0381", reason = "Legacy rustls 0.20 and 0.21 require webpki-roots 0.22 and 0.25, which have no patched releases." },
+    { id = "RUSTSEC-2026-0382", reason = "Legacy rustls 0.21 and 0.22 require rustls-webpki 0.101 and 0.102, which have no patched releases." },
+    { id = "RUSTSEC-2026-0594", reason = "Actix Web and awc retain cookie 0.16 for API compatibility. There is no patched 0.16 release. The issue affects private cookies when multiple processes seal cookies on the thread that called fork." },
+]

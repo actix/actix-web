@@ -290,6 +290,32 @@ impl ServiceRequest {
         self.req.conn_data()
     }
 
+    /// Returns request cookies with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_0_18(&self) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.req.cookies_0_18()
+    }
+
+    /// Returns request cookies with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_raw_0_18(
+        &self,
+    ) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.req.cookies_raw_0_18()
+    }
+
+    /// Returns the named request cookie with percent-decoded names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.req.cookie_0_18(name)
+    }
+
+    /// Returns the named request cookie with raw names and values using cookie (v0.18).
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_raw_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.req.cookie_raw_0_18(name)
+    }
+
     /// Return request cookies.
     #[cfg(feature = "cookies")]
     #[inline]
@@ -297,11 +323,25 @@ impl ServiceRequest {
         self.req.cookies()
     }
 
+    /// Return request cookies **without** percent-decoding their names and values.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookies_raw(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        self.req.cookies_raw()
+    }
+
     /// Return request cookie.
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
+    }
+
+    /// Return request cookie **without** percent-decoding its name and value.
+    #[cfg(feature = "cookies")]
+    #[inline]
+    pub fn cookie_raw(&self, name: &str) -> Option<Cookie<'static>> {
+        self.req.cookie_raw(name)
     }
 
     /// Set request payload.
@@ -319,6 +359,21 @@ impl ServiceRequest {
             .unwrap()
             .app_data
             .push(extensions);
+    }
+
+    #[inline]
+    pub(crate) fn push_resource_id(&mut self, id: u16) {
+        self.req.push_resource_id(id);
+    }
+
+    #[inline]
+    pub(crate) fn mark_resource_path(&mut self, is_matched: bool) {
+        self.req.mark_resource_path(is_matched);
+    }
+
+    #[inline]
+    pub(crate) fn resource_id_path(&self) -> &[u16] {
+        self.req.resource_path()
     }
 
     /// Creates a context object for use with a routing [guard](crate::guard).
@@ -694,8 +749,9 @@ service_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::Service;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -704,12 +760,12 @@ mod tests {
         web, App,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service() {
         let srv =
             init_service(
                 App::new().service(web::service("/test").name("test").finish(
-                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                    |req: ServiceRequest| ready(Ok(req.into_response(HttpResponse::Ok().finish()))),
                 )),
             )
             .await;
@@ -717,23 +773,22 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let srv =
-            init_service(
-                App::new().service(web::service("/test").guard(guard::Get()).finish(
-                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
-                )),
-            )
-            .await;
+        let srv = init_service(
+            App::new().service(web::service("/test").guard(guard::Get()).finish(
+                |req: ServiceRequest| ready(Ok(req.into_response(HttpResponse::Ok().finish()))),
+            )),
+        )
+        .await;
         let req = TestRequest::with_uri("/test")
             .method(http::Method::PUT)
             .to_request();
         let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), http::StatusCode::METHOD_NOT_ALLOWED);
     }
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_service_data() {
         let srv = init_service(
             App::new()
@@ -743,7 +798,7 @@ mod tests {
                         .name("test")
                         .finish(|req: ServiceRequest| {
                             assert_eq!(req.app_data::<web::Data<u32>>().unwrap().as_ref(), &42);
-                            ok(req.into_response(HttpResponse::Ok().finish()))
+                            ready(Ok(req.into_response(HttpResponse::Ok().finish())))
                         }),
                 ),
         )
@@ -774,7 +829,7 @@ mod tests {
         assert!(s.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_services_macro() {
         let scoped = services![
             web::service("/scoped_test1").name("scoped_test1").finish(
@@ -812,7 +867,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_services_vec() {
         let services = vec![
             web::resource("/test1").to(|| async { "test1" }),
@@ -848,7 +903,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     async fn cloning_request_panics() {
         async fn index(_name: web::Path<(String,)>) -> &'static str {

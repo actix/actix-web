@@ -53,7 +53,7 @@ pub struct HeaderMap {
 /// A bespoke non-empty list for HeaderMap values.
 #[derive(Debug, Clone)]
 pub(crate) struct Value {
-    inner: SmallVec<[HeaderValue; 4]>,
+    inner: SmallVec<[HeaderValue; 2]>,
 }
 
 impl Value {
@@ -77,7 +77,7 @@ impl Value {
 }
 
 impl ops::Deref for Value {
-    type Target = SmallVec<[HeaderValue; 4]>;
+    type Target = SmallVec<[HeaderValue; 2]>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -128,7 +128,7 @@ impl HeaderMap {
         let (first_name, first_value) = match drain.next() {
             None => return HeaderMap::new(),
             Some((name, val)) => {
-                let name = name.expect("drained first item had no name");
+                let name = name.expect("Drained first item had no name");
                 (name, val)
             }
         };
@@ -537,7 +537,7 @@ impl HeaderMap {
     /// assert!(pairs.contains(&(&header::SET_COOKIE, &HeaderValue::from_static("two=2"))));
     /// ```
     pub fn iter(&self) -> Iter<'_> {
-        Iter::new(self.inner.iter())
+        Iter::new(self.inner.iter(), self.len())
     }
 
     /// An iterator over all contained header names.
@@ -626,7 +626,8 @@ impl HeaderMap {
     /// assert!(map.is_empty());
     /// ```
     pub fn drain(&mut self) -> Drain<'_> {
-        Drain::new(self.inner.drain())
+        let len = self.len();
+        Drain::new(self.inner.drain(), len)
     }
 }
 
@@ -638,7 +639,8 @@ impl IntoIterator for HeaderMap {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        IntoIter::new(self.inner.into_iter())
+        let len = self.len();
+        IntoIter::new(self.inner.into_iter(), len)
     }
 }
 
@@ -648,7 +650,7 @@ impl<'a> IntoIterator for &'a HeaderMap {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        Iter::new(self.inner.iter())
+        Iter::new(self.inner.iter(), self.len())
     }
 }
 
@@ -689,7 +691,7 @@ impl From<&HeaderMap> for http::HeaderMap {
 /// and [`HeaderMap::remove`].
 #[derive(Debug)]
 pub struct Removed {
-    inner: Option<smallvec::IntoIter<[HeaderValue; 4]>>,
+    inner: Option<smallvec::IntoIter<[HeaderValue; 2]>>,
 }
 
 impl Removed {
@@ -723,7 +725,7 @@ impl Iterator for Removed {
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.inner {
             Some(ref iter) => iter.size_hint(),
-            None => (0, None),
+            None => (0, Some(0)),
         }
     }
 }
@@ -758,16 +760,18 @@ impl iter::FusedIterator for Keys<'_> {}
 #[derive(Debug)]
 pub struct Iter<'a> {
     inner: hash_map::Iter<'a, HeaderName, Value>,
-    multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 4]>)>,
+    multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 2]>)>,
     multi_idx: usize,
+    remaining: usize,
 }
 
 impl<'a> Iter<'a> {
-    fn new(iter: hash_map::Iter<'a, HeaderName, Value>) -> Self {
+    fn new(iter: hash_map::Iter<'a, HeaderName, Value>, remaining: usize) -> Self {
         Self {
             inner: iter,
             multi_idx: 0,
             multi_inner: None,
+            remaining,
         }
     }
 }
@@ -781,6 +785,7 @@ impl<'a> Iterator for Iter<'a> {
             match vals.get(self.multi_idx) {
                 Some(val) => {
                     self.multi_idx += 1;
+                    self.remaining -= 1;
                     return Some((name, val));
                 }
                 None => {
@@ -800,9 +805,7 @@ impl<'a> Iterator for Iter<'a> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // take inner lower bound
-        // make no attempt at an upper bound
-        (self.inner.size_hint().0, None)
+        (self.remaining, Some(self.remaining))
     }
 }
 
@@ -816,16 +819,18 @@ impl iter::FusedIterator for Iter<'_> {}
 #[derive(Debug)]
 pub struct Drain<'a> {
     inner: hash_map::Drain<'a, HeaderName, Value>,
-    multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 4]>)>,
+    multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 2]>)>,
     multi_idx: usize,
+    remaining: usize,
 }
 
 impl<'a> Drain<'a> {
-    fn new(iter: hash_map::Drain<'a, HeaderName, Value>) -> Self {
+    fn new(iter: hash_map::Drain<'a, HeaderName, Value>, remaining: usize) -> Self {
         Self {
             inner: iter,
             multi_inner: None,
             multi_idx: 0,
+            remaining,
         }
     }
 }
@@ -838,6 +843,7 @@ impl Iterator for Drain<'_> {
         if let Some((ref mut name, ref mut vals)) = self.multi_inner {
             if !vals.is_empty() {
                 // OPTIMIZE: array removals
+                self.remaining -= 1;
                 return Some((name.take(), vals.remove(0)));
             } else {
                 // no more items in value iterator; reset state
@@ -855,9 +861,7 @@ impl Iterator for Drain<'_> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // take inner lower bound
-        // make no attempt at an upper bound
-        (self.inner.size_hint().0, None)
+        (self.remaining, Some(self.remaining))
     }
 }
 
@@ -871,14 +875,16 @@ impl iter::FusedIterator for Drain<'_> {}
 #[derive(Debug)]
 pub struct IntoIter {
     inner: hash_map::IntoIter<HeaderName, Value>,
-    multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 4]>)>,
+    multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 2]>)>,
+    remaining: usize,
 }
 
 impl IntoIter {
-    fn new(inner: hash_map::IntoIter<HeaderName, Value>) -> Self {
+    fn new(inner: hash_map::IntoIter<HeaderName, Value>, remaining: usize) -> Self {
         Self {
             inner,
             multi_inner: None,
+            remaining,
         }
     }
 }
@@ -891,6 +897,7 @@ impl Iterator for IntoIter {
         if let Some((ref name, ref mut vals)) = self.multi_inner {
             match vals.next() {
                 Some(val) => {
+                    self.remaining -= 1;
                     return Some((name.clone(), val));
                 }
                 None => {
@@ -909,9 +916,7 @@ impl Iterator for IntoIter {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // take inner lower bound
-        // make no attempt at an upper bound
-        (self.inner.size_hint().0, None)
+        (self.remaining, Some(self.remaining))
     }
 }
 
@@ -953,6 +958,35 @@ mod tests {
 
         map.insert(header::LOCATION, HeaderValue::from_static("/test"));
         assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn removed_has_exact_length() {
+        let mut map = HeaderMap::new();
+        let mut removed = map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+
+        let mut removed = map.remove(header::ACCEPT);
+
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed.size_hint(), (1, Some(1)));
+        assert_eq!(removed.next(), Some(HeaderValue::from_static("text/plain")));
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+
+        let mut removed = map.remove(header::ACCEPT);
+
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
+        assert!(removed.next().is_none());
+        assert_eq!(removed.len(), 0);
+        assert_eq!(removed.size_hint(), (0, Some(0)));
     }
 
     #[test]
@@ -1158,6 +1192,67 @@ mod tests {
 
         // check for fused-ness
         assert!(vals.next().is_none());
+    }
+
+    #[test]
+    fn iter_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        assert_eq!(map.iter().count(), 3);
+        assert_eq!(map.iter().len(), 3);
+    }
+
+    #[test]
+    fn into_iter_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        assert_eq!(map.clone().into_iter().count(), 3);
+        assert_eq!(map.into_iter().len(), 3);
+    }
+
+    #[test]
+    fn drain_len_counts_values() {
+        let mut map = HeaderMap::new();
+        map.append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("b=2"));
+        map.append(header::SET_COOKIE, HeaderValue::from_static("c=3"));
+
+        let mut drained = map.clone();
+        assert_eq!(map.drain().count(), 3);
+        assert_eq!(drained.drain().len(), 3);
+    }
+
+    #[test]
+    fn values_beyond_inline_capacity_keep_order() {
+        let vals = ["a=1", "b=2", "c=3", "d=4", "e=5"].map(HeaderValue::from_static);
+
+        let mut map = HeaderMap::new();
+        for val in &vals {
+            map.append(header::SET_COOKIE, val.clone());
+        }
+
+        assert_eq!(map.len(), 5);
+        assert_eq!(
+            map.get_all(header::SET_COOKIE).collect::<Vec<_>>(),
+            vals.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(map.clone().get_all(header::SET_COOKIE).count(), 5);
+
+        let mut drained = map.clone();
+        assert_eq!(
+            map.remove(header::SET_COOKIE).collect::<Vec<_>>(),
+            vals.to_vec()
+        );
+        assert!(map.is_empty());
+
+        let drained = drained.drain().map(|(_, val)| val).collect::<Vec<_>>();
+        assert_eq!(drained, vals.to_vec());
     }
 
     fn owned_pair<'a>((name, val): (&'a HeaderName, &'a HeaderValue)) -> (HeaderName, HeaderValue) {

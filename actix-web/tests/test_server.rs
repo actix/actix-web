@@ -7,15 +7,17 @@ use std::{
     future::Future,
     io::{Read, Write},
     pin::Pin,
+    str,
     task::{Context, Poll},
     time::Duration,
 };
 
 use actix_web::{
     cookie::Cookie,
+    error::{InternalError, UrlencodedError},
     http::{header, StatusCode},
     middleware::{Compress, NormalizePath, TrailingSlash},
-    web, App, Error, HttpResponse,
+    web, App, Error, HttpResponse, ResponseError,
 };
 use bytes::Bytes;
 use futures_core::ready;
@@ -34,10 +36,10 @@ const STR: &str = const_str::repeat!(S, 100);
 
 #[cfg(feature = "openssl")]
 fn openssl_config() -> SslAcceptor {
-    let rcgen::CertifiedKey { cert, key_pair } =
+    let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
     let cert_file = cert.pem();
-    let key_file = key_pair.serialize_pem();
+    let key_file = signing_key.serialize_pem();
 
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
@@ -92,7 +94,7 @@ impl futures_core::stream::Stream for TestBody {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body() {
     let srv = actix_test::start(|| {
         App::new()
@@ -109,7 +111,7 @@ async fn test_body() {
 }
 
 // enforcing an encoding per-response is removed
-// #[actix_rt::test]
+// #[tokio::test(flavor = "local")]
 // async fn test_body_encoding_override() {
 //     let srv = actix_test::start_with(actix_test::config().h1(), || {
 //         App::new()
@@ -155,7 +157,7 @@ async fn test_body() {
 //     srv.stop().await;
 // }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
@@ -186,7 +188,7 @@ async fn body_gzip_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_gzip_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
     let srv_data = data.clone();
@@ -216,7 +218,7 @@ async fn test_body_gzip_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_chunked_implicit() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -245,7 +247,7 @@ async fn test_body_chunked_implicit() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_br_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -270,7 +272,7 @@ async fn test_body_br_streaming() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_head_binary() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -291,7 +293,25 @@ async fn test_head_binary() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn test_query_method() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::query().to(|body: Bytes| async { HttpResponse::Ok().body(body) })),
+        )
+    });
+
+    let mut res = srv.query("/").send_body("query body").await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"query body"));
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
 async fn test_no_chunking() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || async {
@@ -311,7 +331,7 @@ async fn test_no_chunking() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_deflate() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -334,7 +354,7 @@ async fn test_body_deflate() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_brotli() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -357,7 +377,7 @@ async fn test_body_brotli() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_zstd() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -380,7 +400,7 @@ async fn test_body_zstd() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_body_zstd_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -405,7 +425,7 @@ async fn test_body_zstd_streaming() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_zstd_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -426,7 +446,7 @@ async fn test_zstd_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_zstd_encoding_large() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
@@ -453,7 +473,7 @@ async fn test_zstd_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -476,7 +496,7 @@ async fn test_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_gzip_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -497,7 +517,7 @@ async fn test_gzip_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let srv = actix_test::start_with(actix_test::config().h1(), || {
@@ -519,7 +539,7 @@ async fn test_gzip_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_gzip_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 60_000);
 
@@ -542,7 +562,7 @@ async fn test_reading_gzip_encoding_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -563,7 +583,7 @@ async fn test_reading_deflate_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let srv = actix_test::start_with(actix_test::config().h1(), || {
@@ -585,7 +605,7 @@ async fn test_reading_deflate_encoding_large() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_reading_deflate_encoding_large_random() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
@@ -609,7 +629,7 @@ async fn test_reading_deflate_encoding_large_random() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -630,7 +650,7 @@ async fn test_brotli_encoding() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding_large() {
     let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
@@ -658,7 +678,7 @@ async fn test_brotli_encoding_large() {
 }
 
 #[cfg(feature = "openssl")]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_brotli_encoding_large_openssl() {
     use actix_web::http::header;
 
@@ -688,34 +708,24 @@ async fn test_brotli_encoding_large_openssl() {
 
 #[cfg(feature = "rustls-0_23")]
 mod plus_rustls {
-    use std::io::BufReader;
-
     use rustls::{pki_types::PrivateKeyDer, ServerConfig as RustlsServerConfig};
-    use rustls_pemfile::{certs, pkcs8_private_keys};
+    use rustls_pki_types::PrivatePkcs8KeyDer;
 
     use super::*;
 
     fn tls_config() -> RustlsServerConfig {
-        let rcgen::CertifiedKey { cert, key_pair } =
+        let rcgen::CertifiedKey { cert, signing_key } =
             rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
-        let cert_file = cert.pem();
-        let key_file = key_pair.serialize_pem();
-
-        let cert_file = &mut BufReader::new(cert_file.as_bytes());
-        let key_file = &mut BufReader::new(key_file.as_bytes());
-
-        let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
-        let mut keys = pkcs8_private_keys(key_file)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let cert_chain = vec![cert.der().clone()];
+        let key_der = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
 
         RustlsServerConfig::builder()
             .with_no_client_auth()
-            .with_single_cert(cert_chain, PrivateKeyDer::Pkcs8(keys.remove(0)))
+            .with_single_cert(cert_chain, key_der)
             .unwrap()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_reading_deflate_encoding_large_random_rustls() {
         let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
@@ -747,7 +757,7 @@ mod plus_rustls {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_server_cookies() {
     use actix_web::http;
 
@@ -804,7 +814,7 @@ async fn test_server_cookies() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_slow_request() {
     use std::net;
 
@@ -827,7 +837,7 @@ async fn test_slow_request() {
     srv.stop().await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_normalize() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -843,7 +853,7 @@ async fn test_normalize() {
 
 // allow deprecated App::data
 #[allow(deprecated)]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_data_drop() {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -891,7 +901,7 @@ async fn test_data_drop() {
     assert_eq!(num.load(Ordering::SeqCst), 0);
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn test_accept_encoding_no_match() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
@@ -915,4 +925,86 @@ async fn test_accept_encoding_no_match() {
     assert!(!bytes.is_empty());
 
     srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn zstd_decoding_over_limit_is_early_rejected() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use actix_web::{dev::Payload, test};
+    use futures_util::{stream, StreamExt as _};
+
+    const UNCOMPRESSED_SIZE_LIMIT: usize = 1024;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(
+                web::FormConfig::default()
+                    .limit(UNCOMPRESSED_SIZE_LIMIT)
+                    .error_handler(|err, _| {
+                        assert!(
+                            matches!(err, UrlencodedError::OverflowUnknownLength { limit: 1024 }),
+                            "Unexpected type of form error: {err:?}"
+                        );
+
+                        let err_status = err.status_code();
+                        let err_string = err.to_string();
+
+                        InternalError::from_response(
+                            err_string.clone(),
+                            HttpResponse::build(err_status).body(err_string),
+                        )
+                        .into()
+                    }),
+            )
+            .route(
+                "/",
+                web::post().to(|_: web::Form<Vec<(String, String)>>| async {
+                    HttpResponse::Ok().finish()
+                }),
+            ),
+    )
+    .await;
+
+    let data = format!("value={}", "a".repeat(1024 * 1024 - 6));
+    let compressed = utils::zstd::encode(&data);
+    assert!(compressed.len() <= UNCOMPRESSED_SIZE_LIMIT);
+
+    let chunks = compressed
+        .chunks(16)
+        .map(Bytes::copy_from_slice)
+        .collect::<Vec<_>>();
+
+    let chunk_count = chunks.len();
+    let chunks_consumed = Arc::new(AtomicUsize::new(0));
+
+    let stream = stream::iter(chunks.into_iter().map(Ok)).inspect({
+        let chunks_consumed = Arc::clone(&chunks_consumed);
+        move |_| {
+            chunks_consumed.fetch_add(1, Ordering::Relaxed);
+        }
+    });
+
+    let mut req = test::TestRequest::post()
+        .insert_header((header::CONTENT_ENCODING, "zstd"))
+        .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+        .to_request();
+    *req.payload() = Payload::from(stream.boxed_local());
+
+    let res = test::call_service(&app, req).await;
+
+    // Assert that the server rejected the payload...
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+    // ... and that it did so without reading it all.
+    assert!(chunks_consumed.load(Ordering::Relaxed) < chunk_count);
+
+    let body = test::read_body(res).await;
+    assert_eq!(
+        body,
+        "URL encoded payload is larger than allowed (limit: 1024 bytes)"
+    );
 }

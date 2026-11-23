@@ -2,7 +2,7 @@ use super::{HttpDate, LAST_MODIFIED};
 
 crate::http::header::common_header! {
     /// `Last-Modified` header, defined
-    /// in [RFC 7232 §2.2](https://datatracker.ietf.org/doc/html/rfc7232#section-2.2)
+    /// in [RFC 7232 §2.2](https://www.rfc-editor.org/info/rfc7232/#section-2.2)
     ///
     /// The `Last-Modified` header field in a response provides a timestamp
     /// indicating the date and time at which the origin server believes the
@@ -11,7 +11,7 @@ crate::http::header::common_header! {
     ///
     /// # ABNF
     /// ```plain
-    /// Expires = HTTP-date
+    /// Last-Modified = HTTP-date
     /// ```
     ///
     /// # Example Values

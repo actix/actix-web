@@ -41,7 +41,7 @@ where
                 let valid = if let Some(mime) = field.content_type() {
                     mime.subtype() == mime::PLAIN || mime.suffix() == Some(mime::PLAIN)
                 } else {
-                    // https://datatracker.ietf.org/doc/html/rfc7578#section-4.4
+                    // https://www.rfc-editor.org/info/rfc7578/#section-4.4
                     // content type defaults to text/plain, so None should be considered valid
                     true
                 };
@@ -85,7 +85,7 @@ pub enum TextError {
     Deserialize(serde_plain::Error),
 
     /// Content type error.
-    #[display("Content type error")]
+    #[display("Field Content-Type is not text/plain")]
     ContentType,
 }
 
@@ -158,7 +158,7 @@ mod tests {
 
     use crate::form::{
         tests::send_form,
-        text::{Text, TextConfig},
+        text::{Text, TextConfig, TextError},
         MultipartForm,
     };
 
@@ -172,7 +172,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_content_type_validation() {
         let srv = actix_test::start(|| {
             App::new()
@@ -193,5 +193,13 @@ mod tests {
         form.add_reader_file_with_mime("number", bytes, "", mime::TEXT_PLAIN);
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_text_error_display() {
+        assert_eq!(
+            TextError::ContentType.to_string(),
+            "Field Content-Type is not text/plain"
+        );
     }
 }

@@ -22,7 +22,7 @@ use crate::{
 ///
 /// # Extractor
 /// Provides a mechanism for trying two extractors, a primary and a fallback. Useful for
-/// "polymorphic payloads" where, for example, a form might be JSON or URL encoded.
+/// "polymorphic payloads" where, for example, a form might be JSON or URL-encoded.
 ///
 /// It is important to note that this extractor, by necessity, buffers the entire request payload
 /// as part of its implementation. Though, it does respect any `PayloadConfig` maximum size limits.
@@ -36,7 +36,7 @@ use crate::{
 ///     name: String,
 /// }
 ///
-/// // handler that accepts form as JSON or form-urlencoded.
+/// // handler that accepts form as JSON or URL-encoded.
 /// #[post("/")]
 /// async fn index(form: Either<web::Json<Info>, web::Form<Info>>) -> String {
 ///     let name: String = match form {
@@ -106,7 +106,7 @@ impl<L, R> Either<L, R> {
         match self {
             Either::Left(data) => data,
             Either::Right(_) => {
-                panic!("Cannot unwrap Left branch. Either contains an `R` type.")
+                panic!("Cannot unwrap Left branch; Either contains an R type")
             }
         }
     }
@@ -114,7 +114,7 @@ impl<L, R> Either<L, R> {
     pub(self) fn unwrap_right(self) -> R {
         match self {
             Either::Left(_) => {
-                panic!("Cannot unwrap Right branch. Either contains an `L` type.")
+                panic!("Cannot unwrap Right branch; Either contains an L type")
             }
             Either::Right(data) => data,
         }
@@ -288,7 +288,7 @@ mod tests {
         hello: String,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_first_try() {
         let (req, mut pl) = TestRequest::default()
             .set_form(TestForm {
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(&form.hello, "world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_fallback() {
         let (req, mut pl) = TestRequest::default()
             .set_json(TestForm {
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(&form.hello, "world");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_recursive_fallback() {
         let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"!@$%^&*()"))
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(&payload.as_ref(), &b"!@$%^&*()");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_either_extract_recursive_fallback_inner() {
         let (req, mut pl) = TestRequest::default()
             .set_json(TestForm {

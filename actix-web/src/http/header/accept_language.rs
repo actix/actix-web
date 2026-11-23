@@ -5,14 +5,18 @@ use crate::http::header;
 
 common_header! {
     /// `Accept-Language` header, defined
-    /// in [RFC 7231 §5.3.5](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.5)
+    /// in [RFC 7231 §5.3.5](https://www.rfc-editor.org/info/rfc7231/#section-5.3.5)
     ///
     /// The `Accept-Language` header field can be used by user agents to indicate the set of natural
     /// languages that are preferred in the response.
     ///
     /// The `Accept-Language` header is defined in
-    /// [RFC 7231 §5.3.5](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.5) using language
-    /// ranges defined in [RFC 4647 §2.1](https://datatracker.ietf.org/doc/html/rfc4647#section-2.1).
+    /// [RFC 7231 §5.3.5](https://www.rfc-editor.org/info/rfc7231/#section-5.3.5) using language
+    /// ranges defined in [RFC 4647 §2.1](https://www.rfc-editor.org/info/rfc4647/#section-2.1).
+    ///
+    /// # Note
+    /// This is a request header. Servers should not send `Accept-Language` in responses; use
+    /// `Content-Language` to describe the language of the response body.
     ///
     /// # ABNF
     /// ```plain
@@ -31,29 +35,25 @@ common_header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, QualityItem};
+    /// use actix_web::{http::header::{AcceptLanguage, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptLanguage(vec![
-    ///         "en-US".parse().unwrap(),
-    ///     ])
-    /// );
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptLanguage(vec!["en-US".parse().unwrap()]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     ///
     /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q};
+    /// use actix_web::{http::header::{AcceptLanguage, q, QualityItem}, test};
     ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptLanguage(vec![
+    /// let req = test::TestRequest::default()
+    ///     .insert_header(AcceptLanguage(vec![
     ///         "da".parse().unwrap(),
     ///         "en-GB;q=0.8".parse().unwrap(),
     ///         "en;q=0.7".parse().unwrap(),
-    ///     ])
-    /// );
+    ///     ]))
+    ///     .to_http_request();
+    /// # let _ = req;
     /// ```
     (AcceptLanguage, header::ACCEPT_LANGUAGE) => (QualityItem<Preference<LanguageTag>>)*
 
@@ -100,7 +100,7 @@ impl AcceptLanguage {
     ///
     /// As per the spec, returns [`Preference::Any`] if contained list is empty.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn preference(&self) -> Preference<LanguageTag> {
         let mut max_item = None;
         let mut max_pref = Quality::ZERO;
@@ -123,7 +123,7 @@ impl AcceptLanguage {
     /// Returns a sorted list of languages from highest to lowest precedence, accounting
     /// for [q-factor weighting].
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn ranked(&self) -> Vec<Preference<LanguageTag>> {
         if self.0.is_empty() {
             return vec![];

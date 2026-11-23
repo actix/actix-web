@@ -14,9 +14,9 @@ use actix_web::{
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
-            ExtendedValue, HeaderValue,
+            ExtendedValue,
         },
-        StatusCode,
+        Method, StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
@@ -50,8 +50,8 @@ impl Default for Flags {
 /// use actix_web::App;
 /// use actix_files::NamedFile;
 ///
-/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let file = NamedFile::open_async("./static/index.html").await?;
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = NamedFile::open("./static/index.html")?;
 /// let app = App::new().service(file);
 /// # Ok(())
 /// # }
@@ -64,7 +64,7 @@ impl Default for Flags {
 ///
 /// #[get("/")]
 /// async fn index() -> impl Responder {
-///     NamedFile::open_async("./static/index.html").await
+///     NamedFile::open("./static/index.html")
 /// }
 /// ```
 #[derive(Debug, Deref, DerefMut)]
@@ -80,15 +80,82 @@ pub struct NamedFile {
     pub(crate) content_type: Mime,
     pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
+    pub(crate) read_mode_threshold: u64,
 }
 
-#[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
 
-#[cfg(feature = "experimental-io-uring")]
-pub(crate) use tokio_uring::fs::File;
-
 use super::chunked;
+
+pub(crate) fn get_content_type_and_disposition(
+    path: &Path,
+) -> Result<(mime::Mime, ContentDisposition), io::Error> {
+    let filename = match path.file_name() {
+        Some(name) => name.to_string_lossy(),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Provided path has no filename",
+            ));
+        }
+    };
+
+    let ct = mime_guess::from_path(path).first_or_octet_stream();
+
+    let disposition = match ct.type_() {
+        mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
+        mime::APPLICATION => match ct.subtype() {
+            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        },
+        _ => DispositionType::Attachment,
+    };
+
+    // replace special characters in filenames which could occur on some filesystems
+    let mut escaped_len = filename.len();
+    for byte in filename.bytes() {
+        if matches!(byte, b'\n' | b'\x0B' | b'\x0C' | b'\r') {
+            escaped_len += 2;
+        }
+    }
+
+    let filename_s = if escaped_len == filename.len() {
+        filename.to_string()
+    } else {
+        let mut escaped = String::with_capacity(escaped_len);
+        for ch in filename.chars() {
+            match ch {
+                '\n' => escaped.push_str("%0A"),   // \n line break
+                '\x0B' => escaped.push_str("%0B"), // \v vertical tab
+                '\x0C' => escaped.push_str("%0C"), // \f form feed
+                '\r' => escaped.push_str("%0D"),   // \r carriage return
+                ch => escaped.push(ch),
+            }
+        }
+        escaped
+    };
+
+    let is_ascii = filename.is_ascii();
+
+    let mut parameters = Vec::with_capacity(if is_ascii { 1 } else { 2 });
+    parameters.push(DispositionParam::Filename(filename_s));
+
+    if !is_ascii {
+        parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+            charset: Charset::Ext(String::from("UTF-8")),
+            language_tag: None,
+            value: filename.into_owned().into_bytes(),
+        }))
+    }
+
+    let cd = ContentDisposition {
+        disposition,
+        parameters,
+    };
+
+    Ok((ct, cd))
+}
 
 impl NamedFile {
     /// Creates an instance from a previously opened file.
@@ -116,76 +183,9 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) = {
-            let filename = match path.file_name() {
-                Some(name) => name.to_string_lossy(),
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Provided path has no filename",
-                    ));
-                }
-            };
+        let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
-            let ct = mime_guess::from_path(&path).first_or_octet_stream();
-
-            let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
-                mime::APPLICATION => match ct.subtype() {
-                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
-                    _ => DispositionType::Attachment,
-                },
-                _ => DispositionType::Attachment,
-            };
-
-            // replace special characters in filenames which could occur on some filesystems
-            let filename_s = filename
-                .replace('\n', "%0A") // \n line break
-                .replace('\x0B', "%0B") // \v vertical tab
-                .replace('\x0C', "%0C") // \f form feed
-                .replace('\r', "%0D"); // \r carriage return
-            let mut parameters = vec![DispositionParam::Filename(filename_s)];
-
-            if !filename.is_ascii() {
-                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
-                    charset: Charset::Ext(String::from("UTF-8")),
-                    language_tag: None,
-                    value: filename.into_owned().into_bytes(),
-                }))
-            }
-
-            let cd = ContentDisposition {
-                disposition,
-                parameters,
-            };
-
-            (ct, cd)
-        };
-
-        let md = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                file.metadata()?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                use std::os::unix::prelude::{AsRawFd, FromRawFd};
-
-                let fd = file.as_raw_fd();
-
-                // SAFETY: fd is borrowed and lives longer than the unsafe block
-                unsafe {
-                    let file = std::fs::File::from_raw_fd(fd);
-                    let md = file.metadata();
-                    // SAFETY: forget the fd before exiting block in success or error case but don't
-                    // run destructor (that would close file handle)
-                    std::mem::forget(file);
-                    md?
-                }
-            }
-        };
+        let md = file.metadata()?;
 
         let modified = md.modified().ok();
         let encoding = None;
@@ -200,6 +200,7 @@ impl NamedFile {
             encoding,
             status_code: StatusCode::OK,
             flags: Flags::default(),
+            read_mode_threshold: 0,
         })
     }
 
@@ -210,37 +211,8 @@ impl NamedFile {
     /// use actix_files::NamedFile;
     /// let file = NamedFile::open("foo.txt");
     /// ```
-    #[cfg(not(feature = "experimental-io-uring"))]
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         let file = File::open(&path)?;
-        Self::from_file(file, path)
-    }
-
-    /// Attempts to open a file asynchronously in read-only mode.
-    ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
-    /// will behave just like `open`.
-    ///
-    /// # Examples
-    /// ```
-    /// use actix_files::NamedFile;
-    /// # async fn open() {
-    /// let file = NamedFile::open_async("foo.txt").await.unwrap();
-    /// # }
-    /// ```
-    pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        let file = {
-            #[cfg(not(feature = "experimental-io-uring"))]
-            {
-                File::open(&path)?
-            }
-
-            #[cfg(feature = "experimental-io-uring")]
-            {
-                File::open(&path).await?
-            }
-        };
-
         Self::from_file(file, path)
     }
 
@@ -257,8 +229,8 @@ impl NamedFile {
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
-    /// # async fn path() -> io::Result<()> {
-    /// let file = NamedFile::open_async("test.txt").await?;
+    /// # fn path() -> io::Result<()> {
+    /// let file = NamedFile::open("test.txt")?;
     /// assert_eq!(file.path().as_os_str(), "foo.txt");
     /// # Ok(())
     /// # }
@@ -353,6 +325,21 @@ impl NamedFile {
         self
     }
 
+    /// Sets the size threshold that determines file read mode (sync/async).
+    ///
+    /// When a file is smaller than the threshold (bytes), the reader will use synchronous
+    /// (blocking) file reads. For larger files, it switches to async reads to avoid blocking the
+    /// main thread.
+    ///
+    /// Tweaking this value according to your expected usage may lead to significant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
+        self
+    }
+
     /// Specifies whether to return `ETag` header in response.
     ///
     /// Default is true.
@@ -380,40 +367,80 @@ impl NamedFile {
         self
     }
 
-    /// Creates an `ETag` in a format is similar to Apache's.
+    /// Creates a strong ETag from the file's metadata.
+    ///
+    /// Returns `None` if the platform does not provide the file's modification time. (See
+    /// [`File::modified()`] docs for more.)
+    ///
+    /// [`File::modified()`]: https://doc.rust-lang.org/std/fs/struct.Metadata.html#method.modified
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
-        self.modified.as_ref().map(|mtime| {
+        let mtime = self.modified?;
+
+        Some({
             let ino = {
                 #[cfg(unix)]
                 {
-                    #[cfg(unix)]
                     use std::os::unix::fs::MetadataExt as _;
 
                     self.md.ino()
                 }
 
-                #[cfg(not(unix))]
+                #[cfg(windows)]
+                {
+                    // MetadataExt::file_index is not yet stable.
+                    winapi_util::file::information(&self.file).map_or(0, |info| info.file_index())
+                }
+
+                #[cfg(not(any(unix, windows)))]
                 {
                     0
                 }
             };
 
-            let dur = mtime
-                .duration_since(UNIX_EPOCH)
-                .expect("modification time must be after epoch");
+            // Don't panic for pre-epoch modification times. Encode the timestamp as seconds and
+            // sub-second nanoseconds relative to the UNIX epoch, allowing negative values.
+            let (secs, nanos) = match mtime.duration_since(UNIX_EPOCH) {
+                Ok(dur) => (dur.as_secs() as i64, dur.subsec_nanos()),
+                Err(err) => {
+                    let dur = err.duration();
+
+                    // For timestamps before the epoch, represent the time as a negative seconds
+                    // offset with positive nanoseconds (like POSIX timespec).
+                    if dur.subsec_nanos() == 0 {
+                        (-(dur.as_secs() as i64), 0)
+                    } else {
+                        (
+                            -(dur.as_secs() as i64) - 1,
+                            1_000_000_000 - dur.subsec_nanos(),
+                        )
+                    }
+                }
+            };
 
             header::EntityTag::new_strong(format!(
                 "{:x}:{:x}:{:x}:{:x}",
                 ino,
                 self.md.len(),
-                dur.as_secs(),
-                dur.subsec_nanos()
+                secs as u64,
+                nanos
             ))
         })
     }
 
     pub(crate) fn last_modified(&self) -> Option<header::HttpDate> {
-        self.modified.map(|mtime| mtime.into())
+        let mtime = self.modified?;
+
+        // avoid panic in `httpdate` crate when formatting as an HTTP date
+        // see: https://github.com/actix/actix-web/issues/2748
+        //
+        // httpdate supports dates in range [1970, 9999); see:
+        // https://github.com/seanmonstar/httpdate/blob/v1.0.3/src/date.rs
+        let dur = mtime.duration_since(UNIX_EPOCH).ok()?;
+        if dur.as_secs() >= 253_402_300_800 {
+            return None;
+        }
+
+        Some(mtime.into())
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
@@ -440,7 +467,8 @@ impl NamedFile {
                 res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
-            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader =
+                chunked::new_chunked_read(self.md.len(), 0, self.file, self.read_mode_threshold);
 
             return res.streaming(reader);
         }
@@ -460,6 +488,8 @@ impl NamedFile {
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
@@ -474,10 +504,12 @@ impl NamedFile {
             false
         };
 
+        let is_get_or_head = matches!(*req.method(), Method::GET | Method::HEAD);
+
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if !is_get_or_head || req.headers().contains_key(header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -518,42 +550,48 @@ impl NamedFile {
             res.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
-        if let Some(etag) = etag {
+        if let Some(etag) = &etag {
             res.insert_header((header::ETAG, etag.to_string()));
         }
 
         res.insert_header((header::ACCEPT_RANGES, "bytes"));
 
+        if precondition_failed || (not_modified && !is_get_or_head) {
+            return res.status(StatusCode::PRECONDITION_FAILED).finish();
+        } else if not_modified {
+            return res
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
+        }
+
         let mut length = self.md.len();
         let mut offset = 0;
+        let mut ranged_req = false;
 
-        // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE) {
+        // RFC 9110 Section 14.2 defines range handling only for GET.
+        if let Some(ranges) = req
+            .headers()
+            .get(header::RANGE)
+            .filter(|_| req.method() == Method::GET)
+            .filter(|_| if_range_matches(etag.as_ref(), last_modified, req))
+            // RFC 9110 section 14.2 requires unknown range units to be ignored.
+            .filter(|ranges| {
+                ranges
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.split_once('='))
+                    .is_none_or(|(unit, _)| unit.eq_ignore_ascii_case("bytes"))
+            })
+        {
             if let Ok(ranges_header) = ranges.to_str() {
-                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
-                    length = ranges[0].length;
-                    offset = ranges[0].start;
-
-                    // When a Content-Encoding header is present in a 206 partial content response
-                    // for video content, it prevents browser video players from starting playback
-                    // before loading the whole video and also prevents seeking.
-                    //
-                    // See: https://github.com/actix/actix-web/issues/2815
-                    //
-                    // The assumption of this fix is that the video player knows to not send an
-                    // Accept-Encoding header for this request and that downstream middleware will
-                    // not attempt compression for requests without it.
-                    //
-                    // TODO: Solve question around what to do if self.encoding is set and partial
-                    // range is requested. Reject request? Ignoring self.encoding seems wrong, too.
-                    // In practice, it should not come up.
-                    if req.headers().contains_key(&header::ACCEPT_ENCODING) {
-                        // don't allow compression middleware to modify partial content
-                        res.insert_header((
-                            header::CONTENT_ENCODING,
-                            HeaderValue::from_static("identity"),
-                        ));
-                    }
+                if let Some(range) = HttpRange::parse(ranges_header, length)
+                    .ok()
+                    .and_then(|ranges| ranges.first().copied())
+                {
+                    ranged_req = true;
+                    length = range.length;
+                    offset = range.start;
 
                     res.insert_header((
                         header::CONTENT_RANGE,
@@ -568,18 +606,9 @@ impl NamedFile {
             };
         };
 
-        if precondition_failed {
-            return res.status(StatusCode::PRECONDITION_FAILED).finish();
-        } else if not_modified {
-            return res
-                .status(StatusCode::NOT_MODIFIED)
-                .body(body::None::new())
-                .map_into_boxed_body();
-        }
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
-        let reader = chunked::new_chunked_read(length, offset, self.file);
-
-        if offset != 0 || length != self.md.len() {
+        if ranged_req {
             res.status(StatusCode::PARTIAL_CONTENT);
         }
 
@@ -603,6 +632,31 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 
             false
         }
+    }
+}
+
+/// Returns true if `req` has no `If-Range` header or one whose validator matches the file.
+fn if_range_matches(
+    etag: Option<&header::EntityTag>,
+    last_modified: Option<header::HttpDate>,
+    req: &HttpRequest,
+) -> bool {
+    if !req.headers().contains_key(header::IF_RANGE) {
+        return true;
+    }
+
+    match req.get_header::<header::IfRange>() {
+        Some(header::IfRange::EntityTag(ref tag)) => etag.is_some_and(|etag| etag.strong_eq(tag)),
+        Some(header::IfRange::Date(date)) => last_modified.is_some_and(|m| {
+            let t1: SystemTime = m.into();
+            let t2: SystemTime = date.into();
+
+            match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
+                (Ok(t1), Ok(t2)) => t1.as_secs() == t2.as_secs(),
+                _ => false,
+            }
+        }),
+        None => false,
     }
 }
 
@@ -670,7 +724,7 @@ impl Service<ServiceRequest> for NamedFileService {
 
         let path = self.path.clone();
         Box::pin(async move {
-            let file = NamedFile::open_async(path).await?;
+            let file = NamedFile::open(path)?;
             let res = file.into_response(&req);
             Ok(ServiceResponse::new(req, res))
         })
@@ -685,5 +739,72 @@ impl HttpServiceFactory for NamedFile {
             self,
             None,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audio_files_use_inline_content_disposition() {
+        let (_ct, cd) = get_content_type_and_disposition(Path::new("sound.mp3")).unwrap();
+        assert_eq!(cd.disposition, DispositionType::Inline);
+    }
+
+    #[test]
+    fn special_chars_are_escaped_in_content_disposition_filename() {
+        let (_ct, cd) =
+            get_content_type_and_disposition(Path::new("test\n\x0B\x0C\rnewline.text")).unwrap();
+
+        assert_eq!(
+            cd.to_string(),
+            "inline; filename=\"test%0A%0B%0C%0Dnewline.text\"",
+        );
+    }
+
+    #[cfg(any(unix, windows))]
+    #[tokio::test(flavor = "local")]
+    async fn if_none_match_does_not_match_a_different_file_with_same_size_and_mtime() {
+        use std::fs;
+
+        use actix_web::{body::to_bytes, test::TestRequest};
+        use filetime::{set_file_mtime, FileTime};
+
+        let dir = tempfile::tempdir().unwrap();
+        let first_path = dir.path().join("first.txt");
+        let second_path = dir.path().join("second.txt");
+
+        fs::write(&first_path, b"first").unwrap();
+        fs::write(&second_path, b"other").unwrap();
+
+        let mtime = FileTime::from_unix_time(1_600_000_000, 0);
+
+        set_file_mtime(&first_path, mtime).unwrap();
+        set_file_mtime(&second_path, mtime).unwrap();
+
+        let first_md = fs::metadata(&first_path).unwrap();
+        let second_md = fs::metadata(&second_path).unwrap();
+
+        assert_eq!(first_md.len(), second_md.len());
+        assert_eq!(first_md.modified().unwrap(), second_md.modified().unwrap());
+
+        let req = TestRequest::default().to_http_request();
+        let first = NamedFile::from_file(File::open(&first_path).unwrap(), "file.txt").unwrap();
+        let res = first.into_response(&req);
+        let etag = res.headers().get(header::ETAG).unwrap().clone();
+
+        let req = TestRequest::default()
+            .insert_header((header::IF_NONE_MATCH, etag.clone()))
+            .to_http_request();
+        let second = NamedFile::from_file(File::open(&second_path).unwrap(), "file.txt").unwrap();
+        let res = second.into_response(&req);
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_ne!(res.headers().get(header::ETAG).unwrap(), &etag);
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            b"other".as_slice()
+        );
     }
 }

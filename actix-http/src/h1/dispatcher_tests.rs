@@ -1,21 +1,60 @@
-use std::{future::Future, str, task::Poll, time::Duration};
+use std::{
+    cell::Cell,
+    future::{ready, Future, Ready},
+    io,
+    pin::{pin, Pin},
+    rc::Rc,
+    str,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use actix_codec::Framed;
-use actix_rt::{pin, time::sleep};
 use actix_service::{fn_service, Service};
-use actix_utils::future::{ready, Ready};
-use bytes::{Buf, Bytes, BytesMut};
-use futures_util::future::lazy;
+use bytes::{Bytes, BytesMut};
+use futures_util::{future::lazy, StreamExt as _};
+use memchr::memmem;
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    time::{sleep, timeout},
+};
 
-use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
+use super::*;
 use crate::{
-    body::MessageBody,
+    body::{BoxBody, SizedStream},
     config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
-    test::{TestBuffer, TestSeqBuffer},
-    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
+    test::{
+        pending_once_write_buf::PendingOnceWriteBuf,
+        test_services::{
+            drop_payload_service, echo_path_service, echo_payload_service, ignore_payload_service,
+            ok_service, ready_chunk_body_service, upgrade_response_service,
+        },
+        TestBuffer, TestSeqBuffer,
+    },
+    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response,
 };
+
+struct YieldService;
+
+impl Service<Request> for YieldService {
+    type Response = Response<BoxBody>;
+    type Error = Response<BoxBody>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    actix_service::always_ready!();
+
+    fn call(&self, _: Request) -> Self::Future {
+        Box::pin(async {
+            // Yield twice because the dispatcher can poll the service twice per dispatcher's poll:
+            // once in `handle_request` and another in `poll_response`
+            tokio::task::yield_now().await;
+            tokio::task::yield_now().await;
+            Ok(Response::ok())
+        })
+    }
+}
 
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     memchr::memmem::find(&haystack[from..], needle)
@@ -30,51 +69,7 @@ fn stabilize_date_header(payload: &mut [u8]) {
     }
 }
 
-fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    status_service(StatusCode::OK)
-}
-
-fn status_service(
-    status: StatusCode,
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
-}
-
-fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
-{
-    fn_service(|req: Request| {
-        let path = req.path().as_bytes();
-        ready(Ok::<_, Error>(
-            Response::ok().set_body(Bytes::copy_from_slice(path)),
-        ))
-    })
-}
-
-fn drop_payload_service() -> impl Service<Request, Response = Response<&'static str>, Error = Error>
-{
-    fn_service(|mut req: Request| async move {
-        let _ = req.take_payload();
-        Ok::<_, Error>(Response::with_body(StatusCode::OK, "payload dropped"))
-    })
-}
-
-fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
-    fn_service(|mut req: Request| {
-        Box::pin(async move {
-            use futures_util::StreamExt as _;
-
-            let mut pl = req.take_payload();
-            let mut body = BytesMut::new();
-            while let Some(chunk) = pl.next().await {
-                body.extend_from_slice(chunk.unwrap().chunk())
-            }
-
-            Ok::<_, Error>(Response::ok().set_body(body.freeze()))
-        })
-    })
-}
-
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn late_request() {
     let mut buf = TestBuffer::empty();
 
@@ -94,23 +89,23 @@ async fn late_request() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Ready(_) => panic!("first poll should not be ready"),
+            Poll::Ready(_) => panic!("First poll should not be ready"),
             Poll::Pending => {}
         }
 
         // polls: initial
         assert_eq!(h1.poll_count, 1);
 
-        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nConnection: close\r\n\r\n");
+        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("second poll should not be pending"),
+            Poll::Pending => panic!("Second poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -141,9 +136,9 @@ async fn late_request() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn oneshot_connection() {
-    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Disabled,
@@ -161,13 +156,13 @@ async fn oneshot_connection() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -202,9 +197,9 @@ async fn oneshot_connection() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_timeout() {
-    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(200)),
@@ -222,7 +217,7 @@ async fn keep_alive_timeout() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -281,9 +276,9 @@ async fn keep_alive_timeout() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn keep_alive_follow_up_req() {
-    let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+    let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\nHost: localhost\r\n\r\n");
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(500)),
@@ -301,7 +296,7 @@ async fn keep_alive_follow_up_req() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -363,6 +358,7 @@ async fn keep_alive_follow_up_req() {
         buf.extend_read_buf(
             "\
             GET /efg HTTP/1.1\r\n\
+            Host: localhost\r\n\
             Connection: close\r\n\
             \r\n\r\n",
         );
@@ -406,7 +402,48 @@ async fn keep_alive_follow_up_req() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn graceful_shutdown_does_not_start_buffered_request() {
+    use crate::config::{GracefulShutdownSignal, ServiceConfigBuilder};
+
+    let request_started = Rc::new(Cell::new(false));
+    let service_request_started = Rc::clone(&request_started);
+    let services = HttpFlow::new(
+        fn_service(move |_req: Request| {
+            service_request_started.set(true);
+            ready(Ok::<_, Error>(Response::ok()))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let config = ServiceConfigBuilder::new()
+        .graceful_shutdown_signal(Some(GracefulShutdownSignal::new(|| ready(()))))
+        .build();
+    let buf = TestBuffer::new("GET /buffered HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let dispatcher = Dispatcher::new(
+        buf.clone(),
+        services,
+        config,
+        None,
+        OnConnectData::default(),
+    );
+    let mut dispatcher = pin!(dispatcher);
+
+    // The shutdown notification and request data are ready in the same dispatcher poll.
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    assert!(dispatcher.as_mut().poll(&mut cx).is_ready());
+
+    assert!(
+        !request_started.get(),
+        "buffered request started during graceful shutdown"
+    );
+    assert!(
+        buf.write_buf_slice().is_empty(),
+        "dispatcher wrote a response for the buffered request"
+    );
+}
+
+#[tokio::test(flavor = "local")]
 async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
@@ -421,7 +458,7 @@ async fn req_parse_err() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         match h1.as_mut().poll(cx) {
             Poll::Pending => panic!(),
@@ -439,13 +476,15 @@ async fn req_parse_err() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_ok() {
     lazy(|cx| {
         let buf = TestBuffer::new(
             "\
-                GET /abcd HTTP/1.1\r\n\r\n\
-                GET /def HTTP/1.1\r\n\r\n\
+                GET /abcd HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
+                GET /def HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
                 ",
         );
 
@@ -467,12 +506,12 @@ async fn pipelining_ok_then_ok() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_ok()),
         }
 
@@ -509,12 +548,215 @@ async fn pipelining_ok_then_ok() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
+async fn early_response_with_payload_lingers_before_closing() {
+    lazy(|cx| {
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            GET /unfinished HTTP/1.1
+            Host: localhost
+            Content-Length: 2
+            ",
+        ));
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        let mut h1 = pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("Should still be lingering: {:?}", res),
+        }
+
+        // polls: initial
+        assert_eq!(h1.poll_count, 1);
+
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 11\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            /unfinished\
+            ";
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn buffered_upload_ignored_by_handler_should_not_shutdown_immediately() {
+    lazy(|cx| {
+        let buf = TestSeqBuffer::new(http_msg(
+            r"
+            POST / HTTP/1.1
+            Host: localhost
+            Content-Length: 8
+
+            ab
+            ",
+        ));
+
+        let cfg = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
+
+        let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+        let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            buf.clone(),
+            services,
+            cfg,
+            None,
+            OnConnectData::default(),
+        );
+
+        let mut h1 = pin!(h1);
+
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => {}
+            Poll::Ready(res) => panic!("Closed connection early: {:?}", res),
+        }
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 2
+            connection: close
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            ok
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+
+        buf.close_read();
+
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_ready());
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn lingering_timeout_uses_graceful_shutdown() {
+    let buf = TestSeqBuffer::new(
+        "\
+            POST / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Content-Length: 8\r\n\
+            \r\n\
+            ab\
+            ",
+    );
+
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::ZERO,
+        Duration::from_millis(1),
+        false,
+        None,
+    );
+
+    let services = HttpFlow::new(ignore_payload_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+
+    assert!(matches!(
+        timeout(Duration::from_millis(100), h1).await,
+        Ok(Ok(()))
+    ));
+
+    let mut res = buf.take_write_buf().to_vec();
+    stabilize_date_header(&mut res);
+    let res = &res[..];
+
+    let exp = b"\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 2\r\n\
+            connection: close\r\n\
+            date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+            ok\
+            ";
+
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+           response: {:?}\n\
+           expected: {:?}",
+        String::from_utf8_lossy(res),
+        String::from_utf8_lossy(exp)
+    );
+}
+
+#[tokio::test(flavor = "local")]
 async fn pipelining_ok_then_bad() {
     lazy(|cx| {
         let buf = TestBuffer::new(
             "\
-                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /abcd HTTP/1.1\r\n\
+                Host: localhost\r\n\r\n\
                 GET /def HTTP/1\r\n\r\n\
                 ",
         );
@@ -537,12 +779,12 @@ async fn pipelining_ok_then_bad() {
             OnConnectData::default(),
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
         match h1.as_mut().poll(cx) {
-            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Pending => panic!("First poll should not be pending"),
             Poll::Ready(res) => assert!(res.is_err()),
         }
 
@@ -578,7 +820,7 @@ async fn pipelining_ok_then_bad() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -603,13 +845,14 @@ async fn expect_handling() {
         buf.extend_read_buf(
             "\
                 POST /upload HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Content-Length: 5\r\n\
                 Expect: 100-continue\r\n\
                 \r\n\
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_pending());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -655,7 +898,7 @@ async fn expect_handling() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
@@ -680,13 +923,14 @@ async fn expect_eager() {
         buf.extend_read_buf(
             "\
                 POST /upload HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Content-Length: 5\r\n\
                 Expect: 100-continue\r\n\
                 \r\n\
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
@@ -721,7 +965,7 @@ async fn expect_eager() {
     .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn upgrade_handling() {
     struct TestUpgrade;
 
@@ -763,13 +1007,14 @@ async fn upgrade_handling() {
         buf.extend_read_buf(
             "\
                 GET /ws HTTP/1.1\r\n\
+                Host: localhost\r\n\
                 Connection: Upgrade\r\n\
                 Upgrade: websocket\r\n\
                 \r\n\
                 ",
         );
 
-        pin!(h1);
+        let mut h1 = pin!(h1);
 
         assert!(h1.as_mut().poll(cx).is_ready());
         assert!(matches!(&h1.inner, DispatcherState::Upgrade { .. }));
@@ -780,18 +1025,129 @@ async fn upgrade_handling() {
     .await;
 }
 
+#[tokio::test(flavor = "local")]
+async fn upgrade_response_does_not_close_unfinished_payload() {
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET /ws HTTP/1.1
+        Host: localhost
+        Connection: Upgrade
+        Upgrade: websocket
+        Sec-WebSocket-Version: 13
+        Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        upgrade_response_service(),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 101 Switching Protocols
+            connection: upgrade
+            upgrade: websocket
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+}
+
+#[cfg(feature = "ws")]
+#[tokio::test(flavor = "local")]
+async fn unsupported_websocket_version_closes_connection() {
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET /ws HTTP/1.1
+        Host: localhost
+        Connection: Upgrade
+        Upgrade: websocket
+        Sec-WebSocket-Version: 8
+        Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        fn_service(|req: Request| {
+            ready(crate::ws::handshake(req.head()).map(|mut res| res.finish()))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        let result = h1.as_mut().poll(cx);
+
+        assert!(
+            matches!(result, Poll::Ready(Ok(()))),
+            "rejected handshake did not finish: {result:?}"
+        );
+
+        let output = buf.take_write_buf();
+        let response = str::from_utf8(&output).unwrap();
+
+        assert!(response.starts_with("HTTP/1.1 426 Unsupported WebSocket version\r\n"));
+        assert!(response.contains("connection: close, upgrade\r\n"));
+        assert!(response.contains("upgrade: websocket\r\n"));
+        assert!(response.contains("sec-websocket-version: 13\r\n"));
+    })
+    .await;
+}
+
 // fix in #2624 reverted temporarily
 // complete fix tracked in #2745
 #[ignore]
-#[actix_rt::test]
+#[tokio::test(flavor = "local")]
 async fn handler_drop_payload() {
     let _ = env_logger::try_init();
 
     let mut buf = TestBuffer::new(http_msg(
         r"
         POST /drop-payload HTTP/1.1
+        Host: localhost
         Content-Length: 3
-        
+
         abc
         ",
     ));
@@ -809,7 +1165,7 @@ async fn handler_drop_payload() {
         None,
         OnConnectData::default(),
     );
-    pin!(h1);
+    let mut h1 = pin!(h1);
 
     lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_pending());
@@ -852,8 +1208,9 @@ async fn handler_drop_payload() {
         buf.extend_read_buf(http_msg(
             r"
             POST /drop-payload HTTP/1.1
+            Host: localhost
             Content-Length: 200
-            
+
             abc
             ",
         ));
@@ -924,6 +1281,474 @@ async fn handler_drop_payload() {
     .await;
 }
 
+// Handler drops request payload without reading it. Server should keep reading and discarding the
+// rest of the request body so clients that do not read the response until they've finished
+// writing the request (like `requests` in Python) do not deadlock.
+// ref. https://github.com/actix/actix-web/issues/2972
+#[tokio::test(flavor = "local")]
+async fn handler_drop_payload_drains_body() {
+    let _ = env_logger::try_init();
+
+    let mut buf = TestSeqBuffer::new(http_msg(
+        r"
+        POST /drop-payload HTTP/1.1
+        Host: localhost
+        Transfer-Encoding: chunked
+
+        ",
+    ));
+
+    let services = HttpFlow::new(
+        drop_payload_service(),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+
+    let h1 = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+
+    // stream a body larger than the dispatcher read buffer limit; it should still be drained
+    // (read + decoded + discarded) without stalling.
+    for _ in 0..32 {
+        let data = vec![b'a'; 8192];
+        let mut chunk = BytesMut::new();
+        chunk.extend_from_slice(format!("{:x}\r\n", data.len()).as_bytes());
+        chunk.extend_from_slice(&data);
+        chunk.extend_from_slice(b"\r\n");
+
+        buf.extend_read_buf(chunk);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+            assert!(buf.take_write_buf().is_empty());
+            assert!(buf.read_buf().is_empty());
+        })
+        .await;
+    }
+
+    // terminating chunk
+    buf.extend_read_buf(b"0\r\n\r\n");
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(buf.take_write_buf().is_empty());
+        assert!(buf.read_buf().is_empty());
+    })
+    .await;
+
+    // connection should be able to accept another request after draining the previous body
+    buf.extend_read_buf(http_msg(
+        r"
+        GET /drop-payload HTTP/1.1
+        Host: localhost
+        ",
+    ));
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = http_msg(
+            r"
+            HTTP/1.1 200 OK
+            content-length: 15
+            date: Thu, 01 Jan 1970 12:34:56 UTC
+
+            payload dropped
+            ",
+        );
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(&exp)
+        );
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn allow_half_closed() {
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET / HTTP/1.1
+        Host: localhost
+        ",
+    ));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut disptacher = pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 3);
+
+    let mut res = BytesMut::from(buf.take_write_buf().as_ref());
+    stabilize_date_header(&mut res);
+    let exp = http_msg(
+        r"
+        HTTP/1.1 200 OK
+        content-length: 0
+        date: Thu, 01 Jan 1970 12:34:56 UTC
+        ",
+    );
+    assert_eq!(
+        res,
+        exp,
+        "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+        String::from_utf8_lossy(&res),
+        String::from_utf8_lossy(&exp)
+    );
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(inner.state.is_none());
+}
+
+#[tokio::test(flavor = "local")]
+async fn disallow_half_closed() {
+    use crate::{config::ServiceConfigBuilder, h1::dispatcher::State};
+
+    let buf = TestSeqBuffer::new(http_msg(
+        r"
+        GET / HTTP/1.1
+        Host: localhost
+        ",
+    ));
+    buf.close_read();
+    let services = HttpFlow::new(YieldService, ExpectHandler, None::<UpgradeHandler>);
+    let config = ServiceConfigBuilder::new()
+        .h1_allow_half_closed(false)
+        .build();
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    let disptacher = Dispatcher::new(
+        buf.clone(),
+        services,
+        config,
+        None,
+        OnConnectData::default(),
+    );
+    let mut disptacher = pin!(disptacher);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(disptacher.poll_count, 1);
+
+    assert!(disptacher.as_mut().poll(&mut cx).is_ready());
+    assert_eq!(disptacher.poll_count, 2);
+
+    let res = BytesMut::from(buf.take_write_buf().as_ref());
+    assert!(res.is_empty());
+
+    let DispatcherStateProj::Normal { inner } = disptacher.as_mut().project().inner.project()
+    else {
+        panic!("End dispatcher state should be Normal");
+    };
+    assert!(matches!(inner.state, State::ServiceCall { .. }))
+}
+
+#[tokio::test(flavor = "local")]
+async fn h1_write_buffer_size_limits_buffering() {
+    let request = "GET /stream HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+
+    let default_polls = Rc::new(Cell::new(0));
+    let default_services = HttpFlow::new(
+        ready_chunk_body_service(default_polls.clone(), 8, 1024),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let default_io = PendingOnceWriteBuf::new(request);
+    let default_dispatcher = Dispatcher::new(
+        default_io,
+        default_services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut default_dispatcher = pin!(default_dispatcher);
+
+    let mut cx = Context::from_waker(futures_util::task::noop_waker_ref());
+    assert!(default_dispatcher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(default_polls.get(), 8);
+
+    let custom_polls = Rc::new(Cell::new(0));
+    let custom_services = HttpFlow::new(
+        ready_chunk_body_service(custom_polls.clone(), 8, 1024),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let custom_io = PendingOnceWriteBuf::new(request);
+    let custom_dispatcher = Dispatcher::new(
+        custom_io,
+        custom_services,
+        crate::config::ServiceConfigBuilder::new()
+            .h1_write_buffer_size(1024)
+            .build(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut custom_dispatcher = pin!(custom_dispatcher);
+
+    assert!(custom_dispatcher.as_mut().poll(&mut cx).is_pending());
+    assert_eq!(custom_polls.get(), 1);
+}
+
+#[tokio::test(flavor = "local")]
+#[should_panic(expected = "HTTP/1 write buffer size must be greater than zero")]
+async fn h1_write_buffer_size_rejects_zero() {
+    let _ = crate::config::ServiceConfigBuilder::new().h1_write_buffer_size(0);
+}
+
+const SIZED_BODY_LEN: usize = 64 * 1024;
+
+fn sized_body() -> Bytes {
+    (0..SIZED_BODY_LEN).map(|i| i as u8).collect()
+}
+
+fn sized_body_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
+    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok().set_body(sized_body()))))
+}
+
+/// A connection that writes at most `limit` bytes per call, can refuse its first write and counts
+/// the writes it accepts.
+struct TrickleIo {
+    io: TestBuffer,
+    limit: usize,
+    vectored: bool,
+    block_next_write: bool,
+    writes: Rc<Cell<usize>>,
+}
+
+impl AsyncRead for TrickleIo {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for TrickleIo {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self.poll_write_vectored(cx, &[io::IoSlice::new(buf)])
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        if self.block_next_write {
+            self.block_next_write = false;
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        }
+        self.writes.set(self.writes.get() + 1);
+        let bufs = if self.vectored { bufs } else { &bufs[..1] };
+        let mut taken = Vec::new();
+        for buf in bufs {
+            let len = buf.len().min(self.limit - taken.len());
+            taken.extend_from_slice(&buf[..len]);
+        }
+        Pin::new(&mut self.io).poll_write(cx, &taken)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.vectored
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_does_not_grow_write_buf() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: Rc::default(),
+    };
+    let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+    let h1 = Dispatcher::new(
+        io,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        assert!(res.ends_with(&sized_body()));
+
+        let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project() else {
+            panic!("dispatcher state should be Normal");
+        };
+        assert!(inner.write_buf.capacity() < SIZED_BODY_LEN);
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_survives_partial_writes() {
+    for vectored in [true, false] {
+        let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let io = TrickleIo {
+            io: buf.clone(),
+            limit: 1000,
+            vectored,
+            block_next_write: true,
+            writes: Rc::default(),
+        };
+        let services = HttpFlow::new(sized_body_service(), ExpectHandler, None::<UpgradeHandler>);
+        let h1 = Dispatcher::new(
+            io,
+            services,
+            ServiceConfig::default(),
+            None,
+            OnConnectData::default(),
+        );
+        let mut h1 = pin!(h1);
+
+        lazy(|cx| {
+            assert!(h1.as_mut().poll(cx).is_pending());
+
+            // without vectored writes the chunk is copied into the write buffer, as before
+            let DispatcherStateProj::Normal { inner } = h1.as_mut().project().inner.project()
+            else {
+                panic!("dispatcher state should be Normal");
+            };
+            assert_eq!(inner.write_body.is_some(), vectored);
+
+            assert!(h1.as_mut().poll(cx).is_pending());
+
+            let res = buf.take_write_buf();
+            let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+            assert!(str::from_utf8(&res[..head_end])
+                .unwrap()
+                .contains(&format!("content-length: {SIZED_BODY_LEN}")));
+            assert_eq!(res[head_end..], sized_body(), "vectored: {vectored}");
+        })
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "local")]
+async fn sized_body_batches_small_chunks() {
+    let buf = TestBuffer::new("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let writes = Rc::new(Cell::new(0));
+    let io = TrickleIo {
+        io: buf.clone(),
+        limit: usize::MAX,
+        vectored: true,
+        block_next_write: false,
+        writes: writes.clone(),
+    };
+    let services = HttpFlow::new(
+        fn_service(|_req: Request| {
+            // Four 8 KiB chunks fill the default 32 KiB write buffer.
+            let body = sized_body();
+            let chunks =
+                (0..4).map(move |i| Ok::<_, io::Error>(body.slice(i * 8192..(i + 1) * 8192)));
+            let body = SizedStream::new(32 * 1024, futures_util::stream::iter(chunks));
+            ready(Ok::<_, Error>(Response::ok().set_body(body)))
+        }),
+        ExpectHandler,
+        None::<UpgradeHandler>,
+    );
+    let h1 = Dispatcher::new(
+        io,
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+
+        let res = buf.take_write_buf();
+        let head_end = find_slice(&res, b"\r\n\r\n", 0).expect("response head") + 4;
+        assert_eq!(res[head_end..], sized_body()[..32 * 1024]);
+        assert_eq!(writes.get(), 1);
+    })
+    .await;
+}
+
 fn http_msg(msg: impl AsRef<str>) -> BytesMut {
     let mut msg = msg
         .as_ref()
@@ -952,7 +1777,7 @@ fn http_msg_creates_msg() {
             r"
             POST / HTTP/1.1
             Content-Length: 3
-            
+
             abc
             "
         ),
@@ -964,9 +1789,94 @@ fn http_msg_creates_msg() {
             r"
             GET / HTTP/1.1
             Content-Length: 3
-            
+
             "
         ),
         "GET / HTTP/1.1\r\nContent-Length: 3\r\n\r\n"
+    );
+}
+
+#[tokio::test(flavor = "local")]
+async fn rejects_crlf_in_open_chunk_extension_value() {
+    let request_count = Rc::new(Cell::new(0));
+
+    let buf = TestBuffer::new(
+        b"POST /legit HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          Transfer-Encoding: chunked\r\n\
+          \r\n\
+          0;x=\"\r\n\
+          \r\n\
+          GET /admin HTTP/1.1\r\n\
+          Host: localhost\r\n\
+          \r\n"
+            .as_slice(),
+    );
+
+    let services = HttpFlow::new(
+        fn_service({
+            let request_count = Rc::clone(&request_count);
+
+            move |mut req: Request| {
+                request_count.set(request_count.get() + 1);
+
+                async move {
+                    let path = req.uri().path().to_owned();
+                    let mut payload = req.take_payload();
+
+                    while let Some(item) = payload.next().await {
+                        if item.is_err() {
+                            return Ok::<_, Error>(Response::bad_request());
+                        }
+                    }
+
+                    Ok(Response::ok().set_body(path).map_into_boxed_body())
+                }
+            }
+        }),
+        ExpectHandler,
+        None,
+    );
+
+    let mut h1 = pin!(Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        ServiceConfig::default(),
+        None,
+        OnConnectData::default(),
+    ));
+
+    lazy(|cx| {
+        let result = h1.as_mut().poll(cx);
+
+        assert!(
+            result.is_ready(),
+            "Dispatcher should finish after the parse error: {result:?}"
+        );
+    })
+    .await;
+
+    let response = buf.write_buf_slice();
+
+    assert_eq!(
+        request_count.get(),
+        1,
+        "Dispatcher should not dispatch a second request"
+    );
+    assert_eq!(
+        memmem::find_iter(&response, b"HTTP/1.1").count(),
+        1,
+        "Dispatcher should write one response: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"),
+        "Response should be 400 Bad Request: {:?}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(
+        memmem::find(&response, b"/admin").is_none(),
+        "Dispatcher should not dispatch the admin request: {:?}",
+        String::from_utf8_lossy(&response)
     );
 }

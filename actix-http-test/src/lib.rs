@@ -2,7 +2,7 @@
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
@@ -34,7 +34,7 @@ use tokio::sync::mpsc;
 /// use actix_http_test::test_server;
 /// use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 ///
-/// #[actix_rt::test]
+/// #[tokio::test(flavor = "local")]
 /// # async fn hidden_test() {}
 /// async fn test_example() {
 ///     let srv = test_server(|| {
@@ -77,7 +77,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
                 .disable_signals()
                 .system_exit()
                 .listen("test", tcp, factory)
-                .expect("test server could not be created");
+                .expect("Test server could not be created");
 
             let srv = srv.run();
             started_tx
@@ -214,6 +214,16 @@ impl TestServer {
     /// Create HTTPS `PATCH` request
     pub fn spatch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.patch(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `QUERY` request
+    pub fn query<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create HTTPS `QUERY` request
+    pub fn squery<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.query(self.surl(path.as_ref()).as_str())
     }
 
     /// Create `DELETE` request

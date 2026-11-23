@@ -12,11 +12,7 @@ fmt:
 # Downgrade dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
-    cargo {{ toolchain }} update -p=divan --precise=0.1.15 # next ver: 1.80.0
-    cargo {{ toolchain }} update -p=half --precise=2.4.1 # next ver: 1.81.0
-    cargo {{ toolchain }} update -p=idna_adapter --precise=1.2.0 # next ver: 1.82.0
-    cargo {{ toolchain }} update -p=litemap --precise=0.7.4 # next ver: 1.81.0
-    cargo {{ toolchain }} update -p=zerofrom --precise=0.1.5 # next ver: 1.81.0
+    # no downgrades currently needed
 
 msrv := ```
     cargo metadata --format-version=1 \
@@ -28,7 +24,7 @@ non_linux_all_features_list := ```
     cargo metadata --format-version=1 \
     | jq '.packages[] | select(.source == null) | .features | keys' \
     | jq -r --slurp \
-        --arg exclusions "__tls,__compress,tokio-uring,io-uring,experimental-io-uring" \
+        --arg exclusions "__tls,__compress" \
         'add | unique | . - ($exclusions | split(",")) | join(",")'
 ```
 all_crate_features := if os() == "linux" { "--all-features" } else { "--features='" + non_linux_all_features_list + "'" }
@@ -46,12 +42,11 @@ check: && clippy
     fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --check
 
 # Run Clippy over workspace.
-clippy:
-    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
+clippy *args:
+    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }} {{ args }}
 
 # Run Clippy over workspace using MSRV.
-clippy-msrv:
-    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+clippy-msrv: downgrade-for-msrv
     @just toolchain={{ msrv_rustup }} clippy
 
 # Test workspace code.
@@ -62,8 +57,7 @@ test:
     cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
 
 # Test workspace using MSRV.
-test-msrv:
-    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+test-msrv: downgrade-for-msrv
     @just toolchain={{ msrv_rustup }} test
 
 # Test workspace docs.
@@ -79,9 +73,9 @@ test-coverage:
     cargo {{ toolchain }} llvm-cov nextest --no-tests=warn --no-report {{ all_crate_features }}
     cargo {{ toolchain }} llvm-cov --doc --no-report {{ all_crate_features }}
 
-# Test workspace and generate Codecov report.
-test-coverage-codecov: test-coverage
-    cargo {{ toolchain }} llvm-cov report --doctests --codecov --output-path=codecov.json
+# Test workspace and generate Cobertura report.
+test-coverage-cobertura: test-coverage
+    cargo {{ toolchain }} llvm-cov report --doctests --cobertura --output-path=cobertura.xml
 
 # Test workspace and generate LCOV report.
 test-coverage-lcov: test-coverage
@@ -90,7 +84,7 @@ test-coverage-lcov: test-coverage
 # Document crates in workspace.
 doc *args: && doc-set-workspace-crates
     rm -f "$(cargo metadata --format-version=1 | jq -r '.target_directory')/doc/crates.js"
-    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --workspace {{ all_crate_features }} {{ args }}
+    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --no-deps --workspace {{ all_crate_features }} {{ args }}
 
 [private]
 doc-set-workspace-crates:
@@ -115,14 +109,19 @@ update-readmes: && fmt
     cd ./actix-multipart && cargo rdme --force
     cd ./actix-test && cargo rdme --force
 
-feature_combo_skip_list := if os() == "linux" { "__tls,__compress" } else { "__tls,__compress,experimental-io-uring" }
+feature_combo_skip_list := "__tls,__compress"
 
 # Checks compatibility of feature combinations.
-check-feature-combinations:
+check-feature-combinations partition="1/1":
     cargo hack --workspace \
         --feature-powerset --depth=4 \
         --skip={{ feature_combo_skip_list }} \
+        --partition={{ partition }} \
         check
+
+# Check security advisories.
+check-advisories:
+    cargo deny --log-level warn --workspace --all-features check advisories
 
 # Check for unintentional external type exposure on all crates in workspace.
 check-external-types-all toolchain="+nightly":

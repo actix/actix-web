@@ -2,6 +2,113 @@
 
 ## Unreleased
 
+- Add the `cookies-0_18` crate feature and re-export cookie (v0.18) as `actix_web::cookie_0_18`. This feature can be enabled alongside `cookies`.
+- Add `HttpRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` and `ServiceRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` for reading request cookies.
+- Add `HttpResponse::{cookies_0_18,add_cookie_0_18,add_removal_cookie_0_18}` for reading and appending response cookies.
+- Add `HttpResponseBuilder::cookie_0_18()` and `CustomizeResponder::add_cookie_0_18()` for appending response cookies.
+- Add `TestRequest::cookie_0_18()` for setting a cookie on a test request.
+- Make `HttpResponse::del_cookie()` available with either cookie feature.
+- Enable signed and private cookies for cookie (v0.18) when both `cookies-0_18` and `secure-cookies` are enabled.
+
+## 4.20.0
+
+- Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
+
+## 4.19.0
+
+- Enable `TCP_NODELAY` by default.
+- Enable automatic cleartext HTTP/2 detection for `HttpServer::bind()` and `listen()` when the `http2` feature is enabled.
+- Deprecate `HttpServer::bind_auto_h2c()` and `listen_auto_h2c()` methods.
+- Add `HttpServer::auto_h2c(bool)` method.
+
+## 4.18.2
+
+- Increase the default form payload limit to 32 KiB.
+- Bound decompressed request payloads using the same configured size limits for form, JSON, bytes, and string extractors. [GHSA-qph8-7859-gq2f](https://github.com/actix/actix-web/security/advisories/GHSA-qph8-7859-gq2f)
+- Add `UrlencodedError::OverflowUnknownLength` error enum variant for form payloads that exceed the limit while streaming.
+- Add a UTF-8 encoded `filename*` parameter in `ContentDisposition::attachment()` for non-ASCII filenames.
+- Return 405 with an `Allow` header from the built-in app default when method guards reject matching resources, including macro routes.
+
+## 4.18.1
+
+- Add `TestRequest::query()` method for constructing HTTP `QUERY` test requests.
+
+## 4.18.0
+
+- Add `#[query]` route handler macro.
+- Add support for `method = "QUERY"` in `#[route]`.
+- Add `guard::Query()` method guard.
+- Document that `HttpServer::on_connect()` must be called before `bind()`.
+- Minimum supported Rust version (MSRV) is now 1.89.
+
+## 4.17.0
+
+- Fix `Accept` parsing and preference selection for quality parameters before media type parameters and for quoted parameter values containing semicolons.
+- Update `zstd` dependency to `0.14`.
+- Update `brotli` dependency to `9`.
+
+## 4.16.0
+
+- The TLS crate features no longer enable the `http2` crate feature.
+- Prevent `TestRequest` app data retention by disabling its request pooling.
+
+## 4.15.0
+
+- Add `Error::add_response_mapper()` to allow middleware to modify error-generated responses before they are sent.
+- Remove the experimental `experimental-io-uring` crate feature.
+
+## 4.14.1
+
+- Close idle HTTP/1 keep-alive connections during graceful shutdown and let active connections finish only their current request before closing.
+
+## 4.14.0
+
+- Add `HttpRequest::{cookies_raw,cookie_raw}` and `ServiceRequest::{cookies_raw,cookie_raw}` for reading request cookies without percent-decoding names and values. [#3542]
+- Enable dual-stack IPv6 sockets on Windows when possible so that Actix-created listeners bound to `[::]` also accept IPv4 connections.
+- Panic when calling `Route::to()` or `Route::service()` after `Route::wrap()` to prevent silently dropping route middleware. [#3944]
+- Fix `HttpRequest::{match_pattern,match_name}` reporting path-only matches when route guards disambiguate overlapping resources. [#3346]
+- Fix `Readlines` handling of lines split across payload chunks so combined line limits are enforced and complete lines are yielded.
+- Fix app data being retained after graceful shutdown with in-flight slow request bodies. [#3100]
+- Update `foldhash` dependency to `0.2`.
+- Update `rand` dependency to `0.10`.
+- Update `impl-more` dependency to `0.3`.
+- Add `HttpServer::h1_write_buffer_size()`.
+
+[#3944]: https://github.com/actix/actix-web/pull/3944
+[#3346]: https://github.com/actix/actix-web/issues/3346
+[#3542]: https://github.com/actix/actix-web/issues/3542
+[#3100]: https://github.com/actix/actix-web/issues/3100
+
+## 4.13.0
+
+- Minimum supported Rust version (MSRV) is now 1.88.
+- Improve HTTP/2 upload throughput by increasing default flow control window sizes. [#3638]
+- Add `HttpServer::{h2_initial_window_size, h2_initial_connection_window_size}` methods for tuning. [#3638]
+- Add `HttpRequest::url_for_map` and `HttpRequest::url_for_iter` methods for named URL parameters. [#3895]
+- Ignore unparsable cookies in `Cookie` request header.
+- Add `experimental-introspection` feature to report configured routes [#3594]
+- Add config/method for `TCP_NODELAY`. [#3918]
+- Fix panic when `NormalizePath` rewrites a scoped dynamic path before extraction (e.g., `scope("{tail:.*}")` + `Path<String>`). [#3562]
+- Do not compress 206 Partial Content responses. [#3191]
+
+[#3895]: https://github.com/actix/actix-web/pull/3895
+[#3594]: https://github.com/actix/actix-web/pull/3594
+[#3918]: https://github.com/actix/actix-web/pull/3918
+[#3638]: https://github.com/actix/actix-web/issues/3638
+[#3562]: https://github.com/actix/actix-web/issues/3562
+[#3191]: https://github.com/actix/actix-web/issues/3191
+
+## 4.12.1
+
+- Correct `actix-http` dependency requirement.
+
+## 4.12.0
+
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now calls `actix_web::response::builder::HttpResponseBuilder::no_chunking()` and returns `SizedStream` if `Content-Length` is set by user.
+- Add `ws` crate feature (on-by-default) which forwards to `actix-http` and guards some of its `ResponseError` impls.
+- Add public export for `EitherExtractError` in `error` module.
+
 ## 4.11.0
 
 - Add `Logger::log_level()` method.

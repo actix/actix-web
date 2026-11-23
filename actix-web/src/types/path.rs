@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use actix_router::PathDeserializer;
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use derive_more::{AsRef, Deref, DerefMut, Display, From};
 use serde::de;
@@ -53,6 +54,26 @@ use crate::{
 ///     format!("Welcome {}!", info.name)
 /// }
 /// ```
+///
+/// Segments matching multiple path components can be deserialized
+/// into a `Vec<_>` to percent-decode the components individually. Empty
+/// path components are ignored.
+///
+/// ```
+/// use actix_web::{get, web};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct Tail {
+///     tail: Vec<String>,
+/// }
+///
+/// // extract `Tail` from a path using serde
+/// #[get("/path/to/{tail}*")]
+/// async fn index(info: web::Path<Tail>) -> String {
+///     format!("Navigating to {}!", info.tail.join(" :: "))
+/// }
+/// ```
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
 pub struct Path<T>(T);
 
@@ -64,6 +85,7 @@ impl<T> Path<T> {
 }
 
 /// See [here](#Examples) for example of usage as an extractor.
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,
@@ -171,7 +193,7 @@ mod tests {
         value: u32,
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extract_path_single() {
         let resource = ResourceDef::new("/{value}/");
 
@@ -184,7 +206,7 @@ mod tests {
     }
 
     #[allow(clippy::let_unit_value)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_tuple_extract() {
         let resource = ResourceDef::new("/{key}/{value}/");
 
@@ -210,7 +232,7 @@ mod tests {
         let () = <()>::from_request(&req, &mut pl).await.unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_request_extract() {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
@@ -258,7 +280,7 @@ mod tests {
         assert_eq!(res[1], "32".to_owned());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn paths_decoded() {
         let resource = ResourceDef::new("/{key}/{value}");
         let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%254%32").to_srv_request();
@@ -271,7 +293,7 @@ mod tests {
         assert_eq!(req.match_info().as_str(), "/na%2Bme/us%2Fer%2542");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {

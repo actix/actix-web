@@ -1,6 +1,7 @@
 use std::{future::Future, marker::PhantomData, rc::Rc};
 
 use actix_service::boxed::{self, BoxFuture, RcService};
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::{ready, Ready};
 use futures_core::future::LocalBoxFuture;
 
@@ -94,6 +95,7 @@ pub struct MiddlewareFn<F, Es> {
     _phantom: PhantomData<Es>,
 }
 
+#[expect(deprecated, reason = "preserve the public ready future type")]
 impl<S, F, Fut, B, B2> Transform<S, ServiceRequest> for MiddlewareFn<F, ()>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -148,6 +150,7 @@ where
 
 macro_rules! impl_middleware_fn_service {
     ($($ext_type:ident),*) => {
+        #[expect(deprecated, reason = "preserve the public ready future type")]
         impl<S, F, Fut, B, B2, $($ext_type),*> Transform<S, ServiceRequest> for MiddlewareFn<F, ($($ext_type),*,)>
         where
             S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -309,13 +312,13 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn compat_compat() {
         let _ = App::new().wrap(Compat::new(from_fn(noop)));
         let _ = App::new().wrap(Compat::new(from_fn(mutate_body_type)));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn permits_different_in_and_out_body_types() {
         let app = test::init_service(
             App::new()
@@ -332,7 +335,7 @@ mod tests {
         assert!(res.headers().contains_key(header::WARNING));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn closure_capture_and_return_from_fn() {
         let app = test::init_service(
             App::new()

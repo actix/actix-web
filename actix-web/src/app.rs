@@ -30,6 +30,8 @@ pub struct App<T> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
+    #[cfg(feature = "experimental-introspection")]
+    introspector: Rc<RefCell<crate::introspection::IntrospectionCollector>>,
 }
 
 impl App<AppEntry> {
@@ -46,6 +48,10 @@ impl App<AppEntry> {
             factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: Rc::new(RefCell::new(
+                crate::introspection::IntrospectionCollector::new(),
+            )),
         }
     }
 }
@@ -366,6 +372,8 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
+            #[cfg(feature = "experimental-introspection")]
+            introspector: self.introspector,
         }
     }
 
@@ -429,6 +437,8 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
+            #[cfg(feature = "experimental-introspection")]
+            introspector: self.introspector,
         }
     }
 }
@@ -453,14 +463,17 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
             extensions: RefCell::new(Some(self.extensions)),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: Rc::clone(&self.introspector),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::future::ready;
+
     use actix_service::Service as _;
-    use actix_utils::future::{err, ok};
     use bytes::Bytes;
 
     use super::*;
@@ -474,7 +487,7 @@ mod tests {
         web, HttpRequest, HttpResponse,
     };
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_default_resource() {
         let srv =
             init_service(App::new().service(web::resource("/test").to(HttpResponse::Ok))).await;
@@ -492,12 +505,12 @@ mod tests {
                 .service(
                     web::resource("/test2")
                         .default_service(|r: ServiceRequest| {
-                            ok(r.into_response(HttpResponse::Created()))
+                            ready(Ok(r.into_response(HttpResponse::Created())))
                         })
                         .route(web::get().to(HttpResponse::Ok)),
                 )
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    ready(Ok(r.into_response(HttpResponse::MethodNotAllowed())))
                 }),
         )
         .await;
@@ -519,11 +532,11 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_factory() {
         let srv = init_service(
             App::new()
-                .data_factory(|| ok::<_, ()>(10usize))
+                .data_factory(|| ready(Ok::<_, ()>(10usize)))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;
@@ -533,7 +546,7 @@ mod tests {
 
         let srv = init_service(
             App::new()
-                .data_factory(|| ok::<_, ()>(10u32))
+                .data_factory(|| ready(Ok::<_, ()>(10u32)))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;
@@ -544,11 +557,11 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_data_factory_errors() {
         let srv = try_init_service(
             App::new()
-                .data_factory(|| err::<u32, _>(()))
+                .data_factory(|| ready(Err::<u32, _>(())))
                 .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
         )
         .await;
@@ -556,7 +569,7 @@ mod tests {
         assert!(srv.is_err());
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_extension() {
         let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
             |req: HttpRequest| {
@@ -570,7 +583,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap() {
         let srv = init_service(
             App::new()
@@ -590,7 +603,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_router_wrap() {
         let srv = init_service(
             App::new()
@@ -610,7 +623,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_wrap_fn() {
         let srv = init_service(
             App::new()
@@ -635,7 +648,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_router_wrap_fn() {
         let srv = init_service(
             App::new()
@@ -660,7 +673,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_external_resource() {
         let srv = init_service(
             App::new()

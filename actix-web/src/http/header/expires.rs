@@ -2,7 +2,7 @@ use super::{HttpDate, EXPIRES};
 
 crate::http::header::common_header! {
     /// `Expires` header, defined
-    /// in [RFC 7234 §5.3](https://datatracker.ietf.org/doc/html/rfc7234#section-5.3)
+    /// in [RFC 7234 §5.3](https://www.rfc-editor.org/info/rfc7234/#section-5.3)
     ///
     /// The `Expires` header field gives the date/time after which the
     /// response is considered stale.

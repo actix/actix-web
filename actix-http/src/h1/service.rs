@@ -7,12 +7,13 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::net::TcpStream;
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
+#[expect(deprecated, reason = "preserve the public ready future type")]
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
+use tokio::net::TcpStream;
 use tracing::error;
 
 use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};
@@ -79,6 +80,7 @@ where
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
+    #[expect(deprecated, reason = "preserve the public ready future type")]
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
@@ -156,7 +158,6 @@ mod openssl {
 mod rustls_0_20 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_20::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -217,7 +218,6 @@ mod rustls_0_20 {
 mod rustls_0_21 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_21::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -278,7 +278,6 @@ mod rustls_0_21 {
 mod rustls_0_22 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_22::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
@@ -339,7 +338,6 @@ mod rustls_0_22 {
 mod rustls_0_23 {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
         rustls_0_23::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,

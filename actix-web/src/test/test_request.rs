@@ -4,7 +4,7 @@ use actix_http::{test::TestRequest as HttpTestRequest, Request};
 use serde::Serialize;
 
 #[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
+use crate::cookie::Cookie;
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -42,7 +42,7 @@ use crate::{
 ///     }
 /// }
 ///
-/// #[actix_web::test]
+/// #[tokio::test(flavor = "local")]
 /// # // force rustdoc to display the correct thing and also compile check the test
 /// # async fn _test() {}
 /// async fn test_index() {
@@ -65,8 +65,37 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    cookies: Vec<RequestCookie>,
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+enum RequestCookie {
     #[cfg(feature = "cookies")]
-    cookies: CookieJar,
+    V0_16(Cookie<'static>),
+    #[cfg(feature = "cookies-0_18")]
+    V0_18(cookie_0_18::Cookie<'static>),
+}
+
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+impl RequestCookie {
+    fn name(&self) -> &str {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.name(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.name(),
+        }
+    }
+
+    fn encoded_pair(&self) -> String {
+        match self {
+            #[cfg(feature = "cookies")]
+            Self::V0_16(cookie) => cookie.stripped().encoded().to_string(),
+            #[cfg(feature = "cookies-0_18")]
+            Self::V0_18(cookie) => cookie.stripped().encoded().to_string(),
+        }
+    }
 }
 
 impl Default for TestRequest {
@@ -78,8 +107,8 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
-            #[cfg(feature = "cookies")]
-            cookies: CookieJar::new(),
+            #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+            cookies: Vec::new(),
         }
     }
 }
@@ -109,6 +138,12 @@ impl TestRequest {
     /// Constructs test request with PATCH method.
     pub fn patch() -> TestRequest {
         TestRequest::default().method(Method::PATCH)
+    }
+
+    /// Constructs test request with QUERY method.
+    // TODO: use `Method::QUERY` once the `http` dependency is bumped (see #3384).
+    pub fn query() -> TestRequest {
+        TestRequest::default().method(Method::from_bytes(b"QUERY").unwrap())
     }
 
     /// Constructs test request with DELETE method.
@@ -146,11 +181,37 @@ impl TestRequest {
         self
     }
 
-    /// Sets cookie for this request.
+    /// Sets a cookie for this request.
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.cookies.add(cookie.into_owned());
+        self.set_cookie(RequestCookie::V0_16(cookie.into_owned()));
         self
+    }
+
+    /// Sets a cookie for this request using cookie (v0.18).
+    ///
+    /// Cookies appear in insertion order. A cookie with the same name replaces the existing entry
+    /// in place.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(mut self, cookie: cookie_0_18::Cookie<'_>) -> Self {
+        self.set_cookie(RequestCookie::V0_18(cookie.into_owned()));
+        self
+    }
+
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    fn set_cookie(&mut self, cookie: RequestCookie) {
+        if let Some(existing) = self
+            .cookies
+            .iter_mut()
+            .find(|item| item.name() == cookie.name())
+        {
+            *existing = cookie;
+        } else {
+            self.cookies.push(cookie);
+        }
     }
 
     /// Sets request path pattern parameter.
@@ -184,12 +245,12 @@ impl TestRequest {
         self
     }
 
-    /// Serializes `data` to a URL encoded form and set it as the request payload.
+    /// Serializes `data` to a URL-encoded form and set it as the request payload.
     ///
     /// The `Content-Type` header is set to `application/x-www-form-urlencoded`.
     pub fn set_form(mut self, data: impl Serialize) -> Self {
         let bytes = serde_urlencoded::to_string(&data)
-            .expect("Failed to serialize test data as a urlencoded form");
+            .expect("Failed to serialize test data as a URL-encoded form");
         self.req.set_payload(bytes);
         self.req.insert_header(ContentType::form_url_encoded());
         self
@@ -237,15 +298,14 @@ impl TestRequest {
         #[allow(unused_mut)]
         let mut req = self.req.finish();
 
-        #[cfg(feature = "cookies")]
+        #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
         {
             use actix_http::header::{HeaderValue, COOKIE};
 
-            let cookie: String = self
+            let cookie = self
                 .cookies
-                .delta()
-                // ensure only name=value is written to cookie header
-                .map(|c| c.stripped().encoded().to_string())
+                .iter()
+                .map(RequestCookie::encoded_pair)
                 .collect::<Vec<_>>()
                 .join("; ");
 
@@ -271,7 +331,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         ServiceRequest::new(
             HttpRequest::new(
@@ -297,7 +358,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         HttpRequest::new(
             self.path,
@@ -315,7 +377,8 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state =
+            AppInitServiceState::new_without_pool(Rc::new(self.rmap), self.config.clone());
 
         let req = HttpRequest::new(
             self.path,
@@ -347,12 +410,41 @@ impl TestRequest {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::{sync::Arc, time::SystemTime};
 
     use super::*;
     use crate::{http::header, test::init_service, web, App, Error, Responder};
 
-    #[actix_rt::test]
+    #[cfg(feature = "cookies")]
+    #[tokio::test(flavor = "local")]
+    async fn request_cookie_omits_attributes() {
+        let cookie = Cookie::build("session", "hello world")
+            .path("/app")
+            .http_only(true)
+            .finish();
+        let req = TestRequest::default().cookie(cookie).to_http_request();
+
+        assert_eq!(
+            req.headers().get(header::COOKIE).unwrap(),
+            "session=hello%20world"
+        );
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_request_app_data_is_dropped() {
+        fn assert_dropped(make_request: impl FnOnce(TestRequest)) {
+            let data = Arc::new(());
+            let weak = Arc::downgrade(&data);
+            make_request(TestRequest::default().app_data(Data::new(data)));
+            assert!(weak.upgrade().is_none());
+        }
+
+        assert_dropped(|req| drop(req.to_srv_request()));
+        assert_dropped(|req| drop(req.to_http_request()));
+        assert_dropped(|req| drop(req.to_http_parts()));
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_basics() {
         let req = TestRequest::default()
             .version(Version::HTTP_2)
@@ -380,7 +472,7 @@ mod tests {
         assert_eq!(*data, 20);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_send_request() {
         let app = init_service(
             App::new().service(
@@ -399,7 +491,7 @@ mod tests {
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_async_with_block() {
         async fn async_with_block() -> Result<HttpResponse, Error> {
             let res = web::block(move || Some(4usize).ok_or("wrong")).await;
@@ -423,7 +515,7 @@ mod tests {
 
     // allow deprecated App::data
     #[allow(deprecated)]
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {
             assert_eq!(**data, 10);

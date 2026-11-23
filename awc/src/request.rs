@@ -263,13 +263,9 @@ impl ClientRequest {
     /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies
+            .get_or_insert_with(CookieJar::new)
+            .add(cookie.into_owned());
         self
     }
 
@@ -309,10 +305,7 @@ impl ClientRequest {
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
-        let slf = match self.prep_for_sending() {
-            Ok(slf) => slf,
-            Err(err) => return Err(err.into()),
-        };
+        let slf = self.prep_for_sending()?;
 
         let request = FrozenClientRequest {
             head: Rc::new(slf.head),
@@ -360,7 +353,7 @@ impl ClientRequest {
         )
     }
 
-    /// Set a urlencoded body and generate `ClientRequest`
+    /// Set a URL-encoded body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn send_form<T: Serialize>(self, value: &T) -> SendClientRequest {
@@ -521,7 +514,7 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_debug() {
         let request = Client::new().get("/").append_header(("x-test", "111"));
         let repr = format!("{:?}", request);
@@ -529,7 +522,7 @@ mod tests {
         assert!(repr.contains("x-test"));
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_basics() {
         let req = Client::new()
             .put("/")
@@ -566,7 +559,7 @@ mod tests {
         let _ = req.send_body("");
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_client_header() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -584,7 +577,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn test_client_header_override() {
         let req = Client::builder()
             .add_default_header((header::CONTENT_TYPE, "111"))
@@ -603,7 +596,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_basic_auth() {
         let req = Client::new().get("/").basic_auth("username", "password");
         assert_eq!(
@@ -628,7 +621,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_bearer_auth() {
         let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
@@ -642,7 +635,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "local")]
     async fn client_query() {
         let req = Client::new()
             .get("/")

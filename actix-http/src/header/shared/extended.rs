@@ -11,7 +11,7 @@ use crate::header::{Charset, HTTP_VALUE};
 /// - The OPTIONAL language information (`language_tag`).
 /// - A character sequence representing the actual value (`value`), separated by single quotes.
 ///
-/// It is defined in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
+/// It is defined in [RFC 5987 §3.2](https://www.rfc-editor.org/info/rfc5987/#section-3.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExtendedValue {
     /// The character set that is used to encode the `value` to a string.
@@ -25,7 +25,7 @@ pub struct ExtendedValue {
 }
 
 /// Parses extended header parameter values (`ext-value`), as defined
-/// in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
+/// in [RFC 5987 §3.2](https://www.rfc-editor.org/info/rfc5987/#section-3.2).
 ///
 /// Extended values are denoted by parameter names that end with `*`.
 ///
@@ -60,9 +60,10 @@ pub struct ExtendedValue {
 ///               ; token except ( "*" / "'" / "%" )
 /// ```
 ///
-/// [RFC 2231 §7]: https://datatracker.ietf.org/doc/html/rfc2231#section-7
-/// [RFC 2978 §2.3]: https://datatracker.ietf.org/doc/html/rfc2978#section-2.3
-/// [RFC 3986 §2.1]: https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
+/// [RFC 2231 §7]: https://www.rfc-editor.org/info/rfc2231/#section-7
+/// [RFC 2978 §2.3]: https://www.rfc-editor.org/info/rfc2978/#section-2.3
+/// [RFC 3986 §2.1]: https://www.rfc-editor.org/info/rfc3986/#section-2.1
+/// [RFC 5646 §2.1]: https://www.rfc-editor.org/info/rfc5646/#section-2.1
 pub fn parse_extended_value(val: &str) -> Result<ExtendedValue, crate::error::ParseError> {
     // Break into three pieces separated by the single-quote character
     let mut parts = val.splitn(3, '\'');
@@ -99,6 +100,7 @@ pub fn parse_extended_value(val: &str) -> Result<ExtendedValue, crate::error::Pa
 impl fmt::Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let encoded_value = percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
+
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {

@@ -133,6 +133,19 @@ impl PayloadSender {
             PayloadStatus::Dropped
         }
     }
+
+    #[inline]
+    pub fn is_dropped(&self) -> bool {
+        self.inner.strong_count() == 0
+    }
+}
+
+impl Drop for PayloadSender {
+    fn drop(&mut self) {
+        if let Some(shared) = self.inner.upgrade() {
+            shared.borrow_mut().close_sender();
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -140,6 +153,7 @@ struct Inner {
     len: usize,
     eof: bool,
     err: Option<PayloadError>,
+    sender_closed: bool,
     need_read: bool,
     items: VecDeque<Bytes>,
     task: Option<Waker>,
@@ -152,6 +166,7 @@ impl Inner {
             eof,
             len: 0,
             err: None,
+            sender_closed: eof,
             items: VecDeque::new(),
             need_read: true,
             task: None,
@@ -176,11 +191,7 @@ impl Inner {
     /// Register future waiting data from payload.
     /// Waker would be used in `Inner::wake`
     fn register(&mut self, cx: &Context<'_>) {
-        if self
-            .task
-            .as_ref()
-            .map_or(true, |w| !cx.waker().will_wake(w))
-        {
+        if self.task.as_ref().is_none_or(|w| !cx.waker().will_wake(w)) {
             self.task = Some(cx.waker().clone());
         }
     }
@@ -191,7 +202,7 @@ impl Inner {
         if self
             .io_task
             .as_ref()
-            .map_or(true, |w| !cx.waker().will_wake(w))
+            .is_none_or(|w| !cx.waker().will_wake(w))
         {
             self.io_task = Some(cx.waker().clone());
         }
@@ -199,12 +210,23 @@ impl Inner {
 
     #[inline]
     fn set_error(&mut self, err: PayloadError) {
+        self.sender_closed = true;
         self.err = Some(err);
+        self.wake();
+    }
+
+    fn close_sender(&mut self) {
+        if !self.sender_closed {
+            self.sender_closed = true;
+            self.set_error(PayloadError::Incomplete(None));
+        }
     }
 
     #[inline]
     fn feed_eof(&mut self) {
+        self.sender_closed = true;
         self.eof = true;
+        self.wake();
     }
 
     #[inline]
@@ -253,8 +275,16 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
+    use std::{task::Poll, time::Duration};
+
     use actix_utils::future::poll_fn;
+    use futures_util::{FutureExt, StreamExt};
     use static_assertions::{assert_impl_all, assert_not_impl_any};
+    use tokio::{
+        sync::oneshot,
+        task::{spawn_local, JoinHandle},
+        time::timeout,
+    };
 
     use super::*;
 
@@ -263,7 +293,78 @@ mod tests {
 
     assert_impl_all!(Inner: Unpin, Send, Sync);
 
-    #[actix_rt::test]
+    const WAKE_TIMEOUT: Duration = Duration::from_secs(2);
+
+    fn prepare_waking_test(
+        mut payload: Payload,
+        expected: Option<Result<(), ()>>,
+    ) -> (oneshot::Receiver<()>, JoinHandle<()>) {
+        let (tx, rx) = oneshot::channel();
+
+        let handle = spawn_local(async move {
+            // Make sure to poll once to set the waker
+            poll_fn(|cx| {
+                assert!(payload.poll_next_unpin(cx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+            tx.send(()).unwrap();
+
+            // The test runtime is single-threaded, so this won't race with `rx.await`.
+            let mut pend_once = false;
+            poll_fn(|_| {
+                if pend_once {
+                    Poll::Ready(())
+                } else {
+                    // Return pending without storing wakers, we already did on the previous
+                    // `poll_fn`, now this task will only continue if the `sender` wakes us
+                    pend_once = true;
+                    Poll::Pending
+                }
+            })
+            .await;
+
+            let got = payload.next().now_or_never().unwrap();
+            match expected {
+                Some(Ok(_)) => assert!(got.unwrap().is_ok()),
+                Some(Err(_)) => assert!(got.unwrap().is_err()),
+                None => assert!(got.is_none()),
+            }
+        });
+        (rx, handle)
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn wake_on_error() {
+        let (mut sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
+
+        rx.await.unwrap();
+        sender.set_error(PayloadError::Incomplete(None));
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn wake_on_eof() {
+        let (mut sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, None);
+
+        rx.await.unwrap();
+        sender.feed_eof();
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn wake_on_sender_drop() {
+        let (sender, payload) = Payload::create(false);
+        let (rx, handle) = prepare_waking_test(payload, Some(Err(())));
+
+        rx.await.unwrap();
+        drop(sender);
+        timeout(WAKE_TIMEOUT, handle).await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "local")]
     async fn test_unread_data() {
         let (_, mut payload) = Payload::create(false);
 

@@ -12,7 +12,7 @@ use std::{
 #[cfg(feature = "__tls")]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
-use actix_server::{Server, ServerBuilder};
+use actix_server::{GracefulShutdownSignal, Server, ServerBuilder};
 use actix_service::{
     map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
@@ -29,8 +29,13 @@ struct Socket {
 struct Config {
     host: Option<String>,
     keep_alive: KeepAlive,
+    tcp_nodelay: Option<bool>,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    h1_allow_half_closed: bool,
+    h1_write_buffer_size: Option<usize>,
+    h2_initial_window_size: Option<u32>,
+    h2_initial_connection_window_size: Option<u32>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -43,12 +48,13 @@ struct Config {
 ///
 /// There are two ways to select the HTTP version of an incoming connection:
 ///
-/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
-///   versions are supported automatically when using either of the `.bind_rustls()` or
-///   `.bind_openssl()` methods.
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); HTTP/1.x is
+///   always supported, and HTTP/2 is supported when the `http2` feature is enabled. Use either of
+///   the `.bind_rustls()` or `.bind_openssl()` methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
-///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
-///   the `.bind_auto_h2c()` method to enable this behavior.
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections.
+///   This is enabled by default when the `http2` feature is enabled. Call
+///   `.auto_h2c(false)` before `.bind()` or `.listen()` to accept only HTTP/1.x.
 ///
 /// # Examples
 ///
@@ -80,8 +86,11 @@ where
     pub(super) factory: F,
     config: Arc<Mutex<Config>>,
     backlog: u32,
+    #[cfg(feature = "http2")]
+    auto_h2c: bool,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
+    graceful_shutdown_signal: GracefulShutdownSignal,
     #[allow(clippy::type_complexity)]
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
     _phantom: PhantomData<(S, B)>,
@@ -109,18 +118,29 @@ where
     /// [`bind()`](Self::bind()) docs for more on how worker count and bind address resolution
     /// causes multiple server factory instantiations.
     pub fn new(factory: F) -> Self {
+        let builder = ServerBuilder::default();
+        let graceful_shutdown_signal = builder.graceful_shutdown_signal();
+
         HttpServer {
             factory,
             config: Arc::new(Mutex::new(Config {
                 host: None,
                 keep_alive: KeepAlive::default(),
+                tcp_nodelay: Some(true),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                h1_allow_half_closed: true,
+                h1_write_buffer_size: None,
+                h2_initial_window_size: None,
+                h2_initial_connection_window_size: None,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
+            #[cfg(feature = "http2")]
+            auto_h2c: true,
             sockets: Vec::new(),
-            builder: ServerBuilder::default(),
+            builder,
+            graceful_shutdown_signal,
             on_connect_fn: None,
             _phantom: PhantomData,
         }
@@ -153,13 +173,21 @@ where
         self
     }
 
+    /// Sets `TCP_NODELAY` value on accepted TCP connections.
+    ///
+    /// Enabled by default to send small writes without waiting for an acknowledgement.
+    pub fn tcp_nodelay(self, enabled: bool) -> Self {
+        self.config.lock().unwrap().tcp_nodelay = Some(enabled);
+        self
+    }
+
     /// Sets the maximum number of pending connections.
     ///
     /// This refers to the number of clients that can be waiting to be served. Exceeding this number
     /// results in the client getting an error when attempting to connect. It should only affect
     /// servers under significant load.
     ///
-    /// Generally set in the 64–2048 range. Default value is 2048.
+    /// Generally set in the 64–2048 range. Default value is 1024.
     ///
     /// This method will have no effect if called after a `bind()`.
     pub fn backlog(mut self, backlog: u32) -> Self {
@@ -202,7 +230,7 @@ where
         self
     }
 
-    /// Sets server client timeout for first request.
+    /// Sets the timeout for reading a client request head.
     ///
     /// Defines a timeout for reading client request head. If a client does not transmit the entire
     /// set headers within this time, the request is terminated with a 408 (Request Timeout) error.
@@ -228,7 +256,7 @@ where
     ///
     /// To disable timeout set value to 0.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
+    /// By default client timeout is set to 1000 milliseconds.
     pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
         self.config.lock().unwrap().client_disconnect_timeout = dur;
         self
@@ -257,10 +285,73 @@ where
         self.client_disconnect_timeout(Duration::from_millis(dur))
     }
 
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(self, allow: bool) -> Self {
+        self.config.lock().unwrap().h1_allow_half_closed = allow;
+        self
+    }
+
+    /// Sets the maximum response write buffer size for HTTP/1 connections.
+    ///
+    /// Once the response buffer reaches this size, the dispatcher flushes it to the I/O stream.
+    ///
+    /// The default value is 32 KiB.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is 0.
+    pub fn h1_write_buffer_size(self, size: usize) -> Self {
+        assert!(
+            size > 0,
+            "HTTP/1 write buffer size must be greater than zero"
+        );
+
+        self.config.lock().unwrap().h1_write_buffer_size = Some(size);
+        self
+    }
+
+    /// Sets initial stream-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 1MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_window_size(self, size: u32) -> Self {
+        self.config.lock().unwrap().h2_initial_window_size = Some(size);
+        self
+    }
+
+    /// Sets initial connection-level flow control window size for HTTP/2 connections.
+    ///
+    /// Higher values can improve upload performance on high-latency links at the cost of higher
+    /// worst-case memory usage per connection.
+    ///
+    /// The default value is 2MiB.
+    #[cfg(feature = "http2")]
+    pub fn h2_initial_connection_window_size(self, size: u32) -> Self {
+        self.config
+            .lock()
+            .unwrap()
+            .h2_initial_connection_window_size = Some(size);
+        self
+    }
+
     /// Sets function that will be called once before each connection is handled.
     ///
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
     /// [Extensions] container so that connection data can be accessed in middleware and handlers.
+    ///
+    /// # Call Order
+    /// The callback is captured when a listener is bound, so this must be called **before**
+    /// [`bind()`](Self::bind()) (or any other `bind_*`/`listen_*` method). Calling it afterwards
+    /// has no effect on the already-bound listeners.
     ///
     /// # Connection Types
     /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using OpenSSL.
@@ -366,6 +457,9 @@ where
 
     /// Resolves socket address(es) and binds server to created listener(s).
     ///
+    /// With the `http2` feature, HTTP/2 cleartext detection is enabled by default.
+    /// Call `.auto_h2c(false)` before this method to accept only HTTP/1.x.
+    ///
     /// # Hostname Resolution
     ///
     /// When `addrs` includes a hostname, it is possible for this method to bind to both the IPv4
@@ -388,6 +482,14 @@ where
     ///
     /// Using a bind address of `0.0.0.0`, which signals to use all interfaces, may also multiple
     /// the number of instantiations in a similar way.
+    ///
+    /// # Dual-Stack IPv6
+    ///
+    /// On Windows, when this method creates an IPv6 listener (e.g., for `[::]:8080`), this
+    /// attempts to enable dual-stack mode so the socket can accept both IPv4 and IPv6
+    /// connections. On Linux and macOS, dual-stack is typically already the OS default. If you
+    /// need IPv6-only behavior on Windows, create the listener manually and pass it to
+    /// [`listen()`](Self::listen()).
     ///
     /// # Typical Usage
     ///
@@ -420,16 +522,34 @@ where
         Ok(self)
     }
 
+    /// Sets automatic HTTP/2 detection for subsequent plaintext listeners.
+    ///
+    /// Enabled by default. Call this method before [`bind()`](Self::bind()) or
+    /// [`listen()`](Self::listen()). Set to `false` to accept only HTTP/1.x.
+    ///
+    /// This setting does not affect TLS listeners or explicit calls to
+    /// [`bind_auto_h2c()`](Self::bind_auto_h2c()) and
+    /// [`listen_auto_h2c()`](Self::listen_auto_h2c()).
+    #[cfg(feature = "http2")]
+    pub fn auto_h2c(mut self, enabled: bool) -> Self {
+        self.auto_h2c = enabled;
+        self
+    }
+
     /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
     /// or HTTP/2 connections.
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     #[cfg(feature = "http2")]
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `bind()` instead."
+    )]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
         for lst in sockets {
-            self = self.listen_auto_h2c(lst)?;
+            self = self.listen_auto_h2c_inner(lst)?;
         }
 
         Ok(self)
@@ -440,7 +560,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_20")]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
@@ -459,7 +580,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_21")]
     pub fn bind_rustls_021<A: net::ToSocketAddrs>(
         mut self,
@@ -478,7 +600,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_22")]
     pub fn bind_rustls_0_22<A: net::ToSocketAddrs>(
         mut self,
@@ -497,7 +620,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_23")]
     pub fn bind_rustls_0_23<A: net::ToSocketAddrs>(
         mut self,
@@ -516,7 +640,8 @@ where
     ///
     /// See [`bind()`](Self::bind()) for more details on `addrs` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "openssl")]
     pub fn bind_openssl<A>(mut self, addrs: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
@@ -536,7 +661,15 @@ where
     ///
     /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
     /// passing ownership to `listen()`.
+    ///
+    /// With the `http2` feature, HTTP/2 cleartext detection is enabled by default.
+    /// Call `.auto_h2c(false)` before this method to accept only HTTP/1.x.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        #[cfg(feature = "http2")]
+        if self.auto_h2c {
+            return self.listen_auto_h2c_inner(lst);
+        }
+
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
@@ -547,18 +680,41 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
+
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
@@ -580,7 +736,16 @@ where
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
-    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+    #[deprecated(
+        since = "4.19.0",
+        note = "Automatic h2c detection is now enabled by default. Use `listen()` instead."
+    )]
+    pub fn listen_auto_h2c(self, lst: net::TcpListener) -> io::Result<Self> {
+        self.listen_auto_h2c_inner(lst)
+    }
+
+    #[cfg(feature = "http2")]
+    fn listen_auto_h2c_inner(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
@@ -591,18 +756,41 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
                     let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .h1_allow_half_closed(cfg.h1_allow_half_closed)
                         .local_addr(addr);
+
+                    if let Some(enabled) = cfg.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = cfg.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = cfg.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =
@@ -627,7 +815,8 @@ where
     ///
     /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_20")]
     pub fn listen_rustls(
         self,
@@ -642,7 +831,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_21")]
     pub fn listen_rustls_0_21(
         self,
@@ -667,22 +857,44 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -718,22 +930,44 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -759,7 +993,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_22")]
     pub fn listen_rustls_0_22(
         self,
@@ -784,22 +1019,44 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -825,7 +1082,8 @@ where
     ///
     /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "rustls-0_23")]
     pub fn listen_rustls_0_23(
         self,
@@ -850,22 +1108,44 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .client_disconnect_timeout(c.client_disconnect_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -890,7 +1170,8 @@ where
     ///
     /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    /// The "http/1.1" ALPN protocol is added to any configured ones. The "h2" protocol is also
+    /// added when the `http2` feature is enabled.
     #[cfg(feature = "openssl")]
     pub fn listen_openssl(
         self,
@@ -916,23 +1197,45 @@ where
         });
 
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let shutdown_signal = graceful_shutdown_signal.clone();
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .h1_allow_half_closed(c.h1_allow_half_closed)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(enabled) = c.tcp_nodelay {
+                        svc = svc.tcp_nodelay(enabled);
+                    }
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    if let Some(val) = c.h2_initial_window_size {
+                        svc = svc.h2_initial_window_size(val);
+                    }
+
+                    if let Some(val) = c.h2_initial_connection_window_size {
+                        svc = svc.h2_initial_connection_window_size(val);
+                    }
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc
+                            .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                     };
 
                     let fac = factory()
@@ -962,11 +1265,12 @@ where
         A: AsRef<std::path::Path>,
     {
         use actix_http::Protocol;
-        use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
+        use tokio::net::UnixStream;
 
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
 
@@ -990,13 +1294,24 @@ where
                     .into_factory()
                     .map_err(|err| err.into().error_response());
 
-                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
-                    HttpService::build()
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                    let shutdown_signal = graceful_shutdown_signal.clone();
+                    let mut svc = HttpService::build()
+                        .graceful_shutdown_signal(move || {
+                            let signal = shutdown_signal.clone();
+                            async move { signal.notified().await }
+                        })
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .finish(map_config(fac, move |_| config.clone())),
-                )
+                        .h1_allow_half_closed(c.h1_allow_half_closed);
+
+                    if let Some(size) = c.h1_write_buffer_size {
+                        svc = svc.h1_write_buffer_size(size);
+                    }
+
+                    svc.finish(map_config(fac, move |_| config.clone()))
+                })
             },
         )?;
 
@@ -1007,8 +1322,8 @@ where
     #[cfg(unix)]
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
-        use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
+        use tokio::net::UnixStream;
 
         let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
@@ -1023,6 +1338,7 @@ where
         let addr = lst.local_addr()?;
         let name = format!("actix-web-service-{:?}", addr);
         let on_connect_fn = self.on_connect_fn.clone();
+        let graceful_shutdown_signal = self.graceful_shutdown_signal.clone();
 
         self.builder = self.builder.listen_uds(name, lst, move || {
             let c = cfg.lock().unwrap();
@@ -1033,13 +1349,23 @@ where
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                let shutdown_signal = graceful_shutdown_signal.clone();
                 let mut svc = HttpService::build()
+                    .graceful_shutdown_signal(move || {
+                        let signal = shutdown_signal.clone();
+                        async move { signal.notified().await }
+                    })
                     .keep_alive(c.keep_alive)
                     .client_request_timeout(c.client_request_timeout)
+                    .h1_allow_half_closed(c.h1_allow_half_closed)
                     .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
+                }
+
+                if let Some(size) = c.h1_write_buffer_size {
+                    svc = svc.h1_write_buffer_size(size);
                 }
 
                 let fac = factory()
@@ -1065,6 +1391,8 @@ where
     B: MessageBody,
 {
     /// Start listening for incoming connections.
+    ///
+    /// The server does not accept connections until the returned [`Server`] future is first polled.
     ///
     /// # Workers
     /// This method starts a number of HTTP workers in separate threads. The number of workers in a
@@ -1115,6 +1443,14 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     {
         socket.set_reuse_address(true)?;
     }
+    // On Windows, IPV6_V6ONLY defaults to true, preventing IPv6 sockets from accepting IPv4
+    // connections. Set it to false so that binding to [::] also accepts IPv4 traffic.
+    #[cfg(windows)]
+    if addr.is_ipv6() {
+        if let Err(err) = socket.set_only_v6(false) {
+            log::warn!("failed to set IPV6_V6ONLY=false: {err}");
+        }
+    }
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;
@@ -1126,19 +1462,29 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
 #[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
-        const H2: &[u8] = b"\x02h2";
         const H11: &[u8] = b"\x08http/1.1";
 
-        if protocols.windows(3).any(|window| window == H2) {
-            Ok(b"h2")
-        } else if protocols.windows(9).any(|window| window == H11) {
+        #[cfg(feature = "http2")]
+        {
+            const H2: &[u8] = b"\x02h2";
+
+            if protocols.windows(3).any(|window| window == H2) {
+                return Ok(b"h2");
+            }
+        }
+
+        if protocols.windows(9).any(|window| window == H11) {
             Ok(b"http/1.1")
         } else {
             Err(AlpnError::NOACK)
         }
     });
 
-    builder.set_alpn_protos(b"\x08http/1.1\x02h2")?;
+    #[cfg(feature = "http2")]
+    let protos = b"\x08http/1.1\x02h2";
+    #[cfg(not(feature = "http2"))]
+    let protos = b"\x08http/1.1";
+    builder.set_alpn_protos(protos)?;
 
     Ok(builder.build())
 }
