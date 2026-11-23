@@ -1,10 +1,12 @@
+#[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+use std::collections::HashMap;
 use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 use actix_http::{test::TestRequest as HttpTestRequest, Request};
 use serde::Serialize;
 
 #[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
+use crate::cookie::Cookie;
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -65,8 +67,8 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
-    #[cfg(feature = "cookies")]
-    cookies: CookieJar,
+    #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    cookies: HashMap<String, String>,
 }
 
 impl Default for TestRequest {
@@ -78,8 +80,8 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
-            #[cfg(feature = "cookies")]
-            cookies: CookieJar::new(),
+            #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+            cookies: HashMap::default(),
         }
     }
 }
@@ -155,7 +157,20 @@ impl TestRequest {
     /// Sets cookie for this request.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.cookies.add(cookie.into_owned());
+        self.cookies.insert(
+            cookie.name().to_owned(),
+            cookie.stripped().encoded().to_string(),
+        );
+        self
+    }
+
+    /// Sets a cookie for this request using cookie 0.18.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(mut self, cookie: cookie_0_18::Cookie<'_>) -> Self {
+        self.cookies.insert(
+            cookie.name().to_owned(),
+            cookie.stripped().encoded().to_string(),
+        );
         self
     }
 
@@ -243,15 +258,14 @@ impl TestRequest {
         #[allow(unused_mut)]
         let mut req = self.req.finish();
 
-        #[cfg(feature = "cookies")]
+        #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
         {
             use actix_http::header::{HeaderValue, COOKIE};
 
-            let cookie: String = self
+            let cookie = self
                 .cookies
-                .delta()
-                // ensure only name=value is written to cookie header
-                .map(|c| c.stripped().encoded().to_string())
+                .values()
+                .map(String::as_str)
                 .collect::<Vec<_>>()
                 .join("; ");
 
@@ -360,6 +374,21 @@ mod tests {
 
     use super::*;
     use crate::{http::header, test::init_service, web, App, Error, Responder};
+
+    #[cfg(feature = "cookies")]
+    #[tokio::test(flavor = "local")]
+    async fn request_cookie_omits_attributes() {
+        let cookie = Cookie::build("session", "hello world")
+            .path("/app")
+            .http_only(true)
+            .finish();
+        let req = TestRequest::default().cookie(cookie).to_http_request();
+
+        assert_eq!(
+            req.headers().get(header::COOKIE).unwrap(),
+            "session=hello%20world"
+        );
+    }
 
     #[tokio::test(flavor = "local")]
     async fn test_request_app_data_is_dropped() {

@@ -468,6 +468,50 @@ impl HttpRequest {
         &self.inner.app_state
     }
 
+    /// Returns request cookies with percent-decoded names and values using cookie 0.18.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_0_18(&self) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse_encoded)
+    }
+
+    /// Returns request cookies with raw names and values using cookie 0.18.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookies_raw_0_18(
+        &self,
+    ) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
+        self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse)
+    }
+
+    /// Returns the named request cookie with percent-decoded names and values using cookie 0.18.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.cookies_0_18()
+            .ok()?
+            .into_iter()
+            .find(|cookie| cookie.name() == name)
+    }
+
+    /// Returns the named request cookie with raw names and values using cookie 0.18.
+    #[cfg(feature = "cookies-0_18")]
+    pub fn cookie_raw_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
+        self.cookies_raw_0_18()
+            .ok()?
+            .into_iter()
+            .find(|cookie| cookie.name() == name)
+    }
+
+    #[cfg(feature = "cookies-0_18")]
+    fn parse_cookies_0_18<'a>(
+        &'a self,
+        parse: impl Fn(&'a str) -> cookie_0_18::SplitCookies<'a>,
+    ) -> Result<Vec<cookie_0_18::Cookie<'a>>, cookie_0_18::ParseError> {
+        let mut cookies = Vec::new();
+        for header in self.headers().get_all(actix_http::header::COOKIE) {
+            cookies.extend(parse(str::from_utf8(header.as_bytes())?).flatten());
+        }
+        Ok(cookies)
+    }
+
     /// Load request cookies.
     ///
     /// The names and values of cookies are percent-decoded.

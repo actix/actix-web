@@ -339,7 +339,8 @@ dependencies = [
  "bytestring",
  "cfg-if",
  "const-str",
- "cookie",
+ "cookie 0.16.2",
+ "cookie 0.18.3",
  "core_affinity",
  "criterion",
  "derive_more",
@@ -628,7 +629,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "const-str",
- "cookie",
+ "cookie 0.16.2",
  "derive_more",
  "env_logger",
  "flate2",
@@ -687,6 +688,12 @@ name = "base64"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+
+[[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64"
@@ -961,6 +968,24 @@ checksum = "e859cd57d0710d9e06c381b550c06e76992472a8c6d527aecd2fc673dcc231fb"
 dependencies = [
  "aes-gcm",
  "base64 0.20.0",
+ "hkdf",
+ "hmac",
+ "percent-encoding",
+ "rand 0.8.8",
+ "sha2",
+ "subtle",
+ "time",
+ "version_check",
+]
+
+[[package]]
+name = "cookie"
+version = "0.18.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d55f2d6c30eeec7d5c6f98bd4395d4abb1895629eab97ee6522d340623615f8a"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
  "hkdf",
  "hmac",
  "percent-encoding",

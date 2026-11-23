@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the `cookies-0_18` feature for using cookie 0.18 alongside cookie 0.16.
+
 ## 4.20.0
 
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
