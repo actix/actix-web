@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix `AcceptEncoding::negotiate()` ignoring the `*` entry, which made it skip every coding that was not explicitly listed and also let `*` override an explicit `identity` entry.
 ## 4.20.0
 
 - Add `guard_obj` parameter to all route attribute macros where `guard` is allowed, allowing any expressions to be used where it returns a `Guard`.
