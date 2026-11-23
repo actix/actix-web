@@ -177,13 +177,21 @@ impl<B> HttpResponse<B> {
             .map_err(Into::into)
     }
 
-    /// Remove all cookies with the given name from this response.
+    /// Removes all `Set-Cookie` headers for cookies with the given name.
     ///
     /// Returns the number of cookies removed.
     ///
-    /// This method removes matching Set-Cookie headers. To remove a cookie stored by the client,
-    /// send a removal cookie.
+    /// To remove a cookie stored by the client, send a removal cookie.
+    ///
     #[cfg(any(feature = "cookies", feature = "cookies-0_18"))]
+    #[cfg_attr(
+        feature = "cookies",
+        doc = "- For cookie (v0.16), use [`add_removal_cookie()`](Self::add_removal_cookie)."
+    )]
+    #[cfg_attr(
+        feature = "cookies-0_18",
+        doc = "- For cookie (v0.18), use [`add_removal_cookie_0_18()`](Self::add_removal_cookie_0_18)."
+    )]
     pub fn del_cookie(&mut self, name: &str) -> usize {
         let headers = self.headers_mut();
 
