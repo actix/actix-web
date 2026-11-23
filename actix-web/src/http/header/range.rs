@@ -9,7 +9,7 @@ use actix_http::{error::ParseError, header, HttpMessage};
 use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderValue, Writer};
 
 /// `Range` header, defined
-/// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
+/// in [RFC 7233 §3.1](https://www.rfc-editor.org/info/rfc7233/#section-3.1)
 ///
 /// The "Range" header field on a GET request modifies the method semantics to request transfer of
 /// only one or more sub-ranges of the selected representation data, rather than the entire selected
@@ -124,7 +124,7 @@ impl ByteRangeSpec {
     /// > of the representation (i.e., the server replaces the value of last-byte-pos with a value
     /// > that is one less than the current length of the selected representation).
     ///
-    /// [RFC 7233 §2.1]: https://datatracker.ietf.org/doc/html/rfc7233
+    /// [RFC 7233 §2.1]: https://www.rfc-editor.org/info/rfc7233/#section-2.1
     pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
         // If the full length is zero, there is no satisfiable end-inclusive range.
         if full_length == 0 {

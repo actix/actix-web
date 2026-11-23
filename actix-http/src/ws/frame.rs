@@ -246,9 +246,9 @@ impl Parser {
     /// UTF-8 reason. This follows [RFC 6455 §5.5.1], with status code rules from [RFC 6455 §7.4]
     /// and UTF-8 error handling from [RFC 6455 §8.1].
     ///
-    /// [RFC 6455 §5.5.1]: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.1
-    /// [RFC 6455 §7.4]: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4
-    /// [RFC 6455 §8.1]: https://datatracker.ietf.org/doc/html/rfc6455#section-8.1
+    /// [RFC 6455 §5.5.1]: https://www.rfc-editor.org/info/rfc6455/#section-5.5.1
+    /// [RFC 6455 §7.4]: https://www.rfc-editor.org/info/rfc6455/#section-7.4
+    /// [RFC 6455 §8.1]: https://www.rfc-editor.org/info/rfc6455/#section-8.1
     pub fn try_parse_close_payload(payload: &[u8]) -> Result<Option<CloseReason>, ProtocolError> {
         // RFC 6455 §5.5.1 requires a two-byte status code when a close payload is not empty.
         if payload.len() == 1 {

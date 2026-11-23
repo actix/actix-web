@@ -2,7 +2,7 @@ use super::{HttpDate, IF_MODIFIED_SINCE};
 
 crate::http::header::common_header! {
     /// `If-Modified-Since` header, defined
-    /// in [RFC 7232 §3.3](https://datatracker.ietf.org/doc/html/rfc7232#section-3.3)
+    /// in [RFC 7232 §3.3](https://www.rfc-editor.org/info/rfc7232/#section-3.3)
     ///
     /// The `If-Modified-Since` header field makes a GET or HEAD request
     /// method conditional on the selected representation's modification date

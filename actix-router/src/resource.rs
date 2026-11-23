@@ -42,7 +42,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// vs `["user", "123", "456"]`.
 ///
 /// This definition is consistent with the definition of absolute URL path in
-/// [RFC 3986 §3.3](https://datatracker.ietf.org/doc/html/rfc3986#section-3.3)
+/// [RFC 3986 §3.3](https://www.rfc-editor.org/info/rfc3986/#section-3.3)
 ///
 ///
 /// # Static Resources

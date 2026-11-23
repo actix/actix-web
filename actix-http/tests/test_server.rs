@@ -1273,7 +1273,7 @@ async fn h1_on_connect() {
 }
 
 /// Tests compliance with 304 Not Modified spec in RFC 7232 §4.1.
-/// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+/// https://www.rfc-editor.org/info/rfc7232/#section-4.1
 #[tokio::test(flavor = "local")]
 async fn not_modified_spec_h1() {
     static CL: header::HeaderName = header::CONTENT_LENGTH;

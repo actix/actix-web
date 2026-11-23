@@ -94,7 +94,7 @@ where
     let mut framed = Framed::new(io, h1::ClientCodec::default());
 
     // Check EXPECT header and enable expect handle flag accordingly.
-    // See https://datatracker.ietf.org/doc/html/rfc7231#section-5.1.1
+    // See https://www.rfc-editor.org/info/rfc7231/#section-5.1.1
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
         match orig_length {
             BodySize::None | BodySize::Sized(0) => {

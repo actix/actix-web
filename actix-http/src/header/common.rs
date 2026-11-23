@@ -7,14 +7,14 @@ use http::header::HeaderName;
 /// Response header field that indicates how caches have handled that response and its corresponding
 /// request.
 ///
-/// See [RFC 9211](https://www.rfc-editor.org/rfc/rfc9211) for full semantics.
+/// See [RFC 9211](https://www.rfc-editor.org/info/rfc9211) for full semantics.
 // TODO(breaking): replace with http's version
 pub const CACHE_STATUS: HeaderName = HeaderName::from_static("cache-status");
 
 /// Response header field that allows origin servers to control the behavior of CDN caches
 /// interposed between them and clients separately from other caches that might handle the response.
 ///
-/// See [RFC 9213](https://www.rfc-editor.org/rfc/rfc9213) for full semantics.
+/// See [RFC 9213](https://www.rfc-editor.org/info/rfc9213) for full semantics.
 // TODO(breaking): replace with http's version
 pub const CDN_CACHE_CONTROL: HeaderName = HeaderName::from_static("cdn-cache-control");
 

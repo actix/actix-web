@@ -2,7 +2,7 @@ use super::{common_header, EntityTag, IF_MATCH};
 
 common_header! {
     /// `If-Match` header, defined
-    /// in [RFC 7232 §3.1](https://datatracker.ietf.org/doc/html/rfc7232#section-3.1)
+    /// in [RFC 7232 §3.1](https://www.rfc-editor.org/info/rfc7232/#section-3.1)
     ///
     /// The `If-Match` header field makes the request method conditional on
     /// the recipient origin server either having at least one current

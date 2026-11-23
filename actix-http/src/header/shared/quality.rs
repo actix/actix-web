@@ -29,7 +29,7 @@ const MAX_QUALITY_FLOAT: f32 = 1.0;
 /// assert_eq!(Quality::ZERO.to_string(), "0");
 /// ```
 ///
-/// [RFC 7231 §5.3.1]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1
+/// [RFC 7231 §5.3.1]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(pub(super) u16);
 

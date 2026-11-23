@@ -4,7 +4,7 @@ use super::{HttpDate, DATE};
 
 crate::http::header::common_header! {
     /// `Date` header, defined
-    /// in [RFC 7231 §7.1.1.2](https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.2)
+    /// in [RFC 7231 §7.1.1.2](https://www.rfc-editor.org/info/rfc7231/#section-7.1.1.2)
     ///
     /// The `Date` header field represents the date and time at which the
     /// message was originated.

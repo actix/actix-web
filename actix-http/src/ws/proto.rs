@@ -4,7 +4,7 @@ use base64::prelude::*;
 
 /// Operation codes defined in [RFC 6455 §11.8].
 ///
-/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
+/// [RFC 6455]: https://www.rfc-editor.org/info/rfc6455/#section-11.8
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
@@ -222,7 +222,7 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
 }
 
 /// The WebSocket GUID as stated in the spec.
-/// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
+/// See <https://www.rfc-editor.org/info/rfc6455/#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 /// Length of Base64 encoded SHA-1 hash for `Sec-WebSocket-Accept` (RFC 6455 §1.3, §4.2.2).

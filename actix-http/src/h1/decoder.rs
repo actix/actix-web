@@ -223,7 +223,7 @@ pub(crate) trait MessageType: Sized {
             self.set_expect()
         }
 
-        // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
+        // https://www.rfc-editor.org/info/rfc7230/#section-3.3.3
         if chunked {
             // Chunked encoding
             Ok(PayloadLength::Payload(PayloadType::Payload(
@@ -305,7 +305,7 @@ impl MessageType for Request {
         let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
         // disallow HTTP/1.1 requests that do not contain a Host header
-        // see https://datatracker.ietf.org/doc/html/rfc9112#section-3.2
+        // see https://www.rfc-editor.org/info/rfc9112/#section-3.2
         if ver == Version::HTTP_11 && !msg.head().headers.contains_key(header::HOST) {
             debug!("missing Host header for HTTP/1.1 request");
             return Err(ParseError::Header);
@@ -329,7 +329,7 @@ impl MessageType for Request {
         }
 
         // disallow HTTP/1.0 POST requests that do not contain a Content-Length headers
-        // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
+        // see https://www.rfc-editor.org/info/rfc1945/#section-7.2.2
         if ver == Version::HTTP_10 && method == Method::POST && length.is_none() {
             debug!("no Content-Length specified for HTTP/1.0 POST request");
             return Err(ParseError::Header);
@@ -553,7 +553,7 @@ enum Kind {
     /// > message body length cannot be determined reliably; the server MUST respond with the 400
     /// > (Bad Request) status code and then close the connection.
     ///
-    /// [RFC 7230 §3.3.3]: https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
+    /// [RFC 7230 §3.3.3]: https://www.rfc-editor.org/info/rfc7230/#section-3.3.3
     Eof,
 }
 

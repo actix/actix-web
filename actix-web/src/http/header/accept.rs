@@ -15,7 +15,7 @@ common_header! {
     /// in-line image
     ///
     /// Quality parameters are recognized regardless of their position among media type parameters,
-    /// as described in [RFC 9110 §12.5.1](https://httpwg.org/specs/rfc9110.html#field.accept).
+    /// as described in [RFC 9110 §12.5.1](https://www.rfc-editor.org/info/rfc9110/#section-12.5.1).
     /// Quoted parameter values are preserved without interpreting their contents as quality.
     ///
     /// # ABNF
@@ -75,7 +75,7 @@ common_header! {
     /// assert_eq!(accept.preference(), mime::TEXT_HTML);
     /// ```
     ///
-    /// [RFC 7231 §5.3.2]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [RFC 7231 §5.3.2]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.2
     (Accept, header::ACCEPT) => (QualityItem<Mime>)*
 
     test_parse_and_format {
@@ -162,7 +162,7 @@ impl Accept {
     /// As per the spec, will return [`mime::STAR_STAR`] (indicating no preference) if the contained
     /// list is empty.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn preference(&self) -> Mime {
         use actix_http::header::Quality;
 
@@ -187,7 +187,7 @@ impl Accept {
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://www.rfc-editor.org/info/rfc7231/#section-5.3.1
     pub fn ranked(&self) -> Vec<Mime> {
         if self.is_empty() {
             return vec![];

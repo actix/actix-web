@@ -487,7 +487,7 @@ mod tests {
         .await;
 
         // This URI will be interpreted as an authority form, i.e. there is no path nor scheme
-        // (https://datatracker.ietf.org/doc/html/rfc7230#section-5.3.3)
+        // (https://www.rfc-editor.org/info/rfc7230/#section-5.3.3)
         let req = TestRequest::with_uri("eh").to_request();
         let res = call_service(&app, req).await;
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
