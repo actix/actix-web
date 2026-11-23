@@ -104,7 +104,7 @@ impl<B> HttpResponse<B> {
         self.res.headers_mut()
     }
 
-    /// Iterates over the response cookies that cookie 0.18 can parse.
+    /// Iterates over the response cookies that cookie (v0.18) can parse.
     #[cfg(feature = "cookies-0_18")]
     pub fn cookies_0_18(&self) -> impl Iterator<Item = cookie_0_18::Cookie<'_>> {
         self.headers()
@@ -112,7 +112,7 @@ impl<B> HttpResponse<B> {
             .filter_map(|header| cookie_0_18::Cookie::parse_encoded(header.to_str().ok()?).ok())
     }
 
-    /// Appends a cookie 0.18 Set-Cookie header.
+    /// Appends a cookie (v0.18) Set-Cookie header.
     #[cfg(feature = "cookies-0_18")]
     pub fn add_cookie_0_18(&mut self, cookie: &cookie_0_18::Cookie<'_>) -> Result<(), HttpError> {
         let value = HeaderValue::from_str(&cookie.to_string())?;
@@ -120,7 +120,7 @@ impl<B> HttpResponse<B> {
         Ok(())
     }
 
-    /// Appends a removal cookie with the given name, path, and domain using cookie 0.18.
+    /// Appends a removal cookie with the given name, path, and domain using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn add_removal_cookie_0_18(
         &mut self,

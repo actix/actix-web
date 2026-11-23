@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add the `cookies-0_18` feature for using cookie 0.18 alongside cookie 0.16.
+- Add the `cookies-0_18` feature for using cookie (v0.18) alongside cookie (v0.16).
 
 ## 4.20.0
 

@@ -138,7 +138,7 @@ impl<R: Responder> CustomizeResponder<R> {
         }
     }
 
-    /// Appends a cookie 0.18 Set-Cookie header.
+    /// Appends a cookie (v0.18) Set-Cookie header.
     #[cfg(feature = "cookies-0_18")]
     pub fn add_cookie_0_18(self, cookie: &cookie_0_18::Cookie<'_>) -> Self {
         self.append_header((actix_http::header::SET_COOKIE, cookie.to_string()))

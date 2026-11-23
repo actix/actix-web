@@ -164,7 +164,7 @@ impl TestRequest {
         self
     }
 
-    /// Sets a cookie for this request using cookie 0.18.
+    /// Sets a cookie for this request using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn cookie_0_18(mut self, cookie: cookie_0_18::Cookie<'_>) -> Self {
         self.cookies.insert(

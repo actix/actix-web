@@ -468,13 +468,13 @@ impl HttpRequest {
         &self.inner.app_state
     }
 
-    /// Returns request cookies with percent-decoded names and values using cookie 0.18.
+    /// Returns request cookies with percent-decoded names and values using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn cookies_0_18(&self) -> Result<Vec<cookie_0_18::Cookie<'_>>, cookie_0_18::ParseError> {
         self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse_encoded)
     }
 
-    /// Returns request cookies with raw names and values using cookie 0.18.
+    /// Returns request cookies with raw names and values using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn cookies_raw_0_18(
         &self,
@@ -482,7 +482,7 @@ impl HttpRequest {
         self.parse_cookies_0_18(cookie_0_18::Cookie::split_parse)
     }
 
-    /// Returns the named request cookie with percent-decoded names and values using cookie 0.18.
+    /// Returns the named request cookie with percent-decoded names and values using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn cookie_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
         self.cookies_0_18()
@@ -491,7 +491,7 @@ impl HttpRequest {
             .find(|cookie| cookie.name() == name)
     }
 
-    /// Returns the named request cookie with raw names and values using cookie 0.18.
+    /// Returns the named request cookie with raw names and values using cookie (v0.18).
     #[cfg(feature = "cookies-0_18")]
     pub fn cookie_raw_0_18(&self, name: &str) -> Option<cookie_0_18::Cookie<'_>> {
         self.cookies_raw_0_18()
