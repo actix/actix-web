@@ -89,7 +89,7 @@ where
         let this = self.get_mut();
 
         match Pin::new(&mut this.handshake).poll(cx)? {
-            // return the timer on success handshake; its slot can be re-used for h2 ping-pong
+            // Keep the original deadline until the dispatcher receives the first request head.
             Poll::Ready(conn) => Poll::Ready(Ok((conn, this.timer.take()))),
             Poll::Pending => match this.timer.as_mut() {
                 Some(timer) => {

@@ -41,6 +41,7 @@ pin_project! {
         conn_data: Option<Rc<Extensions>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        first_head_timer: Option<Pin<Box<Sleep>>>,
         ping_pong: Option<H2PingPong>,
         graceful_shutdown: Option<GracefulShutdownFuture>,
         _phantom: PhantomData<B>
@@ -57,16 +58,10 @@ where
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
         conn_data: OnConnectData,
-        timer: Option<Pin<Box<Sleep>>>,
+        first_head_timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
         let ping_pong = config.keep_alive().duration().map(|dur| H2PingPong {
-            timer: timer
-                .map(|mut timer| {
-                    // reuse timer slot if it was initialized for handshake
-                    timer.as_mut().reset((config.now() + dur).into());
-                    timer
-                })
-                .unwrap_or_else(|| Box::pin(sleep(dur))),
+            timer: Box::pin(sleep(dur)),
             in_flight: false,
             ping_pong: conn.ping_pong().unwrap(),
         });
@@ -79,6 +74,7 @@ where
             peer_addr,
             connection: conn,
             conn_data: conn_data.0.map(Rc::new),
+            first_head_timer,
             ping_pong,
             graceful_shutdown,
             _phantom: PhantomData,
@@ -136,6 +132,8 @@ where
         loop {
             match Pin::new(&mut this.connection).poll_accept(cx)? {
                 Poll::Ready(Some((req, tx))) => {
+                    this.first_head_timer = None;
+
                     let (parts, body) = req.into_parts();
                     let payload = crate::h2::Payload::new(body);
                     let pl = Payload::H2 { payload };
@@ -183,39 +181,49 @@ where
                 }
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
 
-                Poll::Pending => match this.ping_pong.as_mut() {
-                    Some(ping_pong) => loop {
-                        if ping_pong.in_flight {
-                            // When there is an in-flight ping-pong, poll pong and keep-alive
-                            // timer. On successful pong received, update keep-alive timer to
-                            // determine the next timing of ping pong.
-                            match ping_pong.ping_pong.poll_pong(cx)? {
-                                Poll::Ready(_) => {
-                                    ping_pong.in_flight = false;
-
-                                    let dead_line = this.config.keep_alive_deadline().unwrap();
-                                    ping_pong.timer.as_mut().reset(dead_line.into());
-                                }
-                                Poll::Pending => {
-                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()));
-                                }
-                            }
-                        } else {
-                            // When there is no in-flight ping-pong, keep-alive timer is used to
-                            // wait for next timing of ping-pong. Therefore, at this point it serves
-                            // as an interval instead.
-                            ready!(ping_pong.timer.as_mut().poll(cx));
-
-                            ping_pong.ping_pong.send_ping(Ping::opaque())?;
-
-                            let dead_line = this.config.keep_alive_deadline().unwrap();
-                            ping_pong.timer.as_mut().reset(dead_line.into());
-
-                            ping_pong.in_flight = true;
+                Poll::Pending => {
+                    if let Some(timer) = &mut this.first_head_timer {
+                        if timer.as_mut().poll(cx).is_ready() {
+                            return Poll::Ready(Err(
+                                crate::error::DispatchError::SlowRequestTimeout,
+                            ));
                         }
-                    },
-                    None => return Poll::Pending,
-                },
+                    }
+
+                    match this.ping_pong.as_mut() {
+                        Some(ping_pong) => loop {
+                            if ping_pong.in_flight {
+                                // When there is an in-flight ping-pong, poll pong and keep-alive
+                                // timer. On successful pong received, update keep-alive timer to
+                                // determine the next timing of ping pong.
+                                match ping_pong.ping_pong.poll_pong(cx)? {
+                                    Poll::Ready(_) => {
+                                        ping_pong.in_flight = false;
+
+                                        let dead_line = this.config.keep_alive_deadline().unwrap();
+                                        ping_pong.timer.as_mut().reset(dead_line.into());
+                                    }
+                                    Poll::Pending => {
+                                        return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()));
+                                    }
+                                }
+                            } else {
+                                // When there is no in-flight ping-pong, keep-alive timer is used to
+                                // wait for next timing of ping-pong. Therefore, at this point it serves
+                                // as an interval instead.
+                                ready!(ping_pong.timer.as_mut().poll(cx));
+
+                                ping_pong.ping_pong.send_ping(Ping::opaque())?;
+
+                                let dead_line = this.config.keep_alive_deadline().unwrap();
+                                ping_pong.timer.as_mut().reset(dead_line.into());
+
+                                ping_pong.in_flight = true;
+                            }
+                        },
+                        None => return Poll::Pending,
+                    }
+                }
             }
         }
     }
