@@ -103,6 +103,7 @@ mod data;
 pub mod dev;
 pub mod error;
 mod extract;
+mod group;
 pub mod guard;
 mod handler;
 mod helpers;
@@ -134,6 +135,7 @@ pub use crate::{
     app::App,
     error::{Error, ResponseError},
     extract::FromRequest,
+    group::Group,
     handler::Handler,
     request::HttpRequest,
     resource::Resource,

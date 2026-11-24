@@ -28,9 +28,16 @@ pub use crate::{
     thin_data::ThinData, types::*,
 };
 use crate::{
-    error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,
+    error::BlockingError, http::Method, service::WebService, FromRequest, Group, Handler, Resource,
     Responder, Route, Scope,
 };
+
+/// Creates a group of services with common middleware and no path prefix.
+///
+/// See [`Group`] for routing and middleware behavior.
+pub fn group() -> Group {
+    Group::new()
+}
 
 /// Creates a new resource for a specific path.
 ///
