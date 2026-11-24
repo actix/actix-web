@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Store up to two values for each header name inline in `HeaderMap`, which makes it smaller and faster to clone, update and drain.
-- Enforce `client_request_timeout` from the start of the HTTP/2 handshake until the server receives the first request head.
-- Apply `client_request_timeout` while `tcp_auto_h2c()` waits for the first bytes on a connection.
+## 3.22.1
+
+- Apply client request timeout while auto-h2c mode waits for the first bytes on a connection. [GHSA-p4cp-vhp5-73wj](https://github.com/actix/actix-web/security/advisories/GHSA-p4cp-vhp5-73wj)
+- Enforce client request (head) timeout on the first HTTP/2 request.
+- Reduce inline size of `HeaderMap` values from 4 to 2, making most operations faster in the common case.
 
 ## 3.22.0
 
