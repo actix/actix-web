@@ -15,6 +15,8 @@ use actix_service::{
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 use tokio::net::TcpStream;
+#[cfg(feature = "http2")]
+use tokio_util::future::FutureExt as _;
 use tracing::error;
 
 use crate::{
@@ -233,6 +235,7 @@ where
     ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
     {
         let tcp_nodelay = self.cfg.tcp_nodelay();
+        let head_timeout = self.cfg.request_head_timeout();
 
         fn_service(move |io: TcpStream| async move {
             // subset of HTTP/2 preface defined by RFC 9113 §3.4
@@ -243,7 +246,15 @@ where
 
             let mut buf = [0; 12];
 
-            io.peek(&mut buf).await?;
+            let peek = io.peek(&mut buf);
+
+            if head_timeout.is_zero() {
+                peek.await?;
+            } else {
+                peek.timeout(head_timeout)
+                    .await
+                    .map_err(|_| DispatchError::SlowRequestTimeout)??;
+            }
 
             let proto = if buf == H2_PREFACE {
                 Protocol::Http2
@@ -256,6 +267,7 @@ where
             }
 
             let peer_addr = io.peer_addr().ok();
+
             Ok((io, proto, peer_addr))
         })
         .and_then(self)

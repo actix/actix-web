@@ -55,7 +55,7 @@ allowed_external_types = [
 default = []
 
 # HTTP/2 protocol support
-http2 = ["dep:h2"]
+http2 = ["dep:h2", "tokio-util/time"]
 
 # WebSocket protocol implementation
 ws = ["dep:local-channel", "dep:base64", "dep:rand", "dep:sha1"]

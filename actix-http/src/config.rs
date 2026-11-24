@@ -274,6 +274,11 @@ impl ServiceConfig {
         }
     }
 
+    #[cfg(feature = "http2")]
+    pub(crate) fn request_head_timeout(&self) -> Duration {
+        self.0.client_request_timeout
+    }
+
     /// Creates a time object representing the deadline for the client to finish sending a request
     /// head.
     ///
