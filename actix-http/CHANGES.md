@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Store up to two values for each header name inline in `HeaderMap`, which makes it smaller and faster to clone, update and drain.
+- Apply `client_request_timeout` while `tcp_auto_h2c()` waits for the first bytes on a connection.
 
 ## 3.22.0
 

@@ -1391,6 +1391,29 @@ async fn h2c_auto() {
 }
 
 #[tokio::test(flavor = "local")]
+async fn h2c_auto_peek_timeout() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .client_request_timeout(Duration::from_millis(100))
+            .finish(|_: Request| ready(Ok::<_, Infallible>(Response::ok())))
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let mut tcp = TcpStream::connect(srv.addr()).await.unwrap();
+    let mut buf = [0; 1];
+    let bytes = tcp
+        .read(&mut buf)
+        .timeout(Duration::from_secs(2))
+        .await
+        .expect("idle connection should close")
+        .unwrap();
+    assert_eq!(bytes, 0);
+
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "local")]
 async fn h2_flow_control_window_sizes() {
     let mut srv = test_server(|| {
         HttpService::build()
