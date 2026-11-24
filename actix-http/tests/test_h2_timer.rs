@@ -151,3 +151,33 @@ async fn h2_handshake_timeout() -> io::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "local")]
+async fn h2_first_request_head_timeout() {
+    use actix_http::error::DispatchError;
+    use actix_service::{Service, ServiceFactory};
+    use tokio_util::future::FutureExt as _;
+
+    let service = HttpService::build()
+        .client_request_timeout(Duration::from_secs(1))
+        .h2(|_| async { Ok::<_, Error>(Response::ok()) })
+        .new_service(())
+        .await
+        .unwrap();
+
+    let (client, server) = tokio::io::duplex(4096);
+    let server = actix_rt::spawn(service.call((server, None)));
+
+    let (_requests, mut connection) = h2::client::handshake(client).await.unwrap();
+    let mut ping = connection.ping_pong().unwrap();
+    actix_rt::spawn(connection);
+    ping.ping(h2::Ping::opaque()).await.unwrap();
+
+    let result = server
+        .timeout(Duration::from_secs(3))
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(matches!(result, Err(DispatchError::SlowRequestTimeout)));
+}

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Store up to two values for each header name inline in `HeaderMap`, which makes it smaller and faster to clone, update and drain.
+- Enforce `client_request_timeout` from the start of the HTTP/2 handshake until the server receives the first request head.
 
 ## 3.22.0
 
