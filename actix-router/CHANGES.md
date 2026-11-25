@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Skip percent-decoding for path values that contain no `%`, which makes `Path::load()` faster.
+
 ## 0.5.5
 
 - Add support for extracting multi-component path params into a sequence (Vec, tuple, ...).

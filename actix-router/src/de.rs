@@ -14,6 +14,16 @@ thread_local! {
     static FULL_QUOTER: Quoter = Quoter::new(b"", b"");
 }
 
+/// Percent-decodes a path value, or returns `None` if it has nothing to decode.
+fn decode_value(value: &str) -> Option<String> {
+    // values without '%' are returned unchanged, so skip the thread-local quoter
+    if !value.contains('%') {
+        return None;
+    }
+
+    FULL_QUOTER.with(|q| q.requote_str_lossy(value))
+}
+
 macro_rules! unsupported_type {
     ($trait_fn:ident, $name:expr) => {
         fn $trait_fn<V>(self, _: V) -> Result<V::Value, Self::Error>
@@ -58,8 +68,7 @@ macro_rules! parse_value {
         where
             V: Visitor<'de>,
         {
-            let decoded = FULL_QUOTER
-                .with(|q| q.requote_str_lossy(self.value))
+            let decoded = decode_value(self.value)
                 .map(Cow::Owned)
                 .unwrap_or(Cow::Borrowed(self.value));
 
@@ -339,7 +348,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
+        match decode_value(self.value) {
             Some(s) => visitor.visit_string(s),
             None => visitor.visit_borrowed_str(self.value),
         }
@@ -349,7 +358,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
+        match decode_value(self.value) {
             Some(s) => visitor.visit_byte_buf(s.into()),
             None => visitor.visit_borrowed_bytes(self.value.as_bytes()),
         }
@@ -448,8 +457,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        let decoded = FULL_QUOTER
-            .with(|q| q.requote_str_lossy(self.value))
+        let decoded = decode_value(self.value)
             .map(Cow::Owned)
             .unwrap_or(Cow::Borrowed(self.value));
 
@@ -1038,6 +1046,18 @@ mod tests {
         let de = PathDeserializer::new(&path);
         let segment: String = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(segment, "/")
+    }
+
+    #[test]
+    fn deserialize_path_borrows_values_without_escapes() {
+        let rdef = ResourceDef::new("/{key}/{value}");
+
+        let mut path = Path::new("/name/user1");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let (key, value): (&str, &str) = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(key, "name");
+        assert_eq!(value, "user1");
     }
 
     #[test]
