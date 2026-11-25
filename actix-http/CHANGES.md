@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Reject an empty HTTP/1.1 `Host` when the request target supplies no authority.
+- Reject HTTP/1 requests with userinfo, path, query, or fragment delimiters in `Host`.
+- Reject HTTP/1 request targets with a fragment.
+- Reserve the HTTP/1 asterisk request target for `OPTIONS`.
+- Reject HTTP/1 requests with multiple `Content-Type` header fields.
+
 ## 3.22.1
 
 - Apply client request timeout while auto-h2c mode waits for the first bytes on a connection. [GHSA-p4cp-vhp5-73wj](https://github.com/actix/actix-web/security/advisories/GHSA-p4cp-vhp5-73wj)
