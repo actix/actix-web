@@ -276,7 +276,12 @@ impl MessageType for Request {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
                         .map_err(|_| ParseError::Method)?;
-                    let uri = Uri::try_from(req.path.unwrap())?;
+                    let target = req.path.unwrap();
+                    if target == "*" && method != Method::OPTIONS {
+                        return Err(ParseError::RequestTarget);
+                    }
+
+                    let uri = Uri::try_from(target)?;
                     let version = if req.version.unwrap() == 1 {
                         Version::HTTP_11
                     } else {
@@ -1380,6 +1385,17 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"a")));
+    }
+
+    #[test]
+    fn asterisk_target_requires_options() {
+        for method in ["GET", "POST"] {
+            let req = format!("{method} * HTTP/1.1\r\nHost: example.com\r\n\r\n");
+            expect_parse_err!(&mut BytesMut::from(req.as_str()));
+        }
+
+        let mut req = BytesMut::from("OPTIONS * HTTP/1.1\r\nHost: example.com\r\n\r\n");
+        assert_eq!(parse_ready!(&mut req).path(), "*");
     }
 
     #[test]

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reserve the HTTP/1 asterisk request target for `OPTIONS`.
+
 ## 3.22.1
 
 - Apply client request timeout while auto-h2c mode waits for the first bytes on a connection. [GHSA-p4cp-vhp5-73wj](https://github.com/actix/actix-web/security/advisories/GHSA-p4cp-vhp5-73wj)

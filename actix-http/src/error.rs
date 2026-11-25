@@ -167,6 +167,10 @@ pub enum ParseError {
     #[display("URI error: {}", _0)]
     Uri(InvalidUri),
 
+    /// The request target uses a form that HTTP does not allow for this request.
+    #[display("Invalid request target")]
+    RequestTarget,
+
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     #[display("Invalid HTTP version specified")]
     Version,
