@@ -5,11 +5,16 @@ use actix_web::{
     http::{header, StatusCode},
     test, web, App,
 };
-use filetime::{set_file_mtime, FileTime};
 use tempfile::tempdir;
 
+#[allow(
+    deprecated,
+    reason = "use std::fs::set_times when the MSRV reaches 1.99"
+)]
 #[tokio::test(flavor = "local")]
 async fn serves_file_with_pre_epoch_mtime() {
+    use filetime::{set_file_mtime, FileTime};
+
     let dir = tempdir().unwrap();
     let path = dir.path().join("pre_epoch.txt");
 
