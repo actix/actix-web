@@ -317,6 +317,11 @@ impl MessageType for Request {
             return Err(ParseError::Header);
         }
 
+        if msg.head().headers.get_all(header::CONTENT_TYPE).len() > 1 {
+            debug!("multiple Content-Type headers not allowed");
+            return Err(ParseError::Header);
+        }
+
         if msg.head().headers.contains_key(header::TRANSFER_ENCODING) {
             if ver == Version::HTTP_10 {
                 debug!("Transfer-Encoding is not allowed in HTTP/1.0 requests");
@@ -1386,6 +1391,14 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"a")));
+    }
+
+    #[test]
+    fn reject_multiple_request_content_types() {
+        let mut req = BytesMut::from(
+            "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Type: text/plain\r\nContent-Type: text/html\r\n\r\n",
+        );
+        expect_parse_err!(&mut req);
     }
 
     #[test]
