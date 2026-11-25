@@ -277,7 +277,8 @@ impl MessageType for Request {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
                         .map_err(|_| ParseError::Method)?;
                     let target = req.path.unwrap();
-                    if target == "*" && method != Method::OPTIONS {
+                    // Check the wire form before Uri parsing discards a fragment.
+                    if target.contains('#') || (target == "*" && method != Method::OPTIONS) {
                         return Err(ParseError::RequestTarget);
                     }
 
@@ -1396,6 +1397,17 @@ mod tests {
 
         let mut req = BytesMut::from("OPTIONS * HTTP/1.1\r\nHost: example.com\r\n\r\n");
         assert_eq!(parse_ready!(&mut req).path(), "*");
+    }
+
+    #[test]
+    fn reject_request_target_fragment() {
+        for target in ["/path#frag", "http://example.com/#frag"] {
+            let req = format!("GET {target} HTTP/1.1\r\nHost: example.com\r\n\r\n");
+            expect_parse_err!(&mut BytesMut::from(req.as_str()));
+        }
+
+        let mut req = BytesMut::from("GET /path%23frag HTTP/1.1\r\nHost: example.com\r\n\r\n");
+        assert_eq!(parse_ready!(&mut req).path(), "/path%23frag");
     }
 
     #[test]
