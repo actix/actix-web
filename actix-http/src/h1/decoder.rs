@@ -310,9 +310,16 @@ impl MessageType for Request {
         // convert headers
         let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
-        // disallow HTTP/1.1 requests that do not contain a Host header
-        // see https://www.rfc-editor.org/info/rfc9112/#section-3.2
-        if ver == Version::HTTP_11 && !msg.head().headers.contains_key(header::HOST) {
+        if let Some(host) = msg.head().headers.get(header::HOST) {
+            // Host contains only the host and optional port, never other URI components.
+            if host
+                .as_bytes()
+                .iter()
+                .any(|b| matches!(b, b'@' | b'/' | b'?' | b'#'))
+            {
+                return Err(ParseError::Header);
+            }
+        } else if ver == Version::HTTP_11 {
             debug!("missing Host header for HTTP/1.1 request");
             return Err(ParseError::Header);
         }
@@ -1421,6 +1428,24 @@ mod tests {
 
         let mut req = BytesMut::from("GET /path%23frag HTTP/1.1\r\nHost: example.com\r\n\r\n");
         assert_eq!(parse_ready!(&mut req).path(), "/path%23frag");
+    }
+
+    #[test]
+    fn reject_host_uri_delimiters() {
+        for host in [
+            "user@example.com",
+            "example.com/path",
+            "example.com?q",
+            "example.com#frag",
+        ] {
+            let req = format!("GET / HTTP/1.1\r\nHost: {host}\r\n\r\n");
+            expect_parse_err!(&mut BytesMut::from(req.as_str()));
+        }
+
+        for (target, host) in [("/", "[::1]:8080"), ("/", "example.com:80")] {
+            let req = format!("GET {target} HTTP/1.1\r\nHost: {host}\r\n\r\n");
+            parse_ready!(&mut BytesMut::from(req.as_str()));
+        }
     }
 
     #[test]
