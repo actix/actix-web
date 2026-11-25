@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `Directory::entries()` and `DirectoryEntry` to simplify custom directory listing renderers.
+
 ## 0.7.5
 
 - Reject malformed byte positions in `Range` headers.

@@ -38,7 +38,7 @@ mod service;
 
 pub use self::{
     chunked::ChunkedReadFile,
-    directory::Directory,
+    directory::{Directory, DirectoryEntry},
     error::UriSegmentError,
     files::{Files, FilesDirs},
     named::NamedFile,

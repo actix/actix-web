@@ -293,6 +293,45 @@ impl Files {
     }
 
     /// Set custom directory renderer.
+    ///
+    /// Use [`Directory::entries()`] to get the visible entries with their percent-encoded URLs.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_files::Files;
+    /// use actix_web::{dev::ServiceResponse, HttpResponse};
+    ///
+    /// fn escape(s: &str) -> String {
+    ///     s.replace('&', "&amp;")
+    ///         .replace('<', "&lt;")
+    ///         .replace('>', "&gt;")
+    ///         .replace('"', "&quot;")
+    /// }
+    ///
+    /// let files = Files::new("/", ".")
+    ///     .show_files_listing()
+    ///     .files_listing_renderer(|dir, req| {
+    ///         let mut html = String::from("<ul>");
+    ///         for entry in dir.entries(req)? {
+    ///             let slash = if entry.is_dir { "/" } else { "" };
+    ///             html.push_str(&format!(
+    ///                 "<li><a href=\"{}\">{}{}</a></li>",
+    ///                 escape(&entry.url),
+    ///                 escape(&entry.name),
+    ///                 slash,
+    ///             ));
+    ///         }
+    ///         html.push_str("</ul>");
+    ///
+    ///         Ok(ServiceResponse::new(
+    ///             req.clone(),
+    ///             HttpResponse::Ok()
+    ///                 .content_type("text/html; charset=utf-8")
+    ///                 .body(html),
+    ///         ))
+    ///     });
+    /// # let _ = files;
+    /// ```
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
         for<'r, 's> F:
@@ -608,5 +647,35 @@ mod tests {
             actual_path,
             expected_path
         );
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn custom_files_listing_renderer_entries() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .show_files_listing()
+                    .files_listing_renderer(|dir, req| {
+                        let body = dir
+                            .entries(req)?
+                            .iter()
+                            .map(|e| format!("{}|{}|{}", e.name, e.url, e.is_dir))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        Ok(ServiceResponse::new(req.clone(), HttpResponse::Ok().body(body)))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = test::call_service(&srv, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        assert!(body_str.contains("test space.binary|/test%20space.binary|false"));
+        assert!(body_str.contains("fixtures|/fixtures|true"));
+        assert!(body_str.lines().all(|line| !line.starts_with('.')));
     }
 }
