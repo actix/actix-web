@@ -319,6 +319,11 @@ impl MessageType for Request {
             {
                 return Err(ParseError::Header);
             }
+
+            if ver == Version::HTTP_11 && host.is_empty() && uri.authority().is_none() {
+                debug!("empty authority for HTTP/1.1 request");
+                return Err(ParseError::Header);
+            }
         } else if ver == Version::HTTP_11 {
             debug!("missing Host header for HTTP/1.1 request");
             return Err(ParseError::Header);
@@ -1433,6 +1438,15 @@ mod tests {
             let req = format!("GET {target} HTTP/1.1\r\nHost: {host}\r\n\r\n");
             parse_ready!(&mut BytesMut::from(req.as_str()));
         }
+    }
+
+    #[test]
+    fn empty_host_requires_target_authority_in_http11() {
+        let mut req = BytesMut::from("GET / HTTP/1.1\r\nHost: \r\n\r\n");
+        expect_parse_err!(&mut req);
+
+        let mut req = BytesMut::from("GET http://example.com/ HTTP/1.1\r\nHost: \r\n\r\n");
+        parse_ready!(&mut req);
     }
 
     #[test]
