@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Outline cold percent-decoding and UTF-8 conversion paths in `Quoter::requote` and `Quoter::requote_str_lossy` to improve unquoted path performance.
+
 ## 0.5.5
 
 - Add support for extracting multi-component path params into a sequence (Vec, tuple, ...).

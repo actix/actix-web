@@ -65,8 +65,19 @@ impl Quoter {
         // early return indicates that no percent-encoded sequences exist and we can skip allocation
         let (pre, decoded_char) = self.decode_next(&mut remaining)?;
 
+        Some(self.requote_slow(val.len(), pre, decoded_char, remaining))
+    }
+
+    #[cold]
+    fn requote_slow(
+        &self,
+        cap: usize,
+        pre: &[u8],
+        decoded_char: u8,
+        mut remaining: &[u8],
+    ) -> Vec<u8> {
         // decoded output will always be shorter than the input
-        let mut decoded = Vec::<u8>::with_capacity(val.len());
+        let mut decoded = Vec::<u8>::with_capacity(cap);
 
         // push first segment and decoded char
         decoded.extend_from_slice(pre);
@@ -83,13 +94,17 @@ impl Quoter {
 
         decoded.extend_from_slice(remaining);
 
-        Some(decoded)
+        decoded
     }
 
     pub(crate) fn requote_str_lossy(&self, val: &str) -> Option<String> {
-        self.requote(val.as_bytes())
-            .map(|data| String::from_utf8_lossy(&data).into_owned())
+        self.requote(val.as_bytes()).map(bytes_to_string_lossy)
     }
+}
+
+#[cold]
+fn bytes_to_string_lossy(data: Vec<u8>) -> String {
+    String::from_utf8_lossy(&data).into_owned()
 }
 
 /// Decode a ASCII hex-encoded pair to an integer.
