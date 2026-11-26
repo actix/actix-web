@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `GET/HEAD/OPTIONS/TRACE` methods no longer send a request body on request.
 - Keep the request method and body when following a 301 or 302 redirect for methods other than `POST`, as already done for 307 and 308. For example, a `PUT` that gets a 302 is now sent again as a `PUT` with the same body (also to another origin) instead of as a `GET` without a body. `POST` still changes to `GET`, and 303 is unchanged.
 
 ## 3.11.0

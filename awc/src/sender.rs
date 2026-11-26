@@ -189,16 +189,14 @@ impl RequestSender {
         body: impl MessageBody + 'static,
     ) -> SendClientRequest {
         let req = match self {
-            RequestSender::Owned(head) => ConnectRequest::Client(
-                RequestHeadType::Owned(head),
-                AnyBody::from_message_body(body).into_boxed(),
-                addr,
-            ),
-            RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
-                RequestHeadType::Rc(head, extra_headers),
-                AnyBody::from_message_body(body).into_boxed(),
-                addr,
-            ),
+            RequestSender::Owned(head) => {
+                let body = AnyBody::from_message_body(&head, body).into_boxed();
+                ConnectRequest::Client(RequestHeadType::Owned(head), body, addr)
+            }
+            RequestSender::Rc(head, extra_headers) => {
+                let body = AnyBody::from_message_body(&head, body).into_boxed();
+                ConnectRequest::Client(RequestHeadType::Rc(head, extra_headers), body, addr)
+            }
         };
 
         let fut = config.connector.call(req);
