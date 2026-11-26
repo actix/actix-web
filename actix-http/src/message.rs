@@ -90,9 +90,14 @@ impl<T: Head> MessagePool<T> {
                 .clear();
             Message { head: msg }
         } else {
-            Message {
-                head: Rc::new(T::default()),
-            }
+            Self::alloc_message()
+        }
+    }
+
+    #[cold]
+    fn alloc_message() -> Message<T> {
+        Message {
+            head: Rc::new(T::default()),
         }
     }
 

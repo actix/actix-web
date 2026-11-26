@@ -93,7 +93,7 @@ impl ResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(err) => self.err = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
 
@@ -119,7 +119,7 @@ impl ResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(err) => self.err = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
 
@@ -193,7 +193,7 @@ impl ResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(err) => self.err = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
         self
@@ -208,7 +208,7 @@ impl ResponseBuilder {
     {
         match self.message_body(body) {
             Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
-            Err(err) => Response::from(err).map_body(|_, body| EitherBody::right(body)),
+            Err(err) => error_response(err).map_body(|_, body| EitherBody::right(body)),
         }
     }
 
@@ -217,7 +217,7 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     pub fn message_body<B>(&mut self, body: B) -> Result<Response<B>, Error> {
         if let Some(err) = self.err.take() {
-            return Err(Error::new_http().with_cause(err));
+            return Err(http_error(err));
         }
 
         let head = self.head.take().expect("Cannot reuse response builder");
@@ -253,6 +253,21 @@ impl ResponseBuilder {
 
         self.head.as_deref_mut()
     }
+
+    #[cold]
+    fn set_error(&mut self, err: HttpError) {
+        self.err = Some(err);
+    }
+}
+
+#[cold]
+fn http_error(err: HttpError) -> Error {
+    Error::new_http().with_cause(err)
+}
+
+#[cold]
+fn error_response(err: Error) -> Response<crate::body::BoxBody> {
+    Response::from(err)
 }
 
 impl Default for ResponseBuilder {
