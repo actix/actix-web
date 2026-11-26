@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include error source chain in `MultipartError` response bodies (e.g. `Payload error: Payload reached size limit`). [#4168]
+
 ## 0.8.9
 
 - Respond with `413 Payload Too Large` for `MultipartError::Payload(PayloadError::Overflow)` errors.

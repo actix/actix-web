@@ -1,9 +1,10 @@
 //! Error and Result module
 
 use actix_web::{
+    body::BoxBody,
     error::{ParseError, PayloadError},
-    http::StatusCode,
-    ResponseError,
+    http::{header::ContentType, StatusCode},
+    HttpResponse, ResponseError,
 };
 use derive_more::{Display, Error, From};
 
@@ -109,6 +110,20 @@ impl ResponseError for Error {
             _ => StatusCode::BAD_REQUEST,
         }
     }
+
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        let mut body = self.to_string();
+        let mut src = std::error::Error::source(self);
+        while let Some(err) = src {
+            body.push_str(": ");
+            body.push_str(&err.to_string());
+            src = err.source();
+        }
+
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::plaintext())
+            .body(body)
+    }
 }
 
 #[cfg(test)]
@@ -150,5 +165,24 @@ mod tests {
             Report::new(&err).to_string(),
             "An error occurred processing field \"avatar\": invalid file format"
         );
+    }
+
+    #[test]
+    fn test_multipart_error_response_body() {
+        use actix_web::{body::to_bytes, http::header::CONTENT_TYPE};
+
+        actix_web::rt::System::new().block_on(async {
+            let resp = Error::Payload(PayloadError::Overflow).error_response();
+            assert_eq!(
+                resp.headers().get(CONTENT_TYPE).unwrap(),
+                "text/plain; charset=utf-8"
+            );
+            let body = to_bytes(resp.into_body()).await.unwrap();
+            assert_eq!(body, &b"Payload error: Payload reached size limit"[..]);
+
+            let resp = Error::BoundaryMissing.error_response();
+            let body = to_bytes(resp.into_body()).await.unwrap();
+            assert_eq!(body, &b"Multipart boundary is not found"[..]);
+        });
     }
 }
