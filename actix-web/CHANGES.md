@@ -10,6 +10,7 @@
 - Make `HttpResponse::del_cookie()` available with either cookie feature.
 - Enable signed and private cookies for cookie (v0.18) when both `cookies-0_18` and `secure-cookies` are enabled.
 - Fix `guard::Acceptable` matching media ranges that the `Accept` header marks as not acceptable (`q=0`); the most specific matching media range now decides the outcome.
+- Fix `middleware::Logger` panicking on construction when the format string contains a `%{..}a` sequence other than `%{r}a`; such sequences are now logged as literal text.
 
 ## 4.20.0
 

@@ -515,13 +515,9 @@ impl Format {
 
             if let Some(key) = cap.get(2) {
                 results.push(match cap.get(3).unwrap().as_str() {
-                    "a" => {
-                        if key.as_str() == "r" {
-                            FormatText::RealIpRemoteAddr
-                        } else {
-                            unreachable!("regex and code mismatch")
-                        }
-                    }
+                    "a" if key.as_str() == "r" => FormatText::RealIpRemoteAddr,
+                    // only `%{r}a` is supported; keep other `%{..}a` sequences as literal text
+                    "a" => FormatText::Str(m.as_str().to_owned()),
                     "i" => FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap()),
                     "o" => FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap()),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
@@ -828,6 +824,33 @@ mod tests {
         };
         let s = format!("{}", FormatDisplay(&render));
         assert_eq!(s, "%{r}a");
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn test_unknown_remote_addr_key() {
+        let mut format = Format::new("%{x}a %s");
+
+        let req = TestRequest::default().to_srv_request();
+        let now = OffsetDateTime::now_utc();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
+
+        let req = TestRequest::default().to_http_request();
+        let res = ServiceResponse::new(req, HttpResponse::Ok().finish());
+        for unit in &mut format.0 {
+            unit.render_response(&res);
+        }
+
+        let entry_time = OffsetDateTime::now_utc();
+        let render = |fmt: &mut fmt::Formatter<'_>| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, entry_time)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert_eq!(s, "%{x}a 200");
     }
 
     #[tokio::test(flavor = "local")]
