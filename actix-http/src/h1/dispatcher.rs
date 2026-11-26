@@ -390,6 +390,7 @@ where
         }
     }
 
+    #[cold]
     fn client_disconnected(self: Pin<&mut Self>) {
         let this = self.project();
 
@@ -516,6 +517,7 @@ where
         }
     }
 
+    #[cold]
     fn poll_linger(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -625,6 +627,7 @@ where
         Ok(())
     }
 
+    #[cold]
     fn send_error_response(
         mut self: Pin<&mut Self>,
         mut res: Response<()>,
@@ -675,6 +678,7 @@ where
         Ok(())
     }
 
+    #[cold]
     fn send_continue(self: Pin<&mut Self>) {
         let mut this = self.project();
 
@@ -838,106 +842,128 @@ where
                     return Ok(PollResponse::DrainWriteBuf);
                 }
 
-                StateProj::SendErrorPayload { mut body } => {
-                    // TODO: de-dupe impl with SendPayload
-
-                    // keep populate writer buffer until buffer size limit hit,
-                    // get blocked or finished.
-                    while this.write_buf.len() < *this.h1_write_buffer_size
-                        && this.write_body.is_none()
-                    {
-                        match body.as_mut().poll_next(cx) {
-                            Poll::Ready(Some(Ok(chunk))) => {
-                                let write_vectored =
-                                    this.io.as_ref().is_some_and(|io| io.is_write_vectored());
-
-                                if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
-                                    this.codec,
-                                    this.write_body,
-                                    write_vectored,
-                                    *this.h1_write_buffer_size,
-                                    chunk,
-                                ) {
-                                    this.codec
-                                        .encode(Message::Chunk(Some(item)), this.write_buf)?;
-                                }
-                            }
-
-                            Poll::Ready(None) => {
-                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
-
-                                // if we have not yet pipelined to the next request, then
-                                // this.payload was the payload for the request we just finished
-                                // responding to. We can check to see if we finished reading it
-                                // yet, and if not, shutdown the connection.
-                                let close_for_unread_payload = should_close_for_unread_payload(
-                                    this.payload.as_ref(),
-                                    *this.payload_drainable,
-                                );
-                                let not_pipelined = this.messages.is_empty();
-
-                                // payload stream finished.
-                                // set state to None and handle next message
-                                this.state.set(State::None);
-
-                                if not_pipelined && close_for_unread_payload {
-                                    if this.config.client_disconnect_deadline().is_some() {
-                                        Self::enter_linger(this.flags);
-                                    } else {
-                                        this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
-                                    }
-                                } else {
-                                    this.flags.insert(Flags::FINISHED);
-                                }
-
-                                continue 'res;
-                            }
-
-                            Poll::Ready(Some(Err(err))) => {
-                                tracing::error!("Response payload stream error: {err:?}");
-                                this.flags.insert(Flags::FINISHED);
-                                return Err(DispatchError::Body(
-                                    Error::new_body().with_cause(err).into(),
-                                ));
-                            }
-
-                            Poll::Pending => return Ok(PollResponse::DoNothing),
-                        }
+                StateProj::SendErrorPayload { .. } => {
+                    if let Some(res) = self.as_mut().poll_send_error_payload(cx)? {
+                        return Ok(res);
                     }
-
-                    // buffer is beyond max size
-                    // return and try to write the whole buffer to stream
-                    return Ok(PollResponse::DrainWriteBuf);
+                    continue 'res;
                 }
 
-                StateProj::ExpectCall { fut } => {
-                    trace!("  calling expect service");
-
-                    match fut.poll(cx) {
-                        // expect resolved. write continue to buffer and set InnerDispatcher state
-                        // to service call.
-                        Poll::Ready(Ok(req)) => {
-                            this.ensure_body_buffered();
-
-                            this.write_buf
-                                .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
-
-                            let fut = this.flow.service.call(req);
-                            this.state.set(State::ServiceCall { fut });
-                        }
-
-                        // send expect error as response
-                        Poll::Ready(Err(err)) => {
-                            let res: Response<BoxBody> = err.into();
-                            let (res, body) = res.replace_body(());
-                            self.as_mut().send_error_response(res, body)?;
-                        }
-
-                        // expect must be solved before progress can be made.
-                        Poll::Pending => return Ok(PollResponse::DoNothing),
+                StateProj::ExpectCall { .. } => {
+                    if let Some(res) = self.as_mut().poll_expect_call(cx)? {
+                        return Ok(res);
                     }
                 }
             }
+        }
+    }
+
+    #[cold]
+    fn poll_send_error_payload(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<Option<PollResponse>, DispatchError> {
+        let mut this = self.project();
+        let StateProj::SendErrorPayload { mut body } = this.state.as_mut().project() else {
+            unreachable!("poll_send_error_payload called outside SendErrorPayload state");
+        };
+
+        // keep populate writer buffer until buffer size limit hit,
+        // get blocked or finished.
+        while this.write_buf.len() < *this.h1_write_buffer_size && this.write_body.is_none() {
+            match body.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(chunk))) => {
+                    let write_vectored = this.io.as_ref().is_some_and(|io| io.is_write_vectored());
+
+                    if let ChunkDisposition::NeedsBuffering(item) = prepare_chunk(
+                        this.codec,
+                        this.write_body,
+                        write_vectored,
+                        *this.h1_write_buffer_size,
+                        chunk,
+                    ) {
+                        this.codec
+                            .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                    }
+                }
+
+                Poll::Ready(None) => {
+                    this.codec.encode(Message::Chunk(None), this.write_buf)?;
+
+                    let close_for_unread_payload = should_close_for_unread_payload(
+                        this.payload.as_ref(),
+                        *this.payload_drainable,
+                    );
+                    let not_pipelined = this.messages.is_empty();
+
+                    this.state.set(State::None);
+
+                    if not_pipelined && close_for_unread_payload {
+                        if this.config.client_disconnect_deadline().is_some() {
+                            Self::enter_linger(this.flags);
+                        } else {
+                            this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                        }
+                    } else {
+                        this.flags.insert(Flags::FINISHED);
+                    }
+
+                    return Ok(None);
+                }
+
+                Poll::Ready(Some(Err(err))) => {
+                    tracing::error!("Response payload stream error: {err:?}");
+                    this.flags.insert(Flags::FINISHED);
+                    return Err(DispatchError::Body(
+                        Error::new_body().with_cause(err).into(),
+                    ));
+                }
+
+                Poll::Pending => return Ok(Some(PollResponse::DoNothing)),
+            }
+        }
+
+        // buffer is beyond max size
+        // return and try to write the whole buffer to stream
+        Ok(Some(PollResponse::DrainWriteBuf))
+    }
+
+    #[cold]
+    fn poll_expect_call(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<Option<PollResponse>, DispatchError> {
+        let mut this = self.as_mut().project();
+        let StateProj::ExpectCall { fut } = this.state.as_mut().project() else {
+            unreachable!("poll_expect_call called outside ExpectCall state");
+        };
+
+        trace!("  calling expect service");
+
+        match fut.poll(cx) {
+            // expect resolved. write continue to buffer and set InnerDispatcher state
+            // to service call.
+            Poll::Ready(Ok(req)) => {
+                this.ensure_body_buffered();
+
+                this.write_buf
+                    .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
+
+                let fut = this.flow.service.call(req);
+                this.state.set(State::ServiceCall { fut });
+                Ok(None)
+            }
+
+            // send expect error as response
+            Poll::Ready(Err(err)) => {
+                let res: Response<BoxBody> = err.into();
+                let (res, body) = res.replace_body(());
+                self.as_mut().send_error_response(res, body)?;
+                Ok(None)
+            }
+
+            // expect must be solved before progress can be made.
+            Poll::Pending => Ok(Some(PollResponse::DoNothing)),
         }
     }
 
@@ -1098,12 +1124,9 @@ where
                             if let Some(ref mut payload) = this.payload {
                                 payload.feed_data(chunk);
                             } else {
-                                error!("Internal server error: unexpected payload chunk");
-                                this.flags.insert(Flags::READ_DISCONNECT);
-                                this.messages.push_back(DispatcherMessage::Error(
-                                    Response::internal_server_error().drop_body(),
-                                ));
-                                *this.error = Some(DispatchError::InternalError);
+                                self.as_mut().handle_unexpected_payload_error(
+                                    "Internal server error: unexpected payload chunk",
+                                );
                                 break;
                             }
                         }
@@ -1113,12 +1136,9 @@ where
                                 payload.feed_eof();
                                 *this.payload_drainable = false;
                             } else {
-                                error!("Internal server error: unexpected eof");
-                                this.flags.insert(Flags::READ_DISCONNECT);
-                                this.messages.push_back(DispatcherMessage::Error(
-                                    Response::internal_server_error().drop_body(),
-                                ));
-                                *this.error = Some(DispatchError::InternalError);
+                                self.as_mut().handle_unexpected_payload_error(
+                                    "Internal server error: unexpected eof",
+                                );
                                 break;
                             }
                         }
@@ -1143,54 +1163,72 @@ where
                     break;
                 }
 
-                Err(ParseError::Io(err)) => {
-                    trace!("I/O error: {}", &err);
-                    self.as_mut().client_disconnected();
-                    this = self.as_mut().project();
-                    *this.error = Some(DispatchError::Io(err));
-                    break;
-                }
-
-                Err(ParseError::TooLarge) => {
-                    trace!("request head was too big; returning 431 response");
-
-                    if let Some(mut payload) = this.payload.take() {
-                        payload.set_error(PayloadError::Overflow);
-                    }
-
-                    // request heads that overflow buffer size return a 431 error
-                    this.messages
-                        .push_back(DispatcherMessage::Error(Response::with_body(
-                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-                            (),
-                        )));
-
-                    this.flags.insert(Flags::READ_DISCONNECT);
-                    *this.error = Some(ParseError::TooLarge.into());
-
-                    break;
-                }
-
                 Err(err) => {
-                    trace!("parse error {}", &err);
-
-                    if let Some(mut payload) = this.payload.take() {
-                        payload.set_error(PayloadError::EncodingCorrupted);
-                    }
-
-                    // malformed requests should be responded with 400
-                    this.messages.push_back(DispatcherMessage::Error(
-                        Response::bad_request().drop_body(),
-                    ));
-
-                    this.flags.insert(Flags::READ_DISCONNECT);
-                    *this.error = Some(err.into());
+                    self.as_mut().handle_parse_error(err);
                     break;
                 }
             }
         }
 
         Ok(updated)
+    }
+
+    #[cold]
+    fn handle_unexpected_payload_error(self: Pin<&mut Self>, msg: &'static str) {
+        let this = self.project();
+        error!("{msg}");
+        this.flags.insert(Flags::READ_DISCONNECT);
+        this.messages.push_back(DispatcherMessage::Error(
+            Response::internal_server_error().drop_body(),
+        ));
+        *this.error = Some(DispatchError::InternalError);
+    }
+
+    #[cold]
+    fn handle_parse_error(mut self: Pin<&mut Self>, err: ParseError) {
+        match err {
+            ParseError::Io(err) => {
+                trace!("I/O error: {}", &err);
+                self.as_mut().client_disconnected();
+                *self.project().error = Some(DispatchError::Io(err));
+            }
+
+            ParseError::TooLarge => {
+                trace!("request head was too big; returning 431 response");
+                let this = self.project();
+
+                if let Some(mut payload) = this.payload.take() {
+                    payload.set_error(PayloadError::Overflow);
+                }
+
+                // request heads that overflow buffer size return a 431 error
+                this.messages
+                    .push_back(DispatcherMessage::Error(Response::with_body(
+                        StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                        (),
+                    )));
+
+                this.flags.insert(Flags::READ_DISCONNECT);
+                *this.error = Some(ParseError::TooLarge.into());
+            }
+
+            err => {
+                trace!("parse error {}", &err);
+                let this = self.project();
+
+                if let Some(mut payload) = this.payload.take() {
+                    payload.set_error(PayloadError::EncodingCorrupted);
+                }
+
+                // malformed requests should be responded with 400
+                this.messages.push_back(DispatcherMessage::Error(
+                    Response::bad_request().drop_body(),
+                ));
+
+                this.flags.insert(Flags::READ_DISCONNECT);
+                *this.error = Some(err.into());
+            }
+        }
     }
 
     fn poll_head_timer(
@@ -1407,6 +1445,7 @@ where
     }
 
     /// call upgrade service with request.
+    #[cold]
     fn upgrade(self: Pin<&mut Self>, req: Request) -> U::Future {
         let mut this = self.project();
         let mut parts = FramedParts::with_read_buf(

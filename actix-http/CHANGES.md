@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Outline cold allocation, error, and rare-protocol paths with `#[cold]` or `#[inline(never)]` across object pools, response builders, compression selection, and HTTP/1 encoding and dispatch.
 - Reject an empty HTTP/1.1 `Host` when the request target supplies no authority.
 - Reject HTTP/1 requests with userinfo, path, query, or fragment delimiters in `Host`.
 - Reject HTTP/1 request targets with a fragment.

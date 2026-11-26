@@ -183,9 +183,14 @@ impl BoxedResponsePool {
             head.flags = Flags::empty();
             BoxedResponseHead { head: Some(head) }
         } else {
-            BoxedResponseHead {
-                head: Some(Box::new(ResponseHead::new(status))),
-            }
+            Self::alloc_message(status)
+        }
+    }
+
+    #[cold]
+    fn alloc_message(status: StatusCode) -> BoxedResponseHead {
+        BoxedResponseHead {
+            head: Some(Box::new(ResponseHead::new(status))),
         }
     }
 

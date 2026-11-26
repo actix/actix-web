@@ -310,6 +310,7 @@ where
     }
 }
 
+#[inline(never)]
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut()
         .insert(header::CONTENT_ENCODING, encoding.to_header_value());
@@ -336,6 +337,7 @@ enum ContentEncoder {
 }
 
 impl ContentEncoder {
+    #[inline(never)]
     fn select(encoding: ContentEncoding) -> Option<Self> {
         match encoding {
             #[cfg(feature = "compress-gzip")]

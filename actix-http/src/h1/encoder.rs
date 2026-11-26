@@ -120,43 +120,8 @@ pub(crate) trait MessageType: Sized {
         // Response upgrade advertisements need a connection option (RFC 9110, Section 7.8).
         let has_upgrade = self.status().is_some() && self.headers().contains_key(UPGRADE);
 
-        match (conn_type, has_upgrade) {
-            (ConnectionType::Close, true) if version >= Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: close, upgrade\r\n")
-                } else {
-                    dst.put_slice(b"connection: close, upgrade\r\n")
-                }
-            }
-            (ConnectionType::KeepAlive, true) if version < Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: keep-alive, upgrade\r\n")
-                } else {
-                    dst.put_slice(b"connection: keep-alive, upgrade\r\n")
-                }
-            }
-            (ConnectionType::Upgrade, _) | (_, true) => {
-                if camel_case {
-                    dst.put_slice(b"Connection: Upgrade\r\n")
-                } else {
-                    dst.put_slice(b"connection: upgrade\r\n")
-                }
-            }
-            (ConnectionType::KeepAlive, false) if version < Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: keep-alive\r\n")
-                } else {
-                    dst.put_slice(b"connection: keep-alive\r\n")
-                }
-            }
-            (ConnectionType::Close, false) if version >= Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: close\r\n")
-                } else {
-                    dst.put_slice(b"connection: close\r\n")
-                }
-            }
-            _ => {}
+        if conn_type != ConnectionType::KeepAlive || has_upgrade || version < Version::HTTP_11 {
+            write_connection_header(dst, version, conn_type, has_upgrade, camel_case);
         }
 
         // write headers
@@ -192,17 +157,8 @@ pub(crate) trait MessageType: Sized {
                 if len > remaining {
                     // SAFETY: all the bytes written up to position "pos" are initialized
                     // the written byte count and pointer advancement are kept in sync
-                    unsafe {
-                        dst.advance_mut(pos);
-                    }
-
+                    (buf, remaining) = unsafe { grow_header_buf(dst, pos, len) };
                     pos = 0;
-                    dst.reserve(len * 2);
-                    remaining = dst.capacity() - dst.len();
-
-                    // re-assign buf raw pointer since it's possible that the buffer was
-                    // reallocated and/or resized
-                    buf = dst.chunk_mut().as_mut_ptr();
                 }
 
                 // SAFETY: on each write, it is enough to ensure that the advancement of
@@ -535,6 +491,68 @@ impl TransferEncoding {
     }
 }
 
+#[inline(never)]
+fn write_connection_header(
+    dst: &mut BytesMut,
+    version: Version,
+    conn_type: ConnectionType,
+    has_upgrade: bool,
+    camel_case: bool,
+) {
+    match (conn_type, has_upgrade) {
+        (ConnectionType::Close, true) if version >= Version::HTTP_11 => {
+            if camel_case {
+                dst.put_slice(b"Connection: close, upgrade\r\n")
+            } else {
+                dst.put_slice(b"connection: close, upgrade\r\n")
+            }
+        }
+        (ConnectionType::KeepAlive, true) if version < Version::HTTP_11 => {
+            if camel_case {
+                dst.put_slice(b"Connection: keep-alive, upgrade\r\n")
+            } else {
+                dst.put_slice(b"connection: keep-alive, upgrade\r\n")
+            }
+        }
+        (ConnectionType::Upgrade, _) | (_, true) => {
+            if camel_case {
+                dst.put_slice(b"Connection: Upgrade\r\n")
+            } else {
+                dst.put_slice(b"connection: upgrade\r\n")
+            }
+        }
+        (ConnectionType::KeepAlive, false) if version < Version::HTTP_11 => {
+            if camel_case {
+                dst.put_slice(b"Connection: keep-alive\r\n")
+            } else {
+                dst.put_slice(b"connection: keep-alive\r\n")
+            }
+        }
+        (ConnectionType::Close, false) if version >= Version::HTTP_11 => {
+            if camel_case {
+                dst.put_slice(b"Connection: close\r\n")
+            } else {
+                dst.put_slice(b"connection: close\r\n")
+            }
+        }
+        _ => {}
+    }
+}
+
+/// # Safety
+/// Callers must ensure that all `pos` bytes written to `dst` since the last cursor update are
+/// initialized.
+#[cold]
+unsafe fn grow_header_buf(dst: &mut BytesMut, pos: usize, len: usize) -> (*mut u8, usize) {
+    dst.advance_mut(pos);
+    dst.reserve(len * 2);
+
+    let remaining = dst.capacity() - dst.len();
+    let buf = dst.chunk_mut().as_mut_ptr();
+
+    (buf, remaining)
+}
+
 /// # Safety
 /// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
 /// valid for writes of at least `len` bytes.
@@ -546,6 +564,7 @@ unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
 /// # Safety
 /// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
 /// valid for writes of at least `len` bytes.
+#[cold]
 unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
     // first copy entire (potentially wrong) slice to output
     write_data(value, buf, len);
