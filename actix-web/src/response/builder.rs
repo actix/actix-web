@@ -64,7 +64,7 @@ impl HttpResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(err) => self.error = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
 
@@ -86,7 +86,7 @@ impl HttpResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(err) => self.error = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
 
@@ -210,7 +210,7 @@ impl HttpResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(err) => self.error = Some(err.into()),
+                Err(err) => self.set_error(err.into()),
             };
         }
         self
@@ -309,7 +309,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
         if let Some(err) = self.error.take() {
-            return Err(err.into());
+            return Err(http_error_into_error(err));
         }
 
         let res = self
@@ -400,6 +400,16 @@ impl HttpResponseBuilder {
 
         self.res.as_mut().map(Response::head_mut)
     }
+
+    #[cold]
+    fn set_error(&mut self, err: HttpError) {
+        self.error = Some(err);
+    }
+}
+
+#[cold]
+fn http_error_into_error(err: HttpError) -> Error {
+    err.into()
 }
 
 impl From<HttpResponseBuilder> for HttpResponse {

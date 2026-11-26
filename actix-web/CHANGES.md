@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Outline cold error paths in `HttpResponse::from_error` and `HttpResponseBuilder` with `#[cold]` to reduce hot-path code size and response build latency.
 - Add the `cookies-0_18` crate feature and re-export cookie (v0.18) as `actix_web::cookie_0_18`. This feature can be enabled alongside `cookies`.
 - Add `HttpRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` and `ServiceRequest::{cookies_0_18,cookie_0_18,cookies_raw_0_18,cookie_raw_0_18}` for reading request cookies.
 - Add `HttpResponse::{cookies_0_18,add_cookie_0_18,add_removal_cookie_0_18}` for reading and appending response cookies.
