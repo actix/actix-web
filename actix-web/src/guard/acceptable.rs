@@ -1,10 +1,14 @@
 use super::{Guard, GuardContext};
-use crate::http::header::Accept;
+use crate::http::header::{Accept, Quality};
 
 /// A guard that verifies that an `Accept` header is present and it contains a compatible MIME type.
 ///
 /// An exception is that matching `*/*` must be explicitly enabled because most browsers send this
 /// as part of their `Accept` header for almost every request.
+///
+/// The most specific media range that matches the target type decides the outcome. The guard fails
+/// when that range has a quality value of 0, so `Acceptable::new(mime::APPLICATION_JSON)` rejects
+/// `Accept: application/*, application/json;q=0`.
 ///
 /// # Examples
 /// ```
@@ -52,16 +56,25 @@ impl Guard for Acceptable {
         let target_type = self.mime.type_();
         let target_subtype = self.mime.subtype();
 
-        for mime in accept.0.into_iter().map(|q| q.item) {
-            return match (mime.type_(), mime.subtype()) {
-                (typ, subtype) if typ == target_type && subtype == target_subtype => true,
-                (typ, mime::STAR) if typ == target_type => true,
-                (mime::STAR, mime::STAR) if self.match_star_star => true,
+        // The most specific matching media range decides the outcome, so that, for example,
+        // `application/json;q=0` takes precedence over `application/*` (RFC 9110 §12.5.1).
+        let mut best_match = None;
+
+        for item in &accept.0 {
+            let specificity = match (item.item.type_(), item.item.subtype()) {
+                (typ, subtype) if typ == target_type && subtype == target_subtype => 2,
+                (typ, mime::STAR) if typ == target_type => 1,
+                (mime::STAR, mime::STAR) if self.match_star_star => 0,
                 _ => continue,
             };
+
+            // media type parameters are not compared, so among equally specific ranges the
+            // highest quality value is used
+            best_match = best_match.max(Some((specificity, item.quality)));
         }
 
-        false
+        // a quality value of 0 means "not acceptable" (RFC 9110 §12.4.2)
+        matches!(best_match, Some((_, quality)) if quality > Quality::ZERO)
     }
 
     #[cfg(feature = "experimental-introspection")]
@@ -105,6 +118,57 @@ mod tests {
             .insert_header((header::ACCEPT, "text/html, application/json"))
             .to_srv_request();
         assert!(Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+    }
+
+    #[test]
+    fn test_acceptable_zero_quality() {
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/json;q=0"))
+            .to_srv_request();
+        assert!(!Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/*;q=0"))
+            .to_srv_request();
+        assert!(!Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "*/*;q=0"))
+            .to_srv_request();
+        assert!(!Acceptable::new(mime::APPLICATION_JSON)
+            .match_star_star()
+            .check(&req.guard_ctx()));
+
+        // more specific range takes precedence, regardless of order
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/*, application/json;q=0"))
+            .to_srv_request();
+        assert!(!Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "*/*, application/json;q=0"))
+            .to_srv_request();
+        assert!(!Acceptable::new(mime::APPLICATION_JSON)
+            .match_star_star()
+            .check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/*;q=0, application/json;q=0.5"))
+            .to_srv_request();
+        assert!(Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "*/*;q=0, application/*"))
+            .to_srv_request();
+        assert!(Acceptable::new(mime::APPLICATION_JSON)
+            .match_star_star()
+            .check(&req.guard_ctx()));
+
+        // parameters are not compared, so an equally specific non-zero range still passes
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "text/html;level=1;q=0, text/html"))
+            .to_srv_request();
+        assert!(Acceptable::new(mime::TEXT_HTML).check(&req.guard_ctx()));
     }
 
     #[test]

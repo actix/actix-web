@@ -9,6 +9,7 @@
 - Add `TestRequest::cookie_0_18()` for setting a cookie on a test request.
 - Make `HttpResponse::del_cookie()` available with either cookie feature.
 - Enable signed and private cookies for cookie (v0.18) when both `cookies-0_18` and `secure-cookies` are enabled.
+- Fix `guard::Acceptable` matching media ranges that the `Accept` header marks as not acceptable (`q=0`); the most specific matching media range now decides the outcome.
 
 ## 4.20.0
 
