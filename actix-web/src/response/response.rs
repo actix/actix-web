@@ -45,7 +45,11 @@ impl HttpResponse<BoxBody> {
     /// Create an error response.
     #[inline]
     pub fn from_error(error: impl Into<Error>) -> Self {
-        let error = error.into();
+        Self::from_error_inner(error.into())
+    }
+
+    #[cold]
+    fn from_error_inner(error: Error) -> Self {
         let mut response = error.as_response_error().error_response();
         response.error = Some(error);
         response
