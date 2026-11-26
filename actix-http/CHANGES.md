@@ -7,6 +7,7 @@
 - Reject HTTP/1 request targets with a fragment.
 - Reserve the HTTP/1 asterisk request target for `OPTIONS`.
 - Reject HTTP/1 requests with multiple `Content-Type` header fields.
+- Fix an HTTP/1 connection that lingers after an early response staying open past its client disconnect timeout when the deadline has already elapsed as the timer is set.
 
 ## 3.22.1
 

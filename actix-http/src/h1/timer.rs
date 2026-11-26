@@ -52,7 +52,10 @@ impl TimerState {
 
     pub(super) fn init(&mut self, cx: &mut Context<'_>) {
         if let TimerState::Active { timer } = self {
-            let _ = timer.as_mut().poll(cx);
+            // a ready timer registers no waker, so wake the task to handle it on the next poll
+            if timer.as_mut().poll(cx).is_ready() {
+                cx.waker().wake_by_ref();
+            }
         }
     }
 }
