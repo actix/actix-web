@@ -553,6 +553,18 @@ impl PayloadDecoder {
     pub fn eof() -> PayloadDecoder {
         PayloadDecoder { kind: Kind::Eof }
     }
+
+    /// Whether a closed connection still owes this decoder body bytes.
+    ///
+    /// A response with no length is finished by the close itself, so that case
+    /// does not count.
+    pub(crate) fn expects_more(&self) -> bool {
+        match &self.kind {
+            Kind::Length(remaining) => *remaining > 0,
+            Kind::Chunked(state, _) => *state != ChunkedState::End,
+            Kind::Eof => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

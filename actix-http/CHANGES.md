@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Return a payload error when an HTTP/1 response ends before its `Content-Length` or chunked body is finished.
 - Reject an empty HTTP/1.1 `Host` when the request target supplies no authority.
 - Reject HTTP/1 requests with userinfo, path, query, or fragment delimiters in `Host`.
 - Reject HTTP/1 request targets with a fragment.
