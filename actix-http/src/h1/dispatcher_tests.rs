@@ -1880,3 +1880,328 @@ async fn rejects_crlf_in_open_chunk_extension_value() {
         String::from_utf8_lossy(&response)
     );
 }
+
+// The client supplies the remainder while the dispatcher is not being polled,
+// then the timer is allowed to expire before the dispatcher resumes.
+async fn delayed_head_response(first: &str, remainder: &str, half_close: bool) -> Bytes {
+    let mut buf = TestSeqBuffer::new(first);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    assert!(
+        buf.read_buf().is_empty(),
+        "the initial bytes were not consumed"
+    );
+    buf.extend_read_buf(remainder);
+    if half_close {
+        buf.close_read();
+    }
+    sleep(Duration::from_millis(150)).await;
+    let _ = h1.await;
+    buf.take_write_buf()
+}
+
+#[tokio::test(flavor = "local")]
+async fn buffered_complete_head_survives_delayed_dispatcher() {
+    let response = delayed_head_response(
+        "G",
+        "ET /server HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        false,
+    )
+    .await;
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(!response.windows(3).any(|bytes| bytes == b"408"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn buffered_head_and_payload_survive_delayed_dispatcher() {
+    let response = delayed_head_response(
+        "P", "OST /server HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 3\r\n\r\nabc", false,
+    ).await;
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(response.ends_with(b"\r\n\r\nabc"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn buffered_complete_head_with_half_close_survives_delayed_dispatcher() {
+    let response = delayed_head_response(
+        "G",
+        "ET /server HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        true,
+    )
+    .await;
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn idle_head_still_times_out_after_delayed_dispatcher() {
+    let response = delayed_head_response("", "", false).await;
+    assert!(response.starts_with(b"HTTP/1.1 408 Request Timeout\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn partial_head_still_times_out_after_delayed_dispatcher() {
+    let response = delayed_head_response("G", "", false).await;
+    assert!(response.starts_with(b"HTTP/1.1 408 Request Timeout\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn partial_head_with_eof_still_times_out_after_delayed_dispatcher() {
+    let response = delayed_head_response("G", "", true).await;
+    assert!(response.starts_with(b"HTTP/1.1 408 Request Timeout\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn malformed_buffered_head_keeps_specific_error_after_delayed_dispatcher() {
+    let response = delayed_head_response("G", "ARBAGE /server BAD\r\n\r\n", false).await;
+    assert!(response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
+    assert_eq!(
+        response
+            .windows(8)
+            .filter(|bytes| bytes == b"HTTP/1.1")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test(flavor = "local")]
+async fn partial_byte_drips_do_not_renew_the_first_head_deadline() {
+    let mut buf = TestSeqBuffer::new("G");
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    for byte in ["E", "T"] {
+        sleep(Duration::from_millis(25)).await;
+        buf.extend_read_buf(byte);
+        lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    }
+    // Past the original deadline, but before a deadline renewed by the last byte.
+    sleep(Duration::from_millis(65)).await;
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_ready())).await;
+    assert!(buf
+        .take_write_buf()
+        .starts_with(b"HTTP/1.1 408 Request Timeout\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn malformed_delayed_head_keeps_one_error_while_writes_are_blocked() {
+    struct PausedWriter {
+        inner: TestSeqBuffer,
+        writable: Rc<Cell<bool>>,
+    }
+    impl AsyncRead for PausedWriter {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_read(cx, buf)
+        }
+    }
+    impl AsyncWrite for PausedWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            bytes: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            if self.writable.get() {
+                Pin::new(&mut self.inner).poll_write(cx, bytes)
+            } else {
+                Poll::Pending
+            }
+        }
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_flush(cx)
+        }
+        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_shutdown(cx)
+        }
+    }
+    let mut buf = TestSeqBuffer::new("G");
+    let writable = Rc::new(Cell::new(false));
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        PausedWriter {
+            inner: buf.clone(),
+            writable: writable.clone(),
+        },
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    buf.extend_read_buf("ARBAGE /server BAD\r\n\r\n");
+    sleep(Duration::from_millis(150)).await;
+    lazy(|cx| {
+        assert!(h1.as_mut().poll(cx).is_pending());
+        assert!(h1.as_mut().poll(cx).is_pending());
+    })
+    .await;
+    writable.set(true);
+    let _ = h1.await;
+    let response = buf.take_write_buf();
+    assert!(response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
+    assert_eq!(
+        response
+            .windows(8)
+            .filter(|bytes| bytes == b"HTTP/1.1")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test(flavor = "local")]
+async fn completed_delayed_head_does_not_expire_a_pipelined_partial_next_head() {
+    let mut buf = TestSeqBuffer::new("G");
+    let cfg = ServiceConfig::new(
+        KeepAlive::Timeout(Duration::from_secs(30)),
+        Duration::from_secs(1),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    buf.extend_read_buf("ET /first HTTP/1.1\r\nHost: localhost\r\n\r\nG");
+    // This expires the first head while allowing the cached clock to advance.
+    sleep(Duration::from_millis(1100)).await;
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    let first = buf.take_write_buf();
+    assert!(first.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(!first.windows(3).any(|bytes| bytes == b"408"));
+
+    // The partial next head still receives its own bounded deadline.
+    sleep(Duration::from_millis(1100)).await;
+    let _ = timeout(Duration::from_secs(2), h1).await.unwrap();
+    assert!(buf
+        .take_write_buf()
+        .starts_with(b"HTTP/1.1 408 Request Timeout\r\n"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn complete_delayed_head_does_not_bound_its_upload_body() {
+    let mut buf = TestSeqBuffer::new("P");
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    buf.extend_read_buf("OST /server HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\nConnection: close\r\n\r\nd");
+    sleep(Duration::from_millis(150)).await;
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    assert!(buf.write_buf().is_empty());
+    sleep(Duration::from_millis(150)).await;
+    buf.extend_read_buf("ata");
+    let _ = timeout(Duration::from_secs(2), h1).await.unwrap();
+    let response = buf.take_write_buf();
+    assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+    assert!(response.ends_with(b"\r\n\r\ndata"));
+}
+
+#[tokio::test(flavor = "local")]
+async fn complete_delayed_upgrade_keeps_the_upgraded_protocol_bytes() {
+    struct TestUpgrade(Rc<Cell<bool>>);
+
+    impl Service<(Request, Framed<TestSeqBuffer, Codec>)> for TestUpgrade {
+        type Response = ();
+        type Error = Error;
+        type Future = Ready<Result<Self::Response, Self::Error>>;
+
+        actix_service::always_ready!();
+
+        fn call(&self, (request, framed): (Request, Framed<TestSeqBuffer, Codec>)) -> Self::Future {
+            assert!(request.upgrade());
+            assert_eq!(&framed.into_parts().read_buf[..], b"\x81\x05hello");
+            self.0.set(true);
+            ready(Ok(()))
+        }
+    }
+
+    let mut buf = TestSeqBuffer::new("G");
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let upgraded = Rc::new(Cell::new(false));
+    let services = HttpFlow::new(
+        ok_service(),
+        ExpectHandler,
+        Some(TestUpgrade(upgraded.clone())),
+    );
+    let h1 = Dispatcher::<_, _, _, _, TestUpgrade>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    let mut h1 = pin!(h1);
+    lazy(|cx| assert!(h1.as_mut().poll(cx).is_pending())).await;
+    buf.extend_read_buf(
+        "ET /ws HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    );
+    buf.extend_read_buf(b"\x81\x05hello");
+    sleep(Duration::from_millis(150)).await;
+    timeout(Duration::from_secs(2), h1).await.unwrap().unwrap();
+    assert!(upgraded.get());
+}

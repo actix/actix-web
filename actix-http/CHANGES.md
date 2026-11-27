@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Read and decode an already-buffered HTTP/1 request head before rejecting it when a worker resumes after the head deadline.
+
 - Reject an empty HTTP/1.1 `Host` when the request target supplies no authority.
 - Reject HTTP/1 requests with userinfo, path, query, or fragment delimiters in `Host`.
 - Reject HTTP/1 request targets with a fragment.

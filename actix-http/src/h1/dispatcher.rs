@@ -1034,8 +1034,12 @@ where
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
-        // limit amount of non-processed requests
-        if pipeline_queue_full || can_not_read {
+        // Limit queued requests. Once an upgrade is queued, the remaining
+        // buffered bytes belong to that protocol, not another HTTP decode.
+        if pipeline_queue_full
+            || can_not_read
+            || matches!(self.messages.back(), Some(DispatcherMessage::Upgrade(_)))
+        {
             return Ok(false);
         }
 
@@ -1201,7 +1205,36 @@ where
 
         if let TimerState::Active { timer } = this.head_timer {
             if timer.as_mut().poll(cx).is_ready() {
-                // Return 408 when a request head takes too long.
+                // A delayed worker can resume with a complete head already
+                // waiting in the socket. Decode it before reporting a slow
+                // client, but retain the deadline for an incomplete head.
+                if !self.flags.intersects(Flags::SHUTDOWN | Flags::LINGER) {
+                    let disconnected = self.as_mut().read_available(cx)?;
+                    let decoded = self.as_mut().poll_request(cx)?;
+                    if disconnected {
+                        let this = self.as_mut().project();
+                        this.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = this.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
+                            payload.feed_eof();
+                        }
+                    }
+                    let this = self.as_mut().project();
+                    // Preserve a malformed head's queued 400/431 response,
+                    // including while that response waits for a writable I/O.
+                    if this.error.is_some() {
+                        this.head_timer.clear(line!());
+                        return Ok(());
+                    }
+                    // A complete head clears its timer. Decoding can also arm
+                    // a new deadline for a pipelined partial next head; that
+                    // deadline must not inherit the previous head's expiry.
+                    if decoded || !matches!(this.head_timer, TimerState::Active { .. }) {
+                        return Ok(());
+                    }
+                }
+
+                // Return 408 when a request head remains incomplete.
 
                 trace!("timed out on slow request; replying with 408 and closing connection");
 
