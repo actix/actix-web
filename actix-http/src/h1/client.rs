@@ -186,6 +186,87 @@ impl Decoder for ClientPayloadCodec {
             None => None,
         })
     }
+
+    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if self.inner.payload.is_none() {
+            return Ok(None);
+        }
+
+        if let Some(frame) = self.decode(src)? {
+            return Ok(Some(frame));
+        }
+
+        // The read buffer is empty. A length or chunked body that has not
+        // finished is a truncated response, not a clean end of stream.
+        // RFC 9112 §6.3 item 6.
+        if self
+            .inner
+            .payload
+            .as_ref()
+            .is_some_and(PayloadDecoder::expects_more)
+        {
+            Err(PayloadError::Incomplete(None))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::BytesMut;
+
+    use super::*;
+
+    fn payload_after(response: &[u8]) -> (ClientPayloadCodec, BytesMut) {
+        let mut codec = ClientCodec::default();
+        let mut buf = BytesMut::from(response);
+        codec.decode(&mut buf).unwrap().expect("response head");
+        (codec.into_payload_codec(), buf)
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn content_length_eof_is_incomplete() {
+        let (mut codec, mut buf) = payload_after(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\npartial",
+        );
+        let chunk = codec.decode(&mut buf).unwrap().unwrap().unwrap();
+        assert_eq!(&chunk[..], b"partial");
+        assert!(buf.is_empty());
+
+        let err = codec.decode_eof(&mut buf).unwrap_err();
+        assert!(matches!(err, PayloadError::Incomplete(None)));
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn content_length_exact_eof_is_complete() {
+        let (mut codec, mut buf) =
+            payload_after(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\ndata");
+        let chunk = codec.decode(&mut buf).unwrap().unwrap().unwrap();
+        assert_eq!(&chunk[..], b"data");
+
+        assert!(codec.decode_eof(&mut buf).unwrap().unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn http10_close_completes_the_body() {
+        let (mut codec, mut buf) = payload_after(b"HTTP/1.0 200 OK\r\n\r\nwelcome!");
+        let chunk = codec.decode(&mut buf).unwrap().unwrap().unwrap();
+        assert_eq!(&chunk[..], b"welcome!");
+
+        assert!(codec.decode_eof(&mut buf).unwrap().is_none());
+    }
+
+    #[tokio::test(flavor = "local")]
+    async fn chunked_eof_before_terminator_is_incomplete() {
+        let (mut codec, mut buf) =
+            payload_after(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello");
+        let chunk = codec.decode(&mut buf).unwrap().unwrap().unwrap();
+        assert_eq!(&chunk[..], b"hello");
+
+        let err = codec.decode_eof(&mut buf).unwrap_err();
+        assert!(matches!(err, PayloadError::Incomplete(None)));
+    }
 }
 
 impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
