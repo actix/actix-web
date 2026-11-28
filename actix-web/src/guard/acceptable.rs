@@ -28,6 +28,12 @@ pub struct Acceptable {
     ///
     /// Defaults to false because it's not very useful otherwise.
     match_star_star: bool,
+
+    /// Whether to match structured syntax suffixes, such as `+json`.
+    ///
+    /// Defaults to false because the handler must be able to serve the concrete media type that
+    /// matched, rather than only the configured MIME type.
+    match_structured_suffix: bool,
 }
 
 impl Acceptable {
@@ -36,12 +42,23 @@ impl Acceptable {
         Self {
             mime,
             match_star_star: false,
+            match_structured_suffix: false,
         }
     }
 
     /// Allows `*/*` in the `Accept` header to pass the guard check.
     pub fn match_star_star(mut self) -> Self {
         self.match_star_star = true;
+        self
+    }
+
+    /// Allows structured syntax suffixes of the configured subtype to pass the guard check.
+    ///
+    /// For example, `Acceptable::new(mime::APPLICATION_JSON).match_structured_suffix(true)` also
+    /// matches `application/problem+json`. The handler must be able to serve the concrete media
+    /// type that matched.
+    pub fn match_structured_suffix(mut self, enabled: bool) -> Self {
+        self.match_structured_suffix = enabled;
         self
     }
 }
@@ -55,6 +72,7 @@ impl Guard for Acceptable {
 
         let target_type = self.mime.type_();
         let target_subtype = self.mime.subtype();
+        let target_suffix = format!("+{target_subtype}");
 
         // The most specific matching media range decides the outcome, so that, for example,
         // `application/json;q=0` takes precedence over `application/*` (RFC 9110 §12.5.1).
@@ -62,6 +80,15 @@ impl Guard for Acceptable {
 
         for item in &accept.0 {
             let specificity = match (item.item.type_(), item.item.subtype()) {
+                (typ, subtype)
+                    if self.match_structured_suffix
+                        && typ == target_type
+                        && subtype
+                            .strip_suffix(&target_suffix)
+                            .is_some_and(|prefix| !prefix.is_empty()) =>
+                {
+                    2
+                }
                 (typ, subtype) if typ == target_type && subtype == target_subtype => 2,
                 (typ, mime::STAR) if typ == target_type => 1,
                 (mime::STAR, mime::STAR) if self.match_star_star => 0,
@@ -79,11 +106,14 @@ impl Guard for Acceptable {
 
     #[cfg(feature = "experimental-introspection")]
     fn name(&self) -> String {
+        let mut options = String::new();
         if self.match_star_star {
-            format!("Acceptable({}, match_star_star=true)", self.mime)
-        } else {
-            format!("Acceptable({})", self.mime)
+            options.push_str(", match_star_star=true");
         }
+        if self.match_structured_suffix {
+            options.push_str(", match_structured_suffix=true");
+        }
+        format!("Acceptable({}{})", self.mime, options)
     }
 
     #[cfg(feature = "experimental-introspection")]
@@ -93,6 +123,11 @@ impl Guard for Acceptable {
         if self.match_star_star {
             details.push(super::GuardDetail::Generic(
                 "match_star_star=true".to_string(),
+            ));
+        }
+        if self.match_structured_suffix {
+            details.push(super::GuardDetail::Generic(
+                "match_structured_suffix=true".to_string(),
             ));
         }
         Some(details)
@@ -180,6 +215,45 @@ mod tests {
         assert!(Acceptable::new(mime::APPLICATION_JSON)
             .match_star_star()
             .check(&req.guard_ctx()));
+    }
+
+    #[test]
+    fn test_acceptable_structured_suffix() {
+        let guard = || Acceptable::new(mime::APPLICATION_JSON).match_structured_suffix(true);
+
+        for accept in ["application/problem+json", "application/vnd.example+json"] {
+            let req = TestRequest::default()
+                .insert_header((header::ACCEPT, accept))
+                .to_srv_request();
+            assert!(guard().check(&req.guard_ctx()), "{accept}");
+        }
+
+        for accept in ["application/problem+json", "application/vnd.example+json"] {
+            let req = TestRequest::default()
+                .insert_header((header::ACCEPT, accept))
+                .to_srv_request();
+            assert!(!Acceptable::new(mime::APPLICATION_JSON).check(&req.guard_ctx()));
+            assert!(!Acceptable::new(mime::APPLICATION_JSON)
+                .match_structured_suffix(false)
+                .check(&req.guard_ctx()));
+        }
+
+        for accept in ["text/example+json", "application/atom+xml"] {
+            let req = TestRequest::default()
+                .insert_header((header::ACCEPT, accept))
+                .to_srv_request();
+            assert!(!guard().check(&req.guard_ctx()), "{accept}");
+        }
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "application/problem+json;q=0"))
+            .to_srv_request();
+        assert!(!guard().check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .insert_header((header::ACCEPT, "*/*, application/json;q=0"))
+            .to_srv_request();
+        assert!(!guard().match_star_star().check(&req.guard_ctx()));
     }
 
     #[cfg(feature = "experimental-introspection")]
